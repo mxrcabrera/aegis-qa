@@ -1,0 +1,843 @@
+#!/usr/bin/env node
+
+/**
+ * Aegis QA - CLI Entry Point
+ *
+ * This is the main CLI interface for Aegis QA, supporting multiple commands
+ * for review, fix, and incremental analysis modes.
+ *
+ * Commands:
+ * - review: Full review of all 20 phases
+ * - fix: Atomic fixes with mandatory verification
+ * - incremental: Review only git diff changes
+ */
+
+import { ThermalController } from './core/thermal-controller.js';
+import { GitCheckpointManager } from './core/git-checkpoint-manager.js';
+import { SecretManager } from './core/secret-manager.js';
+import { DomainAnalyzer } from './inference/domain-analyzer.js';
+import { PhaseOrchestrator } from './orchestration/phase-orchestrator.js';
+import { ReportAggregator } from './core/reporter.js';
+import { StatePersistence, type ExecutionState } from './core/state-persistence.js';
+import {
+  NullDatabaseIntrospector,
+  SQLFileDatabaseIntrospector,
+  PrismaDatabaseIntrospector,
+  SupabaseDatabaseIntrospector,
+  type DatabaseIntrospector,
+} from './core/database-introspection.js';
+import { ErrorMessages } from './core/error-messages.js';
+import { ConfigLoader } from './core/config-loader.js';
+import { resolve, normalize } from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
+import { FileSystem, setFileSystem, type WriteGuardMode } from './core/write-guard.js';
+import { ReportComparator } from './core/report-comparator.js';
+
+/**
+ * Selects the appropriate database introspector based on available credentials/files
+ *
+ * Priority order:
+ * 1. Supabase (if credentials available)
+ * 2. Prisma (if prisma/schema.prisma exists)
+ * 3. SQL files (if any .sql files exist)
+ * 4. Null (no database introspection)
+ *
+ * @param projectRoot - Project root directory
+ * @param secretManager - SecretManager instance for checking credentials
+ * @returns DatabaseIntrospector - Selected introspector
+ */
+function selectDatabaseIntrospector(
+  projectRoot: string,
+  secretManager: SecretManager
+): DatabaseIntrospector {
+  // Check if Supabase credentials are available
+  if (!secretManager.isMockMode()) {
+    return new SupabaseDatabaseIntrospector(secretManager);
+  }
+
+  // Check if Prisma schema exists
+  const prismaPath = resolve(projectRoot, 'prisma/schema.prisma');
+  if (fs.existsSync(prismaPath)) {
+    return new PrismaDatabaseIntrospector({ projectRoot });
+  }
+
+  // Check if SQL files exist
+  const sqlPaths = [
+    resolve(projectRoot, 'supabase/migrations'),
+    resolve(projectRoot, 'supabase/schema.sql'),
+    resolve(projectRoot, 'database/schema.sql'),
+  ];
+
+  for (const sqlPath of sqlPaths) {
+    if (fs.existsSync(sqlPath)) {
+      return new SQLFileDatabaseIntrospector({ projectRoot });
+    }
+  }
+
+  // Default to null introspector
+  return new NullDatabaseIntrospector();
+}
+
+/**
+ * Parses human-readable time format to milliseconds
+ *
+ * Supports formats like: 30m, 1h, 2h, 90s
+ *
+ * @param timeStr - Human-readable time string
+ * @returns number - Time in milliseconds
+ * @throws {Error} If format is invalid
+ */
+function parseHumanTime(timeStr: string): number {
+  const match = timeStr.match(/^(\d+)([smh])$/);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}. Expected format: 30m, 1h, 90s`);
+  }
+
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+
+  switch (unit) {
+    case 's':
+      return value * 1000;
+    case 'm':
+      return value * 60 * 1000;
+    case 'h':
+      return value * 60 * 60 * 1000;
+    default:
+      throw new Error(`Invalid time unit: ${unit}. Expected: s, m, h`);
+  }
+}
+
+interface CLIConfig {
+  command: 'review' | 'fix' | 'incremental' | 'compare' | 'help';
+  targetDir: string;
+  skipThermal?: boolean;
+  ciMode?: boolean;
+  applyMode?: boolean;
+  yesMode?: boolean;
+  verboseMode?: boolean;
+  safeOnly?: boolean;
+  previewDiffs?: boolean;
+  auditOnly?: boolean;
+  interactiveFix?: boolean;
+  sandboxMode?: boolean;
+  noWriteMode?: boolean;
+  maxRuntime?: string; // Human format: 30m, 1h, 2h
+  maxRisk?: 'safe' | 'moderate' | 'risky'; // Maximum risk level for fixes
+  minConfidence?: number; // Minimum confidence threshold for fixes (0-1)
+}
+
+class AegisCLI {
+  private config: CLIConfig;
+  private statePersistence: StatePersistence | null = null;
+  private currentState: ExecutionState | null = null;
+  private sigintHandler: (() => void) | null = null;
+  private gitCheckpointManager: GitCheckpointManager | null = null;
+
+  constructor(config: CLIConfig) {
+    this.config = config;
+  }
+
+  /**
+   * Validates CLI input for security
+   *
+   * @static
+   * @param command - Command to validate
+   * @param targetDir - Target directory to validate
+   * @param applyMode - Whether apply mode is enabled
+   * @param yesMode - Whether yes mode is enabled
+   * @throws {Error} If validation fails
+   */
+  static validateInput(
+    command: string,
+    targetDir: string,
+    applyMode: boolean,
+    yesMode: boolean
+  ): void {
+    // Validate command
+    const validCommands = ['review', 'fix', 'incremental', 'compare', 'help'];
+    if (!validCommands.includes(command)) {
+      throw new Error(`[Security] Invalid command: ${command}. Valid commands: ${validCommands.join(', ')}`);
+    }
+
+    // Validate target directory
+    const resolvedPath = resolve(targetDir);
+    const normalizedPath = normalize(resolvedPath);
+
+    // Check for path traversal attempts
+    if (normalizedPath.includes('..')) {
+      throw new Error(`[Security] Path traversal attempt detected in target directory: ${targetDir}`);
+    }
+
+    // Check if directory exists
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(`[Security] Target directory does not exist: ${resolvedPath}`);
+    }
+
+    // Check if it's a directory
+    const stats = fs.statSync(resolvedPath);
+    if (!stats.isDirectory()) {
+      throw new Error(`[Security] Target path is not a directory: ${resolvedPath}`);
+    }
+
+    // Check for system directories (Windows)
+    const systemDirs = ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', '/etc', '/usr', '/bin', '/sbin'];
+    for (const sysDir of systemDirs) {
+      if (normalizedPath.startsWith(sysDir) || resolvedPath.startsWith(sysDir)) {
+        throw new Error(`[Security] Cannot run Aegis QA on system directory: ${resolvedPath}`);
+      }
+    }
+
+    // Validate flag combinations
+    if (yesMode && !applyMode) {
+      throw new Error(`[Security] --yes flag requires --apply flag. Using --yes without --apply is not allowed.`);
+    }
+
+    // Log validation success
+    console.log(`[Security] Input validation passed for command: ${command}, target: ${resolvedPath}`);
+  }
+
+  async run(): Promise<void> {
+    const { command, targetDir } = this.config;
+
+    // Initialize FileSystem with write guard
+    const fsMode: WriteGuardMode = this.config.noWriteMode ? 'readOnly' : 'readWrite';
+    const fileSystem = new FileSystem(fsMode);
+    setFileSystem(fileSystem);
+
+    if (this.config.noWriteMode) {
+      console.log('[WriteGuard] Read-only mode enabled - all filesystem writes are blocked at infrastructure level');
+    }
+
+    // Security: Enforce dry-run mode by default
+    const isApplyMode = this.config.applyMode === true;
+    if (!isApplyMode && command === 'fix') {
+      console.log('[Security] Dry-run mode enabled by default for fix command.');
+      console.log('[Security] Use --apply flag to disable dry-run mode and apply changes.');
+    }
+
+    if (!this.config.ciMode) {
+      console.log('�������  Aegis QA - Advanced Quality Assurance Orchestrator');
+      console.log(`���� Target Directory: ${resolve(targetDir)}\n`);
+    }
+
+    // Initialize core components
+    const thermalController = new ThermalController({}, resolve(targetDir));
+    const secretManager = new SecretManager({ mockMode: true });
+    
+    // Load configuration from .aegisrc.json
+    const configLoader = new ConfigLoader(resolve(targetDir));
+    const config = configLoader.load();
+    
+    // Create report aggregator (will be updated with business risk findings after Phase 2)
+    const reportAggregator = new ReportAggregator({
+      projectRoot: resolve(targetDir),
+      verbose: this.config.verboseMode,
+      maxViolationsPerCategory: config.reporting.maxViolationsPerCategory
+    });
+    this.statePersistence = new StatePersistence(resolve(targetDir));
+    this.gitCheckpointManager = new GitCheckpointManager(resolve(targetDir));
+
+    // Initialize execution state
+    this.currentState = this.statePersistence.createInitialState(20);
+
+    // Set up SIGINT handler for graceful shutdown
+    this.setupSigintHandler();
+
+    // Establish error baseline before running phases
+    if (!this.config.ciMode) {
+      console.log('���� Establishing error baseline...');
+    }
+    await reportAggregator.establishBaseline();
+    if (!this.config.ciMode) {
+      console.log('ԣ� Baseline established\n');
+    }
+
+    // Run self-diagnostic stress test on startup
+    if (!this.config.skipThermal) {
+      if (!this.config.ciMode) {
+        console.log('���� Running self-diagnostic stress test...');
+      }
+      const diagnosticResult = await thermalController.runSelfDiagnostic(5000);
+      if (!this.config.ciMode) {
+        console.log(`  Diagnostic passed: ${diagnosticResult.pass}`);
+        console.log(`  Temperature rise rate: ${diagnosticResult.temperatureRiseRate.toFixed(2)}-�C/s`);
+        console.log(`  Thresholds adjusted: ${diagnosticResult.adjustedThresholds}`);
+        console.log('ԣ� Self-diagnostic complete\n');
+      }
+    }
+
+    // Select appropriate database introspector
+    const databaseIntrospector = selectDatabaseIntrospector(resolve(targetDir), secretManager);
+
+    const domainAnalyzer = new DomainAnalyzer({
+      projectRoot: resolve(targetDir),
+      useDatabase: true,
+      useAI: false,
+      schemaPaths: [
+        'supabase/migrations/*.sql',
+        'supabase/schema.sql',
+        'prisma/schema.prisma',
+        'database/schema.sql',
+        'lib/db/schema.ts',
+        'types/database.ts',
+      ],
+      actionPaths: [
+        'app/**/actions.ts',
+        'app/**/actions/*.ts',
+        'actions/*.ts',
+        'lib/actions/*.ts',
+      ],
+    }, secretManager, databaseIntrospector);
+
+    // Detect hardware capabilities
+    if (!this.config.ciMode) {
+      console.log('���� Detecting hardware capabilities...');
+    }
+    const hardwareProfile = await thermalController.detectHardwareCapabilities();
+    if (!this.config.ciMode) {
+      console.log(`  GPU: ${hardwareProfile.hasGPU ? hardwareProfile.gpuModel : 'Not detected'}`);
+      console.log(`  VRAM: ${hardwareProfile.gpuVRAM ? `${hardwareProfile.gpuVRAM}GB` : 'N/A'}`);
+      console.log(`  CPU Cores: ${hardwareProfile.cpuCores}`);
+      console.log(`  RAM: ${hardwareProfile.ramTotal}GB`);
+      console.log(`  Recommended Batch Size: ${hardwareProfile.recommendedBatchSize}`);
+      console.log(`  Recommended Cooldown: ${hardwareProfile.recommendedCooldown}ms`);
+      console.log('ԣ� Hardware detection complete\n');
+    }
+
+    // Create phase orchestrator with execution hardening enabled
+    let maxRuntimeMs: number | undefined;
+    if (this.config.maxRuntime) {
+      maxRuntimeMs = parseHumanTime(this.config.maxRuntime);
+    } else if (this.config.ciMode) {
+      // Default to 30 minutes in CI mode if not specified
+      maxRuntimeMs = 30 * 60 * 1000; // 30 minutes
+    }
+
+    const phaseOrchestrator = new PhaseOrchestrator({
+      projectRoot: resolve(targetDir),
+      thermalController,
+      domainAnalyzer,
+      reportAggregator,
+      statePersistence: this.statePersistence!,
+      currentState: this.currentState!,
+      applyCooldowns: !this.config.skipThermal,
+      phaseTimeoutMs: 300000, // 5 minutes per phase
+      maxRuntimeMs, // Global execution timeout
+      enableMemoryFlush: true, // Enable memory flush after heavy phases
+      enablePartialReports: true, // Write partial reports after each phase
+      dryRunMode: !this.config.applyMode, // Default to dry-run, false only if --apply
+      yesMode: this.config.yesMode || false, // Skip confirmation prompts
+      safeOnly: this.config.safeOnly || false, // Safe-only mode: report only, no modifications
+      verboseMode: this.config.verboseMode || false, // Enable verbose logging
+      previewDiffs: this.config.previewDiffs || false, // Show batch diff preview before applying fixes
+      auditOnly: this.config.auditOnly || false, // Audit-only mode for compliance
+      interactiveFix: this.config.interactiveFix || false, // Per-fix interactive approval
+      sandboxMode: this.config.sandboxMode || false, // Sandbox mode for isolated execution
+    });
+
+    // Execute command
+    switch (command) {
+      case 'review':
+        await this.runReview(phaseOrchestrator, reportAggregator);
+        break;
+      case 'fix':
+        await this.runFix(phaseOrchestrator, reportAggregator);
+        break;
+      case 'incremental':
+        await this.runIncremental(phaseOrchestrator, reportAggregator);
+        break;
+      case 'compare':
+        await this.runCompare();
+        break;
+      case 'help':
+        this.printHelp();
+        break;
+    }
+
+    // Clear state on successful completion
+    if (this.statePersistence && this.currentState) {
+      await this.statePersistence.clearState();
+    }
+  }
+
+  /**
+   * Sets up SIGINT handler for graceful shutdown
+   *
+   * @private
+   */
+  private setupSigintHandler(): void {
+    this.sigintHandler = async () => {
+      console.log('\n\n[SIGINT] Interrupt signal received. Saving state gracefully...');
+
+      // Attempt to restore from git checkpoint if it exists
+      if (this.gitCheckpointManager && this.currentState?.gitCheckpointStashRef) {
+        console.log(`[SIGINT] Attempting to restore from git checkpoint: ${this.currentState.gitCheckpointStashRef}`);
+        const restoreResult = await this.gitCheckpointManager.restoreFromStash(this.currentState.gitCheckpointStashRef);
+        if (restoreResult.success) {
+          console.log('[SIGINT] Successfully restored from git checkpoint.');
+        } else {
+          console.error(`[SIGINT] Failed to restore from git checkpoint: ${restoreResult.error}`);
+        }
+      }
+
+      if (this.statePersistence && this.currentState) {
+        await this.statePersistence.markInterrupted('SIGINT (Ctrl+C)', this.currentState);
+        console.log('[SIGINT] State saved. Use "aegis-qa resume" to continue.');
+      }
+
+      process.exit(130); // Standard exit code for SIGINT
+    };
+
+    process.on('SIGINT', this.sigintHandler);
+  }
+
+  private async runReview(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
+    if (!this.config.ciMode) {
+      console.log('�+� Running Full Review (Phases 0-15)\n');
+    }
+
+    // Create sandbox if sandbox mode is enabled
+    if (this.config.sandboxMode) {
+      await phaseOrchestrator.createSandbox();
+    }
+
+    const result = await phaseOrchestrator.runFullReview();
+
+    if (result.success) {
+      const newViolationCount = reportAggregator.getNewViolationCount();
+      const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
+
+      if (!this.config.ciMode) {
+        console.log('\nԣ� Review Complete');
+        console.log(`���� Total Findings: ${result.totalFindings}`);
+        console.log(`�Ŧ���  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+
+      // Generate patch if sandbox mode is enabled
+      if (this.config.sandboxMode) {
+        const patchPath = await phaseOrchestrator.generatePatch();
+        if (patchPath) {
+          console.log(`\n[Sandbox] Review completed in sandbox. To apply: git apply ${patchPath}`);
+        }
+        // Cleanup sandbox
+        await phaseOrchestrator.cleanupSandbox();
+      }
+
+        console.log(`��� New Issues: ${newViolationCount}`);
+        console.log(`��� Inherited Issues: ${inheritedViolationCount}`);
+      } else {
+        console.log(`Review Complete: ${result.totalFindings} findings, ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+      }
+
+      // Smart exit code: success if only inherited errors, failure if new errors
+      if (newViolationCount > 0) {
+        console.log('\n��� New issues detected');
+        process.exit(1);
+      } else if (inheritedViolationCount > 0) {
+        console.log('\nԣ� No new issues (all errors inherited)');
+        process.exit(0);
+      }
+    } else {
+      console.log('\n��� Review Failed');
+      process.exit(1);
+    }
+  }
+
+  private async runFix(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
+    if (!this.config.ciMode) {
+      console.log('���� Running Atomic Fixes (Phases 16-18)\n');
+    }
+
+    // Create sandbox if sandbox mode is enabled
+    if (this.config.sandboxMode) {
+      await phaseOrchestrator.createSandbox();
+    }
+
+    const result = await phaseOrchestrator.runFixes();
+
+    if (result.success) {
+      const newViolationCount = reportAggregator.getNewViolationCount();
+      const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
+
+      if (!this.config.ciMode) {
+        console.log('\nԣ� Fixes Complete');
+        console.log(`���� Total Findings: ${result.totalFindings}`);
+        console.log(`ԣ� Fixed: ${result.fixedCount}`);
+        console.log(`��ᴩ�  Needs Human Review: ${result.needsHumanReview}`);
+        console.log(`��� Failed: ${result.failedCount}`);
+        console.log(`��� New Issues: ${newViolationCount}`);
+        console.log(`��� Inherited Issues: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Fixes generated in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
+      } else {
+        console.log(`Fixes Complete: ${result.fixedCount} fixed, ${result.needsHumanReview} needs review, ${result.failedCount} failed`);
+        console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Fixes generated in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
+      }
+
+      // Smart exit code: success if only inherited errors, failure if new errors
+      if (newViolationCount > 0) {
+        console.log('\n��� New issues detected');
+        process.exit(1);
+      } else if (inheritedViolationCount > 0) {
+        console.log('\nԣ� No new issues (all errors inherited)');
+        process.exit(0);
+      }
+    } else {
+      console.log('\n��� Fixes Failed');
+      process.exit(1);
+    }
+  }
+
+  private async runIncremental(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
+    if (!this.config.ciMode) {
+      console.log('���� Running Incremental Review (Phase 19)\n');
+    }
+
+    // Create sandbox if sandbox mode is enabled
+    if (this.config.sandboxMode) {
+      await phaseOrchestrator.createSandbox();
+    }
+
+    const result = await phaseOrchestrator.runIncrementalReview();
+
+    if (result.success) {
+      const newViolationCount = reportAggregator.getNewViolationCount();
+      const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
+
+      if (!this.config.ciMode) {
+        console.log('\nԣ� Incremental Review Complete');
+        console.log(`���� Total Findings: ${result.totalFindings}`);
+        console.log(`�Ŧ���  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`��� New Issues: ${newViolationCount}`);
+        console.log(`��� Inherited Issues: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Incremental review completed in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
+      } else {
+        console.log(`Incremental Review Complete: ${result.totalFindings} findings, ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Incremental review completed in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
+      }
+
+      // Smart exit code: success if only inherited errors, failure if new errors
+      if (newViolationCount > 0) {
+        console.log('\n��� New issues detected');
+        process.exit(1);
+      } else if (inheritedViolationCount > 0) {
+        console.log('\nԣ� No new issues (all errors inherited)');
+        process.exit(0);
+      }
+    } else {
+      console.log('\n��� Incremental Review Failed');
+      process.exit(1);
+    }
+  }
+
+    /**
+   * Runs the compare command
+   *
+   * @private
+   */
+  private async runCompare(): Promise<void> {
+    const args = process.argv.slice(2);
+    
+    // Check for --list option
+    if (args.includes('--list')) {
+      const reports = this.listReports();
+      
+      if (reports.length === 0) {
+        console.log('No timestamped reports found in .sentinel/reports/');
+        return;
+      }
+      
+      console.log('Available timestamped reports:');
+      for (const report of reports) {
+        const filename = path.basename(report);
+        const stat = fs.statSync(report);
+        const date = stat.mtime.toISOString();
+        console.log(`  ${filename} (${date})`);
+      }
+      return;
+    }
+    
+    // Get report paths from args
+    const compareIndex = args.indexOf('compare');
+    const report1Path = args[compareIndex + 1];
+    const report2Path = args[compareIndex + 2];
+    
+    if (!report1Path || !report2Path) {
+      console.error('Error: Two report paths are required for comparison.');
+      console.error('Usage: aegis-qa compare [report1] [report2]');
+      console.error('Use --list to see available reports.');
+      process.exit(1);
+    }
+    
+    // Resolve paths relative to target directory
+    const resolvedReport1 = path.resolve(this.config.targetDir, report1Path);
+    const resolvedReport2 = path.resolve(this.config.targetDir, report2Path);
+    
+    // Validate report paths
+    if (!fs.existsSync(resolvedReport1)) {
+      console.error(`Error: Report not found: ${resolvedReport1}`);
+      process.exit(1);
+    }
+    
+    if (!fs.existsSync(resolvedReport2)) {
+      console.error(`Error: Report not found: ${resolvedReport2}`);
+      process.exit(1);
+    }
+    
+    try {
+      const comparator = new ReportComparator();
+      const comparison = comparator.compare(resolvedReport1, resolvedReport2);
+      const markdown = this.generateComparisonMarkdown(comparison);
+      console.log(markdown);
+    } catch (error) {
+      console.error('Error comparing reports:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  /**
+   * Lists all available timestamped reports in .sentinel/reports/
+   *
+   * @private
+   * @returns string[] - Array of report paths
+   */
+  private listReports(): string[] {
+    const reportsDir = path.join(this.config.targetDir, '.sentinel', 'reports');
+    
+    if (!fs.existsSync(reportsDir)) {
+      return [];
+    }
+
+    const files = fs.readdirSync(reportsDir);
+    return files
+      .filter((f: string) => f.startsWith('qa-report-') && f.endsWith('.md'))
+      .map((f: string) => path.join(reportsDir, f))
+      .sort();
+  }
+
+  /**
+   * Generates a markdown comparison report
+   *
+   * @private
+   * @param comparison - Comparison result
+   * @returns string - Markdown report
+   */
+  private generateComparisonMarkdown(comparison: import('./core/report-comparator.js').ComparisonResult): string {
+    const { summary, resolvedViolations, newViolations, unchangedViolations, trend } = comparison;
+
+    const trendEmoji = trend === 'improving' ? '📈' : trend === 'degrading' ? '📉' : '➡️';
+    const trendText = trend === 'improving' ? 'IMPROVING' : trend === 'degrading' ? 'DEGRADING' : 'STABLE';
+
+    const markdown = `# Report Comparison Analysis
+
+${trendEmoji} **Trend: ${trendText}**
+
+## Summary
+
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Total Violations | ${summary.totalBefore} | ${summary.totalAfter} | ${summary.delta > 0 ? '+' : ''}${summary.delta} |
+| Critical | ${summary.criticalDelta > 0 ? '+' : ''}${summary.criticalDelta} | ${summary.criticalDelta} | ${summary.criticalDelta} |
+| High | ${summary.highDelta > 0 ? '+' : ''}${summary.highDelta} | ${summary.highDelta} | ${summary.highDelta} |
+| Medium | ${summary.mediumDelta > 0 ? '+' : ''}${summary.mediumDelta} | ${summary.mediumDelta} | ${summary.mediumDelta} |
+| Low | ${summary.lowDelta > 0 ? '+' : ''}${summary.lowDelta} | ${summary.lowDelta} | ${summary.lowDelta} |
+
+## Resolved Violations (${resolvedViolations.length})
+
+${resolvedViolations.length === 0 ? 'No violations resolved.' : resolvedViolations.map(v => 
+  `- [${v.id}] **${v.severity.toUpperCase()}** ${v.filePath}${v.line ? `:${v.line}` : ''}\n  - ${v.description}`
+).join('\n')}
+
+## New Violations (${newViolations.length})
+
+${newViolations.length === 0 ? 'No new violations.' : newViolations.map(v => 
+  `- [${v.id}] **${v.severity.toUpperCase()}** ${v.filePath}${v.line ? `:${v.line}` : ''}\n  - ${v.description}`
+).join('\n')}
+
+## Unchanged Violations (${unchangedViolations.length})
+
+${unchangedViolations.length === 0 ? 'No unchanged violations.' : unchangedViolations.map(v => 
+  `- [${v.id}] **${v.severity.toUpperCase()}** ${v.filePath}${v.line ? `:${v.line}` : ''}\n  - ${v.description}`
+).join('\n')}
+
+---
+
+*Generated by Aegis QA Report Comparator*
+`;
+
+    return markdown;
+  }
+
+
+  private printHelp(): void {
+    console.log(`
+Aegis QA - Advanced Quality Assurance Orchestrator
+
+USAGE:
+  aegis-qa review [directory]    Full review (phases 0-15)
+  aegis-qa fix [directory]       Atomic fixes (phases 16-18)
+  aegis-qa incremental [dir]     Incremental review (phase 19)
+  aegis-qa help                  Show this help message
+
+EXAMPLES:
+  aegis-qa review ./src
+  aegis-qa fix .
+  aegis-qa incremental ./src
+
+OPTIONS:
+  [directory]                   Target directory (default: current directory)
+  --apply                       Apply fixes to filesystem (default: dry-run mode)
+  --yes, -y                     Skip confirmation prompts (use with --apply)
+  --verbose, -v                 Enable verbose logging for debugging
+  --ci                          CI mode (minimalist output, permissive thermal locks)
+  --sandbox                     Run in isolated sandbox mode (generates patch file)
+  --no-write                    Enable read-only mode (blocks all filesystem writes at infrastructure level)
+  CI=true                       Set environment variable to enable CI mode
+
+SAFETY:
+  By default, Aegis runs in dry-run mode. Use --apply to write changes.
+  Auto-backup is created before applying any fixes.
+  Interactive confirmation is required unless --yes is specified.
+  Sandbox mode creates an isolated copy and generates a patch file.
+
+For more information, visit: https://github.com/mxrcabrera/aegis-qa
+`);
+  }
+}
+
+// Main execution
+async function main() {
+  const args = process.argv.slice(2);
+
+  const command = (args[0] || 'review') as 'review' | 'fix' | 'incremental' | 'compare' | 'help';
+  const targetDir = args[1] || '.';
+  const ciMode = args.includes('--ci') || process.env.CI === 'true';
+  const applyMode = args.includes('--apply');
+  const yesMode = args.includes('--yes') || args.includes('-y');
+  const verboseMode = args.includes('--verbose') || args.includes('-v');
+  const safeOnly = args.includes('--safe-only');
+  const previewDiffs = args.includes('--preview-diffs');
+  const auditOnly = args.includes('--audit-only');
+  const interactiveFix = args.includes('--interactive-fix');
+  const sandboxMode = args.includes('--sandbox');
+  const noWriteMode = args.includes('--no-write');
+
+  // Parse --max-runtime flag
+  const maxRuntimeIndex = args.indexOf('--max-runtime');
+  let maxRuntime: string | undefined;
+  if (maxRuntimeIndex !== -1 && args[maxRuntimeIndex + 1]) {
+    maxRuntime = args[maxRuntimeIndex + 1];
+  }
+
+  // Parse --max-risk flag
+  const maxRiskIndex = args.indexOf('--max-risk');
+  let maxRisk: 'safe' | 'moderate' | 'risky' | undefined;
+  if (maxRiskIndex !== -1 && args[maxRiskIndex + 1]) {
+    const riskValue = args[maxRiskIndex + 1];
+    if (riskValue === 'safe' || riskValue === 'moderate' || riskValue === 'risky') {
+      maxRisk = riskValue;
+    } else {
+      console.error('Invalid --max-risk value. Must be: safe, moderate, or risky');
+      process.exit(1);
+    }
+  }
+
+  // Parse --min-confidence flag
+  const minConfidenceIndex = args.indexOf('--min-confidence');
+  let minConfidence: number | undefined;
+  if (minConfidenceIndex !== -1 && args[minConfidenceIndex + 1]) {
+    const confidenceValue = parseFloat(args[minConfidenceIndex + 1]);
+    if (isNaN(confidenceValue) || confidenceValue < 0 || confidenceValue > 1) {
+      console.error('Invalid --min-confidence value. Must be a number between 0 and 1');
+      process.exit(1);
+    }
+    minConfidence = confidenceValue;
+  }
+
+  // Parse --run-tests flag (for future use when PhaseOrchestrator skeleton is implemented)
+  const runTests = args.includes('--run-tests');
+  void runTests; // Suppress unused warning
+
+  // Parse --test-command flag (for future use when PhaseOrchestrator skeleton is implemented)
+  const testCommandIndex = args.indexOf('--test-command');
+  let testCommand: string | undefined;
+  if (testCommandIndex !== -1 && args[testCommandIndex + 1]) {
+    testCommand = args[testCommandIndex + 1];
+  }
+  void testCommand; // Suppress unused warning
+
+  // Security: Validate all input before proceeding
+  try {
+    AegisCLI.validateInput(command, targetDir, applyMode, yesMode);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+
+  const cli = new AegisCLI({
+    command,
+    targetDir,
+    skipThermal: false,
+    ciMode,
+    applyMode,
+    yesMode,
+    verboseMode,
+    safeOnly,
+    previewDiffs,
+    auditOnly,
+    interactiveFix,
+    sandboxMode,
+    noWriteMode,
+    maxRuntime,
+    maxRisk,
+    minConfidence,
+  });
+
+  try {
+    await cli.run();
+  } catch (error) {
+    ErrorMessages.logError(error as Error, verboseMode);
+    process.exit(1);
+  }
+}
+
+main();
