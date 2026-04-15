@@ -64,6 +64,8 @@ export interface ReporterConfig {
 export class ReportAggregator {
   private violations: Map<string, Violation[]> = new Map();
   private config: Required<ReporterConfig>;
+  private businessRiskFindings: any[] = [];
+  private businessDomain: string = 'General';
 
   /**
    * Creates a new ReportAggregator instance
@@ -112,7 +114,20 @@ export class ReportAggregator {
   }
 
   /**
-   * Auto-escalates violation severity based on critical path
+   * Sets business risk findings from Phase 2 for context-aware escalation
+   *
+   * @param riskFindings - Business risk findings from Phase 2
+   */
+  setBusinessRiskFindings(riskFindings: any[]): void {
+    this.businessRiskFindings = riskFindings;
+    // Extract business domain from risk findings if available
+    if (riskFindings.length > 0 && riskFindings[0].domain) {
+      this.businessDomain = riskFindings[0].domain;
+    }
+  }
+
+  /**
+   * Auto-escalates violation severity based on critical path and business context
    *
    * @private
    * @param violation - Violation to potentially escalate
@@ -123,18 +138,32 @@ export class ReportAggregator {
       return violation;
     }
 
-    if (!violation.file.inCriticalPath) {
-      return violation;
+    let escalateReason = '';
+    const currentSeverity = violation.severity as string;
+    let escalatedSeverity = this.config.escalationMap.get(currentSeverity);
+
+    // 1. Critical path escalation
+    if (violation.file.inCriticalPath) {
+      escalateReason = 'File in critical path';
     }
 
-    const currentSeverity = violation.severity as string;
-    const escalatedSeverity = this.config.escalationMap.get(currentSeverity);
+    // 2. Business context escalation (e.g., Fintech: Medium → Critical)
+    if (this.businessDomain === 'Fintech' && currentSeverity === 'medium') {
+      escalatedSeverity = 'critical';
+      escalateReason = escalateReason ? `${escalateReason} + Fintech domain` : 'Fintech domain';
+    } else if (this.businessDomain === 'Health' && currentSeverity === 'medium') {
+      escalatedSeverity = 'critical';
+      escalateReason = escalateReason ? `${escalateReason} + Healthtech domain` : 'Healthtech domain';
+    } else if ((this.businessDomain === 'Fintech' || this.businessDomain === 'Health') && currentSeverity === 'high') {
+      escalatedSeverity = 'critical';
+      escalateReason = escalateReason ? `${escalateReason} + Critical domain` : 'Critical domain';
+    }
 
     if (escalatedSeverity && escalatedSeverity !== currentSeverity) {
       return {
         ...violation,
         severity: escalatedSeverity as any,
-        message: `${violation.message} (ESCALATED: File in critical path)`,
+        message: `${violation.message} (ESCALATED: ${escalateReason})`,
       };
     }
 
@@ -265,6 +294,39 @@ export class ReportAggregator {
     const criticalPathCount = all.filter((v) => v.file.inCriticalPath).length;
 
     let summary = '# Aegis QA Report\n\n';
+
+    // URGENT BUSINESS RISK - Show first if there are business risk findings
+    if (this.businessRiskFindings.length > 0) {
+      summary += '## 🚨 URGENT BUSINESS RISK\n\n';
+      summary += `**Business Domain:** ${this.businessDomain}\n\n`;
+      
+      const criticalRisks = this.businessRiskFindings.filter((r) => r.riskLevel === 'critical');
+      const highRisks = this.businessRiskFindings.filter((r) => r.riskLevel === 'high');
+      
+      if (criticalRisks.length > 0) {
+        summary += `**Critical Risk Modules:** ${criticalRisks.length}\n`;
+        for (const risk of criticalRisks.slice(0, 5)) {
+          summary += `- ${risk.filePath} (Quality Score: ${risk.qualityScore}/100)\n`;
+        }
+        if (criticalRisks.length > 5) {
+          summary += `- ... and ${criticalRisks.length - 5} more\n`;
+        }
+        summary += '\n';
+      }
+      
+      if (highRisks.length > 0) {
+        summary += `**High Risk Modules:** ${highRisks.length}\n`;
+        for (const risk of highRisks.slice(0, 5)) {
+          summary += `- ${risk.filePath} (Quality Score: ${risk.qualityScore}/100)\n`;
+        }
+        if (highRisks.length > 5) {
+          summary += `- ... and ${highRisks.length - 5} more\n`;
+        }
+        summary += '\n';
+      }
+      
+      summary += '---\n\n';
+    }
 
     summary += `**Total Violations:** ${all.length}\n`;
     summary += `**Critical Path Violations:** ${criticalPathCount}\n\n`;

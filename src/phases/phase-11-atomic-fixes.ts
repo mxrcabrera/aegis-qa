@@ -18,7 +18,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence';
+import { ThermalController } from '../core/thermal-controller.js';
+
+const execAsync = promisify(exec);
 
 /**
  * Fix application result
@@ -104,6 +109,8 @@ interface Phase11Config {
   statePersistence: StatePersistence;
   /** Current execution state */
   currentState: ExecutionState;
+  /** Thermal controller for hardware protection */
+  thermalController: ThermalController;
   /** Whether to apply fixes automatically (false = interactive mode) */
   autoApply: boolean;
   /** Whether to apply fixes in Core Path */
@@ -134,13 +141,13 @@ export class Phase11AtomicFixes {
    */
   async execute(): Promise<Phase11AtomicFixesResult> {
     const startTime = Date.now();
-    console.log('🔧 Phase 11: Atomic Fixes - Starting...');
-    console.log(`  Auto-apply: ${this.config.autoApply}`);
-    console.log(`  Allow Core Path fixes: ${this.config.allowCorePathFixes}`);
-    console.log(`  Dry-run mode: ${this.config.dryRun}\n`);
+    console.log('INFO Phase 11: Atomic Fixes - Starting...');
+    console.log(`INFO Auto-apply: ${this.config.autoApply}`);
+    console.log(`INFO Allow Core Path fixes: ${this.config.allowCorePathFixes}`);
+    console.log(`INFO Dry-run mode: ${this.config.dryRun}\n`);
 
     if (this.config.dryRun) {
-      console.log('⚠️  DRY-RUN MODE: Patches will be generated but NOT applied to disk\n');
+      console.log('WARNING DRY-RUN MODE: Patches will be generated but NOT applied to disk\n');
     }
 
     try {
@@ -166,7 +173,7 @@ export class Phase11AtomicFixes {
 
       // Validation Loop: Re-run Phase 9 for i18n/a11y fixes
       if (remediationResult.fixResults.some(f => f.fixId.includes('alt-attributes') || f.fixId.includes('aria-labels'))) {
-        console.log('🔄 Validation Loop: Re-running Phase 9 (i18n & a11y) to verify score improved...');
+        console.log('INFO Validation Loop: Re-running Phase 9 (i18n & a11y) to verify score improved...');
         await this.validateFixes(remediationResult, 9);
       }
 
@@ -175,7 +182,7 @@ export class Phase11AtomicFixes {
 
       // Validation Loop: Re-run Phase 10 for Environment fixes
       if (remediationResult.fixResults.some(f => f.fixId.includes('env-example'))) {
-        console.log('🔄 Validation Loop: Re-running Phase 10 (Environment & CI/CD) to verify score improved...');
+        console.log('INFO Validation Loop: Re-running Phase 10 (Environment & CI/CD) to verify score improved...');
         await this.validateFixes(remediationResult, 10);
       }
 
@@ -184,7 +191,7 @@ export class Phase11AtomicFixes {
 
       // Validation Loop: Re-run Phase 5 for Clean Code fixes
       if (remediationResult.fixResults.some(f => f.fixId.includes('options-object'))) {
-        console.log('🔄 Validation Loop: Re-running Phase 5 (Clean Code) to verify score improved...');
+        console.log('INFO Validation Loop: Re-running Phase 5 (Clean Code) to verify score improved...');
         await this.validateFixes(remediationResult, 5);
       }
 
@@ -976,15 +983,15 @@ export class Phase11AtomicFixes {
   }
 
   /**
-   * Rolls back a fix using backup
+   * Rolls back a fix by restoring the original content
    *
    * @private
    * @param fixResult - Fix application result
-   * @returns Promise<boolean> - Whether rollback was successful
+   * @returns boolean - Whether rollback was successful
    */
-  private async rollbackFix(fixResult: FixApplicationResult): Promise<boolean> {
-    if (!fixResult.backupFilePath || !fs.existsSync(fixResult.backupFilePath)) {
-      console.warn(`⚠️  No backup available for fix ${fixResult.fixId}`);
+  private rollbackFix(fixResult: FixApplicationResult): boolean {
+    if (!fixResult.backupFilePath || !fixResult.originalContent) {
+      console.error(`No backup available for fix ${fixResult.fixId}`);
       return false;
     }
 
@@ -993,11 +1000,149 @@ export class Phase11AtomicFixes {
       fs.writeFileSync(fixResult.filePath, backupContent, 'utf-8');
       fixResult.rolledBack = true;
       fixResult.applied = false;
-      console.log(`↩️  Rolled back fix ${fixResult.fixId}`);
+      console.log(`INFO Rolled back fix ${fixResult.fixId}`);
       return true;
     } catch (error) {
-      console.error(`❌ Failed to rollback fix ${fixResult.fixId}:`, error instanceof Error ? error.message : error);
+      console.error(`ERROR Failed to rollback fix ${fixResult.fixId}:`, error instanceof Error ? error.message : error);
       return false;
+    }
+  }
+
+  /**
+   * Applies an atomic fix with Backup -> Action -> Verification -> Rollback loop
+   *
+   * LÓGICA DE ATOMIC FIXES (Fases 16-18):
+   * 
+   * 1. Backup: Guardar originalContent en memoria
+   * 2. Action: Aplicar el fix sugerido por la fase correspondiente
+   * 3. Hardware Check Pre-Build: Verificar CPU < 80%, si no aplicar adaptiveCooldown('high') 20s
+   * 4. Verificación de Integridad: Ejecutar npm run build o npx tsc --noEmit
+   * 5. Decisión: Si exit code es 0, el fix se queda. Si es != 0, realizar rollback()
+   * 
+   * @private
+   * @param filePath - File path to fix
+   * @param originalContent - Original file content
+   * @param newContent - New file content with fix applied
+   * @param fixId - Fix identifier
+   * @returns Promise<FixApplicationResult> - Fix application result
+   */
+  private async applyAtomicFix(
+    filePath: string,
+    originalContent: string,
+    newContent: string,
+    fixId: string
+  ): Promise<FixApplicationResult> {
+    const fixResult: FixApplicationResult = {
+      fixId,
+      filePath,
+      success: false,
+      originalContent,
+      newContent,
+      isCorePath: false,
+      applied: false,
+      requiresConfirmation: false,
+    };
+
+    try {
+      // Step 1: Backup - Guardar originalContent en memoria y en archivo
+      const backupPath = path.join(this.config.projectRoot, `.backup.${fixId}.tmp`);
+      fs.writeFileSync(backupPath, originalContent, 'utf-8');
+      fixResult.backupFilePath = backupPath;
+      console.log(`INFO Backup created for ${fixId}`);
+
+      // Step 2: Action - Aplicar el fix
+      fs.writeFileSync(filePath, newContent, 'utf-8');
+      fixResult.applied = true;
+      console.log(`INFO Fix ${fixId} applied to ${filePath}`);
+
+      // Step 3: Hardware Check Pre-Build
+      console.log(`INFO Hardware Check Pre-Build for ${fixId}...`);
+      const resourceCheck = await this.config.thermalController.checkSystemResources();
+      
+      if (resourceCheck.cpuUsage >= 80) {
+        console.log(`WARNING CPU usage high (${resourceCheck.cpuUsage}%). Applying adaptiveCooldown('high') for 20 seconds...`);
+        await this.config.thermalController.applyAdaptiveCooldown('high');
+        await new Promise(resolve => setTimeout(resolve, 20000));
+        
+        const postCooldownCheck = await this.config.thermalController.checkSystemResources();
+        console.log(`INFO CPU usage after cooldown: ${postCooldownCheck.cpuUsage}%`);
+      }
+
+      // Step 4: Verificación de Integridad - Ejecutar npm run build o npx tsc --noEmit
+      console.log(`INFO Running integrity verification for ${fixId}...`);
+      
+      let buildExitCode = 0;
+      let buildError: string | undefined;
+
+      // Try npm run build first
+      try {
+        const packageJsonPath = path.join(this.config.projectRoot, 'package.json');
+        if (fs.existsSync(packageJsonPath)) {
+          const { stdout, stderr } = await execAsync('npm run build', { cwd: this.config.projectRoot });
+          if (stderr) {
+            buildError = stderr;
+          }
+        } else {
+          // Fallback to tsc if no package.json
+          const { stdout, stderr } = await execAsync('npx tsc --noEmit', { cwd: this.config.projectRoot });
+          if (stderr) {
+            buildError = stderr;
+          }
+        }
+      } catch (error) {
+        buildExitCode = 1;
+        buildError = error instanceof Error ? error.message : String(error);
+      }
+
+      // Step 5: Decisión - Si exit code es 0, el fix se queda. Si es != 0, realizar rollback
+      if (buildExitCode !== 0) {
+        console.log(`WARNING Build failed for ${fixId} (exit code: ${buildExitCode}). Performing rollback...`);
+        
+        // Rollback - restaurar el originalContent
+        fs.writeFileSync(filePath, originalContent, 'utf-8');
+        fixResult.rolledBack = true;
+        fixResult.applied = false;
+        fixResult.success = false;
+        fixResult.error = `FIX_FAILED_INTEGRITY: Build failed - ${buildError}`;
+        
+        // Clean up backup file
+        if (fs.existsSync(backupPath)) {
+          fs.unlinkSync(backupPath);
+        }
+        
+        console.log(`INFO Rollback completed for ${fixId}`);
+      } else {
+        console.log(`SUCCESS Build passed for ${fixId}. Fix kept.`);
+        fixResult.success = true;
+        fixResult.error = undefined;
+        
+        // Clean up backup file since fix is successful
+        if (fs.existsSync(backupPath)) {
+          fs.unlinkSync(backupPath);
+        }
+      }
+
+      return fixResult;
+    } catch (error) {
+      // If any error occurs, attempt rollback
+      console.error(`ERROR applying fix ${fixId}:`, error instanceof Error ? error.message : error);
+      
+      // Attempt rollback if fix was applied
+      if (fixResult.applied) {
+        try {
+          fs.writeFileSync(filePath, originalContent, 'utf-8');
+          fixResult.rolledBack = true;
+          fixResult.applied = false;
+          console.log(`INFO Emergency rollback for ${fixId}`);
+        } catch {
+          console.error(`ERROR Emergency rollback failed for ${fixId}`);
+        }
+      }
+
+      fixResult.success = false;
+      fixResult.error = error instanceof Error ? error.message : String(error);
+      
+      return fixResult;
     }
   }
 
