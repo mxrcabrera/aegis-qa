@@ -74,6 +74,8 @@ interface ThermalLogEntry {
  * StatePersistence configuration
  */
 interface StatePersistenceConfig {
+  /** Project root directory */
+  projectRoot?: string;
   /** Directory for state storage */
   stateDir: string;
   /** Maximum number of thermal log entries to keep */
@@ -170,10 +172,9 @@ export class StatePersistence {
   /**
    * Loads execution state from disk
    *
-   * @private
    * @returns Promise<ExecutionState | null> - Loaded state or null if not found
    */
-  private async loadState(): Promise<ExecutionState | null> {
+  public async loadState(): Promise<ExecutionState | null> {
     try {
       const stateFilePath = this.getStateFilePath();
       if (!fs.existsSync(stateFilePath)) {
@@ -184,9 +185,40 @@ export class StatePersistence {
       const state = JSON.parse(content) as ExecutionState;
       return state;
     } catch (error) {
-      console.warn('Failed to load state:', error instanceof Error ? error.message : error);
+      console.error('Failed to load state:', error instanceof Error ? error.message : error);
       return null;
     }
+  }
+
+  /**
+   * Clears execution state from disk
+   *
+   * @returns Promise<void>
+   */
+  public async clearState(): Promise<void> {
+    try {
+      const stateFilePath = this.getStateFilePath();
+      if (fs.existsSync(stateFilePath)) {
+        fs.unlinkSync(stateFilePath);
+        console.log('[StatePersistence] State cleared');
+      }
+    } catch (error) {
+      console.error('Failed to clear state:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  /**
+   * Marks execution as interrupted
+   *
+   * @param reason - Reason for interruption
+   * @param currentState - Current execution state
+   * @returns Promise<void>
+   */
+  public async markInterrupted(reason: string, currentState: ExecutionState): Promise<void> {
+    currentState.isComplete = false;
+    currentState.lastSaveTime = Date.now();
+    await this.saveState();
+    console.log(`[StatePersistence] Execution interrupted: ${reason}`);
   }
 
   /**

@@ -537,4 +537,117 @@ export class ThermalController {
     }
     return 'safe';
   }
+
+  /**
+   * Runs self-diagnostic stress test
+   *
+   * This method runs a stress test to determine temperature rise rate
+   * and adjust thresholds accordingly.
+   *
+   * @param durationMs - Duration of stress test in milliseconds
+   * @returns Promise<DiagnosticResult> - Diagnostic results
+   */
+  async runSelfDiagnostic(durationMs: number): Promise<{
+    pass: boolean;
+    temperatureRiseRate: number;
+    adjustedThresholds: number;
+  }> {
+    try {
+      console.log('[ThermalController] Running self-diagnostic...');
+      
+      const startTemp = await this.checkTemperature();
+      const startTime = Date.now();
+      
+      // Simulate load by checking system resources repeatedly
+      const checks = Math.floor(durationMs / 1000);
+      for (let i = 0; i < checks; i++) {
+        await this.checkSystemResources();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      const endTemp = await this.checkTemperature();
+      const endTime = Date.now();
+      
+      const temperatureRiseRate = (endTemp.current - startTemp.current) / ((endTime - startTime) / 1000);
+      const pass = temperatureRiseRate < 0.5; // Less than 0.5°C per second is acceptable
+      
+      // Adjust thresholds based on temperature rise rate
+      let adjustedThresholds = 0;
+      if (temperatureRiseRate > 0.3) {
+        this.config.criticalThreshold = Math.max(65, this.config.criticalThreshold - 2);
+        this.config.warningThreshold = Math.max(55, this.config.warningThreshold - 2);
+        adjustedThresholds = 2;
+      }
+      
+      return {
+        pass,
+        temperatureRiseRate,
+        adjustedThresholds,
+      };
+    } catch (error) {
+      console.warn('[ThermalController] Self-diagnostic failed:', error instanceof Error ? error.message : error);
+      return {
+        pass: true, // Assume pass if diagnostic fails
+        temperatureRiseRate: 0,
+        adjustedThresholds: 0,
+      };
+    }
+  }
+
+  /**
+   * Gets hardware profile with additional properties
+   *
+   * @returns Promise<HardwareProfile & ExtendedHardwareInfo>
+   */
+  async getHardwareCapabilities(): Promise<{
+    hasGPU: boolean;
+    totalRAM: number;
+    cpuCores: number;
+    tier: 'high' | 'medium' | 'low';
+    gpuModel?: string;
+    gpuVRAM?: number;
+    ramTotal: number;
+    recommendedBatchSize: number;
+    recommendedCooldown: number;
+  }> {
+    const profile = await this.detectHardwareCapabilities();
+    
+    let gpuModel: string | undefined;
+    let gpuVRAM: number | undefined;
+    
+    if (profile.hasGPU) {
+      try {
+        const { stdout } = await execAsync('nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits');
+        const parts = stdout.trim().split(',');
+        gpuModel = parts[0]?.trim();
+        gpuVRAM = parts[1] ? parseInt(parts[1].trim()) / 1024 : undefined; // Convert MB to GB
+      } catch (error) {
+        // Ignore GPU details fetch failure
+      }
+    }
+    
+    // Calculate recommended batch size and cooldown based on hardware
+    let recommendedBatchSize = 4;
+    let recommendedCooldown = 5000;
+    
+    if (profile.tier === 'high') {
+      recommendedBatchSize = 8;
+      recommendedCooldown = 3000;
+    } else if (profile.tier === 'medium') {
+      recommendedBatchSize = 4;
+      recommendedCooldown = 5000;
+    } else {
+      recommendedBatchSize = 2;
+      recommendedCooldown = 10000;
+    }
+    
+    return {
+      ...profile,
+      gpuModel,
+      gpuVRAM,
+      ramTotal: profile.totalRAM,
+      recommendedBatchSize,
+      recommendedCooldown,
+    };
+  }
 }

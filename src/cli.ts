@@ -48,9 +48,7 @@ class AegisCLI {
     this.currentState = await this.statePersistence.loadState();
 
     // Initialize report aggregator
-    const reportAggregator = new ReportAggregator({
-      projectRoot: resolve(targetDir),
-    });
+    const reportAggregator = new ReportAggregator();
 
     // Set up SIGINT handler for graceful shutdown
     this.setupSigintHandler();
@@ -87,7 +85,7 @@ class AegisCLI {
 
     // Detect hardware capabilities
     console.log('🔍 Detecting hardware capabilities...');
-    const hardwareProfile = await this.thermalController.detectHardwareCapabilities();
+    const hardwareProfile = await this.thermalController.getHardwareCapabilities();
     console.log(`  GPU: ${hardwareProfile.hasGPU ? hardwareProfile.gpuModel : 'Not detected'}`);
     console.log(`  VRAM: ${hardwareProfile.gpuVRAM ? `${hardwareProfile.gpuVRAM}GB` : 'N/A'}`);
     console.log(`  CPU Cores: ${hardwareProfile.cpuCores}`);
