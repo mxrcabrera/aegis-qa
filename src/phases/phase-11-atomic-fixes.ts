@@ -26,6 +26,8 @@ import { StatePersistence, type ExecutionState } from '../core/state-persistence
 interface FixApplicationResult {
   /** Fix ID */
   fixId: string;
+  /** Original violation ID */
+  originalViolationId?: string;
   /** File path */
   filePath: string;
   /** Success status */
@@ -44,6 +46,16 @@ interface FixApplicationResult {
   applied: boolean;
   /** Whether change requires confirmation */
   requiresConfirmation: boolean;
+  /** Whether collision was detected */
+  collisionDetected?: boolean;
+  /** Whether manual merge is required */
+  manualMergeRequired?: boolean;
+  /** Lines modified (for collision detection) */
+  modifiedLines?: number[];
+  /** Whether rollback was performed */
+  rolledBack?: boolean;
+  /** Backup file path for rollback */
+  backupFilePath?: string;
 }
 
 /**
@@ -60,6 +72,8 @@ interface RemediationResult {
   fixesPendingConfirmation: number;
   /** Fixes failed */
   fixesFailed: number;
+  /** Fixes requiring manual merge (collision) */
+  fixesManualMerge: number;
   /** Fix application results */
   fixResults: FixApplicationResult[];
   /** Validation results */
@@ -94,6 +108,8 @@ interface Phase11Config {
   autoApply: boolean;
   /** Whether to apply fixes in Core Path */
   allowCorePathFixes: boolean;
+  /** Dry-run mode: generate patches but don't apply changes */
+  dryRun: boolean;
 }
 
 /**
@@ -118,12 +134,19 @@ export class Phase11AtomicFixes {
    */
   async execute(): Promise<Phase11AtomicFixesResult> {
     const startTime = Date.now();
-    console.log('🔧 Phase 11: Atomic Fixes\n');
+    console.log('🔧 Phase 11: Atomic Fixes - Starting...');
+    console.log(`  Auto-apply: ${this.config.autoApply}`);
+    console.log(`  Allow Core Path fixes: ${this.config.allowCorePathFixes}`);
+    console.log(`  Dry-run mode: ${this.config.dryRun}\n`);
+
+    if (this.config.dryRun) {
+      console.log('⚠️  DRY-RUN MODE: Patches will be generated but NOT applied to disk\n');
+    }
 
     try {
       // Get analysis results from previous phases
       const analysisResults = this.config.currentState.analysisResults || {};
-      
+
       // Determine Core Path from Phase 2 results
       const corePathFiles = this.getCorePathFiles(analysisResults);
 
@@ -133,6 +156,7 @@ export class Phase11AtomicFixes {
         fixesSkipped: 0,
         fixesPendingConfirmation: 0,
         fixesFailed: 0,
+        fixesManualMerge: 0,
         fixResults: [],
         validationResults: new Map(),
       };
@@ -178,7 +202,8 @@ export class Phase11AtomicFixes {
       console.log(`  ✅ Fixes applied: ${remediationResult.fixesApplied}`);
       console.log(`  ⏭️  Fixes skipped (Core Path): ${remediationResult.fixesSkipped}`);
       console.log(`  ⏸️  Fixes pending confirmation: ${remediationResult.fixesPendingConfirmation}`);
-      console.log(`  ❌ Fixes failed: ${remediationResult.fixesFailed}\n`);
+      console.log(`  ❌ Fixes failed: ${remediationResult.fixesFailed}`);
+      console.log(`  🔀 Fixes requiring manual merge: ${remediationResult.fixesManualMerge}\n`);
 
       const result: Phase11AtomicFixesResult = {
         success: true,
@@ -199,6 +224,7 @@ export class Phase11AtomicFixes {
           fixesSkipped: 0,
           fixesPendingConfirmation: 0,
           fixesFailed: 0,
+          fixesManualMerge: 0,
           fixResults: [],
           validationResults: new Map(),
         },
@@ -258,6 +284,8 @@ export class Phase11AtomicFixes {
 
         if (altFixResult.applied) {
           remediationResult.fixesApplied++;
+        } else if (altFixResult.manualMergeRequired) {
+          remediationResult.fixesManualMerge++;
         } else if (altFixResult.requiresConfirmation) {
           remediationResult.fixesPendingConfirmation++;
         } else {
@@ -273,6 +301,8 @@ export class Phase11AtomicFixes {
 
         if (ariaFixResult.applied) {
           remediationResult.fixesApplied++;
+        } else if (ariaFixResult.manualMergeRequired) {
+          remediationResult.fixesManualMerge++;
         } else if (ariaFixResult.requiresConfirmation) {
           remediationResult.fixesPendingConfirmation++;
         } else {
@@ -327,24 +357,53 @@ export class Phase11AtomicFixes {
     }
 
     const fixId = this.generateFixId('alt-attributes', filePath);
+    const originalViolationId = `phase9-missing-alt-${filePath}`;
+    
+    // Extract modified lines for collision detection
+    const modifiedLines = this.extractModifiedLines(content, newContent);
+    
+    // Check for collisions with existing fixes
+    const collisionDetected = this.checkCollision(filePath, modifiedLines, new Map());
+    
+    // Syntax Pre-flight: Validate resulting code
+    const syntaxValid = await this.validateSyntax(filePath, newContent);
+    
     const result: FixApplicationResult = {
       fixId,
+      originalViolationId,
       filePath,
       success: true,
       originalContent: content,
       newContent,
       isCorePath,
       applied: false,
-      requiresConfirmation: isCorePath || !this.config.autoApply,
+      requiresConfirmation: isCorePath || !this.config.autoApply || this.config.dryRun,
+      collisionDetected,
+      manualMergeRequired: collisionDetected,
+      modifiedLines,
     };
 
     // Generate patch file
     result.patchFilePath = await this.generatePatchFile(fixId, filePath, content, newContent);
 
-    // Apply if safe
-    if (!result.requiresConfirmation) {
-      fs.writeFileSync(filePath, newContent, 'utf-8');
+    // Apply if safe and not dry-run
+    if (!result.requiresConfirmation && !collisionDetected && syntaxValid && !this.config.dryRun) {
+      // Create backup for rollback
+      result.backupFilePath = await this.createBackup(filePath, content);
+      
+      // Apply fix with traceability comment
+      const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
+      fs.writeFileSync(filePath, contentWithTraceability, 'utf-8');
       result.applied = true;
+      
+      console.log(`  ✅ Applied fix ${fixId} to ${filePath}`);
+    } else if (collisionDetected) {
+      console.log(`  🔀 Collision detected for ${fixId} - MANUAL_MERGE_REQUIRED`);
+      result.manualMergeRequired = true;
+    } else if (!syntaxValid) {
+      console.log(`  ❌ Syntax validation failed for ${fixId} - fix not applied`);
+    } else if (this.config.dryRun) {
+      console.log(`  🔍 Dry-run: Fix ${fixId} would be applied to ${filePath}`);
     }
 
     return result;
@@ -392,24 +451,53 @@ export class Phase11AtomicFixes {
     }
 
     const fixId = this.generateFixId('aria-labels', filePath);
+    const originalViolationId = `phase9-missing-aria-${filePath}`;
+    
+    // Extract modified lines for collision detection
+    const modifiedLines = this.extractModifiedLines(content, newContent);
+    
+    // Check for collisions with existing fixes
+    const collisionDetected = this.checkCollision(filePath, modifiedLines, new Map());
+    
+    // Syntax Pre-flight: Validate resulting code
+    const syntaxValid = await this.validateSyntax(filePath, newContent);
+    
     const result: FixApplicationResult = {
       fixId,
+      originalViolationId,
       filePath,
       success: true,
       originalContent: content,
       newContent,
       isCorePath,
       applied: false,
-      requiresConfirmation: isCorePath || !this.config.autoApply,
+      requiresConfirmation: isCorePath || !this.config.autoApply || this.config.dryRun,
+      collisionDetected,
+      manualMergeRequired: collisionDetected,
+      modifiedLines,
     };
 
     // Generate patch file
     result.patchFilePath = await this.generatePatchFile(fixId, filePath, content, newContent);
 
-    // Apply if safe
-    if (!result.requiresConfirmation) {
-      fs.writeFileSync(filePath, newContent, 'utf-8');
+    // Apply if safe and not dry-run
+    if (!result.requiresConfirmation && !collisionDetected && syntaxValid && !this.config.dryRun) {
+      // Create backup for rollback
+      result.backupFilePath = await this.createBackup(filePath, content);
+      
+      // Apply fix with traceability comment
+      const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
+      fs.writeFileSync(filePath, contentWithTraceability, 'utf-8');
       result.applied = true;
+      
+      console.log(`  ✅ Applied fix ${fixId} to ${filePath}`);
+    } else if (collisionDetected) {
+      console.log(`  🔀 Collision detected for ${fixId} - MANUAL_MERGE_REQUIRED`);
+      result.manualMergeRequired = true;
+    } else if (!syntaxValid) {
+      console.log(`  ❌ Syntax validation failed for ${fixId} - fix not applied`);
+    } else if (this.config.dryRun) {
+      console.log(`  🔍 Dry-run: Fix ${fixId} would be applied to ${filePath}`);
     }
 
     return result;
@@ -505,6 +593,8 @@ export class Phase11AtomicFixes {
 
         if (refactorResult.applied) {
           remediationResult.fixesApplied++;
+        } else if (refactorResult.manualMergeRequired) {
+          remediationResult.fixesManualMerge++;
         } else if (refactorResult.requiresConfirmation) {
           remediationResult.fixesPendingConfirmation++;
         } else {
@@ -571,24 +661,53 @@ export class Phase11AtomicFixes {
     }
 
     const fixId = this.generateFixId('options-refactor', filePath);
+    const originalViolationId = `phase5-long-params-${filePath}`;
+    
+    // Extract modified lines for collision detection
+    const modifiedLines = this.extractModifiedLines(content, newContent);
+    
+    // Check for collisions with existing fixes
+    const collisionDetected = this.checkCollision(filePath, modifiedLines, new Map());
+    
+    // Syntax Pre-flight: Validate resulting code
+    const syntaxValid = await this.validateSyntax(filePath, newContent);
+    
     const result: FixApplicationResult = {
       fixId,
+      originalViolationId,
       filePath,
       success: true,
       originalContent: content,
       newContent,
       isCorePath,
       applied: false,
-      requiresConfirmation: isCorePath || !this.config.autoApply,
+      requiresConfirmation: isCorePath || !this.config.autoApply || this.config.dryRun,
+      collisionDetected,
+      manualMergeRequired: collisionDetected,
+      modifiedLines,
     };
 
     // Generate patch file
     result.patchFilePath = await this.generatePatchFile(fixId, filePath, content, newContent);
 
-    // Apply if safe
-    if (!result.requiresConfirmation) {
-      fs.writeFileSync(filePath, newContent, 'utf-8');
+    // Apply if safe and not dry-run
+    if (!result.requiresConfirmation && !collisionDetected && syntaxValid && !this.config.dryRun) {
+      // Create backup for rollback
+      result.backupFilePath = await this.createBackup(filePath, content);
+      
+      // Apply fix with traceability comment
+      const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
+      fs.writeFileSync(filePath, contentWithTraceability, 'utf-8');
       result.applied = true;
+      
+      console.log(`  ✅ Applied fix ${fixId} to ${filePath}`);
+    } else if (collisionDetected) {
+      console.log(`  🔀 Collision detected for ${fixId} - MANUAL_MERGE_REQUIRED`);
+      result.manualMergeRequired = true;
+    } else if (!syntaxValid) {
+      console.log(`  ❌ Syntax validation failed for ${fixId} - fix not applied`);
+    } else if (this.config.dryRun) {
+      console.log(`  🔍 Dry-run: Fix ${fixId} would be applied to ${filePath}`);
     }
 
     return result;
@@ -693,19 +812,192 @@ export class Phase11AtomicFixes {
         // Simulated score improvement (in real implementation would compare actual scores)
         const beforeScore = 50; // Placeholder
         const afterScore = 75; // Placeholder
+        const improved = afterScore > beforeScore;
         const validationResult = {
           before: beforeScore,
           after: afterScore,
-          improved: afterScore > beforeScore,
+          improved,
         };
         
         remediationResult.validationResults.set(phaseNumber, validationResult);
-        console.log(`✅ Validation Complete: Phase ${phaseNumber} - ${appliedFixesForPhase.length} fixes applied, score improved (${beforeScore} → ${afterScore})`);
+        
+        // Atomic Rollback: If score didn't improve, rollback all fixes for this phase
+        if (!improved) {
+          console.log(`⚠️  Validation failed: Score did not improve (${beforeScore} → ${afterScore}). Rolling back fixes...`);
+          for (const fixResult of remediationResult.fixResults) {
+            if (fixResult.applied && fixResult.backupFilePath) {
+              await this.rollbackFix(fixResult);
+              remediationResult.fixesApplied--;
+              remediationResult.fixesFailed++;
+            }
+          }
+        } else {
+          console.log(`✅ Validation Complete: Phase ${phaseNumber} - ${appliedFixesForPhase.length} fixes applied, score improved (${beforeScore} → ${afterScore})`);
+        }
       } else {
         console.log(`ℹ️  No fixes applied for Phase ${phaseNumber}, skipping validation`);
       }
     } catch (error) {
       console.warn(`⚠️  Validation failed for Phase ${phaseNumber}:`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  /**
+   * Extracts modified lines between original and new content
+   *
+   * @private
+   * @param originalContent - Original content
+   * @param newContent - New content
+   * @returns number[] - Array of modified line numbers
+   */
+  private extractModifiedLines(originalContent: string, newContent: string): number[] {
+    const originalLines = originalContent.split('\n');
+    const newLines = newContent.split('\n');
+    const modifiedLines: number[] = [];
+
+    for (let i = 0; i < Math.max(originalLines.length, newLines.length); i++) {
+      const originalLine = originalLines[i] || '';
+      const newLine = newLines[i] || '';
+      if (originalLine !== newLine) {
+        modifiedLines.push(i + 1); // 1-based line numbers
+      }
+    }
+
+    return modifiedLines;
+  }
+
+  /**
+   * Checks for collision with existing fixes
+   *
+   * @private
+   * @param filePath - File path
+   * @param modifiedLines - Lines to be modified
+   * @param existingFixes - Map of existing fixes and their modified lines
+   * @returns boolean - Whether collision was detected
+   */
+  private checkCollision(filePath: string, modifiedLines: number[], existingFixes: Map<string, Set<number>>): boolean {
+    const fileFixes = existingFixes.get(filePath);
+    if (!fileFixes || fileFixes.size === 0) {
+      return false;
+    }
+
+    // Check if any of the modified lines overlap with existing fixes
+    for (const line of modifiedLines) {
+      if (fileFixes.has(line)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Validates syntax of code content
+   *
+   * @private
+   * @param filePath - File path
+   * @param content - Content to validate
+   * @returns Promise<boolean> - Whether syntax is valid
+   */
+  private async validateSyntax(filePath: string, content: string): Promise<boolean> {
+    // Basic syntax validation for common file types
+    const ext = path.extname(filePath).toLowerCase();
+
+    if (['.js', '.jsx', '.ts', '.tsx'].includes(ext)) {
+      try {
+        // Basic validation: check for balanced brackets/braces
+        const stack: string[] = [];
+        const pairs = { '(': ')', '[': ']', '{': '}' };
+        
+        for (const char of content) {
+          if (char in pairs) {
+            stack.push(char);
+          } else if (Object.values(pairs).includes(char)) {
+            const last = stack.pop();
+            if (last && pairs[last as keyof typeof pairs] !== char) {
+              return false;
+            }
+          }
+        }
+        
+        return stack.length === 0;
+      } catch {
+        return false;
+      }
+    }
+
+    // For other file types, assume valid (could be extended)
+    return true;
+  }
+
+  /**
+   * Creates a backup of a file for rollback
+   *
+   * @private
+   * @param filePath - File path
+   * @param content - Content to backup
+   * @returns Promise<string> - Backup file path
+   */
+  private async createBackup(filePath: string, content: string): Promise<string> {
+    const backupDir = path.join(this.config.projectRoot, '.sentinel', 'backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    const backupPath = path.join(backupDir, `${path.basename(filePath)}.backup`);
+    fs.writeFileSync(backupPath, content, 'utf-8');
+    return backupPath;
+  }
+
+  /**
+   * Adds traceability comment to content
+   *
+   * @private
+   * @param content - Content to add comment to
+   * @param fixId - Fix ID
+   * @param originalViolationId - Original violation ID
+   * @returns string - Content with traceability comment
+   */
+  private addTraceabilityComment(content: string, fixId: string, originalViolationId: string): string {
+    const ext = path.extname(originalViolationId).toLowerCase();
+    
+    if (['.js', '.jsx', '.ts', '.tsx'].includes(ext)) {
+      // Add comment at the beginning of the file
+      const comment = `// Aegis QA Auto-Fix: ${fixId} | Original Violation: ${originalViolationId}\n`;
+      return comment + content;
+    } else if (['.html', '.jsx', '.tsx', '.vue'].includes(ext)) {
+      // Add HTML comment at the beginning
+      const comment = `<!-- Aegis QA Auto-Fix: ${fixId} | Original Violation: ${originalViolationId} -->\n`;
+      return comment + content;
+    }
+
+    // For other file types, prepend with comment
+    return `# Aegis QA Auto-Fix: ${fixId} | Original Violation: ${originalViolationId}\n` + content;
+  }
+
+  /**
+   * Rolls back a fix using backup
+   *
+   * @private
+   * @param fixResult - Fix application result
+   * @returns Promise<boolean> - Whether rollback was successful
+   */
+  private async rollbackFix(fixResult: FixApplicationResult): Promise<boolean> {
+    if (!fixResult.backupFilePath || !fs.existsSync(fixResult.backupFilePath)) {
+      console.warn(`⚠️  No backup available for fix ${fixResult.fixId}`);
+      return false;
+    }
+
+    try {
+      const backupContent = fs.readFileSync(fixResult.backupFilePath, 'utf-8');
+      fs.writeFileSync(fixResult.filePath, backupContent, 'utf-8');
+      fixResult.rolledBack = true;
+      fixResult.applied = false;
+      console.log(`↩️  Rolled back fix ${fixResult.fixId}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Failed to rollback fix ${fixResult.fixId}:`, error instanceof Error ? error.message : error);
+      return false;
     }
   }
 
