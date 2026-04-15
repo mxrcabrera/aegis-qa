@@ -1,13 +1,16 @@
 /**
- * Phase 12: Error Handling & Observability
+ * Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED]
  *
- * Purpose: Evaluate error handling patterns and observability infrastructure
+ * Purpose: Evaluate error handling patterns, observability infrastructure, and resilience
  * to ensure the system can gracefully handle failures and provide actionable insights.
  *
  * Architecture:
  * - Error Pattern Analysis: Detect empty try-catch blocks, missing error handlers
  * - Stack Trace Verification: Ensure custom exceptions maintain stack traces
  * - Observability Audit: Check for structured logging, metrics, and tracing
+ * - Error Boundary Detection: Check for React Error Boundaries
+ * - Generic Error Handlers: Identify catch blocks without meaningful error handling
+ * - Error Context: Detect error handlers that don't log or provide context
  * - Thermal Verification: Mandatory resource check before scanning
  * - Batch Processing: Use BatchProcessor with adaptive cooldown
  *
@@ -31,7 +34,7 @@ interface ErrorHandlingFinding {
   /** Unique ID based on file hash + line */
   id: string;
   /** Finding type */
-  type: 'empty-catch' | 'console-log-catch' | 'missing-handler' | 'no-stack-trace' | 'sensitive-log' | 'missing-observability' | 'timeout-review';
+  type: 'empty-catch' | 'console-log-catch' | 'missing-handler' | 'no-stack-trace' | 'sensitive-log' | 'missing-observability' | 'timeout-review' | 'missing-error-boundary' | 'no-error-context';
   /** Severity: low, medium, high, critical */
   severity: 'low' | 'medium' | 'high' | 'critical';
   /** File path */
@@ -121,13 +124,13 @@ export class Phase12ErrorHandling {
   }
 
   /**
-   * Executes Phase 12: Error Handling & Observability
+   * Executes Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED]
    *
    * @returns Promise<Phase12Result> - Error handling assessment result
    */
   async execute(): Promise<Phase12Result> {
     const startTime = Date.now();
-    console.log('INFO Phase 12: Error Handling & Observability\n');
+    console.log('INFO Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED]\n');
 
     try {
       // Thermal Verification: Check system resources before scanning
@@ -485,6 +488,48 @@ export class Phase12ErrorHandling {
             isCorePath,
           });
         }
+      }
+    }
+
+    // Detect missing Error Boundary in React components
+    if (filePath.includes('.tsx') || filePath.includes('.jsx')) {
+      if (content.includes('componentDidCatch') || content.includes('getDerivedStateFromError')) {
+        // Has error boundary methods, good
+      } else if (content.includes('class') && content.includes('extends') && (content.includes('Component') || content.includes('React.Component'))) {
+        // React component without error boundary
+        if (!content.includes('ErrorBoundary') && isCorePath) {
+          findings.push({
+            id: this.generateFindingId(filePath, 1, 'missing-error-boundary'),
+            type: 'missing-error-boundary',
+            severity: 'medium',
+            filePath,
+            line: 1,
+            description: 'React component in Core Path without Error Boundary',
+            suggestion: 'Wrap component in ErrorBoundary or implement componentDidCatch/getDerivedStateFromError',
+            isCorePath,
+          });
+        }
+      }
+    }
+
+    // Detect catch blocks without error context (no logging or meaningful handling)
+    const catchWithoutContextPattern = /catch\s*\([^)]*\)\s*\{([^}]*)\}/g;
+    while ((match = catchWithoutContextPattern.exec(content)) !== null) {
+      const catchBody = match[1];
+      
+      // Check if catch block has no logging, no rethrow, and no meaningful handling
+      if (!catchBody.includes('console.') && !catchBody.includes('logger.') && !catchBody.includes('throw') && catchBody.trim().length < 50) {
+        const lineNumber = content.substring(0, match.index).split('\n').length;
+        findings.push({
+          id: this.generateFindingId(filePath, lineNumber, 'no-error-context'),
+          type: 'no-error-context',
+          severity: isCorePath ? 'high' : 'medium',
+          filePath,
+          line: lineNumber,
+          description: 'Catch block without error context or logging',
+          suggestion: 'Add error logging, rethrow, or meaningful error handling logic',
+          isCorePath,
+        });
       }
     }
 
