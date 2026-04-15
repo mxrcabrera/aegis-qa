@@ -1,17 +1,21 @@
 /**
- * ThermalController - Hardware Protection Layer
+ * ThermalController - Hardware Protection Layer [EXTENDED]
  *
- * Purpose: Monitor and control GPU temperature to prevent hardware damage during
- * intensive AI processing tasks. This controller acts as the "thermal brake" of the
- * Aegis QA system, ensuring that the GPU never exceeds safe operating temperatures.
+ * Purpose: Monitor and control GPU temperature, CPU usage, and RAM usage to prevent
+ * hardware damage during intensive AI processing tasks. This controller acts as the
+ * "thermal brake" of the Aegis QA system, ensuring hardware never exceeds safe limits.
  *
  * Architecture: This controller is the heart of the hardware protection system. All
  * AI processing operations must pass through this controller before execution.
  *
  * Safety Thresholds:
- * - CRITICAL: 70°C - System will halt execution immediately
- * - WARNING: 60°C - System will apply extended cooldown
- * - SAFE: < 60°C - Normal operation
+ * - GPU CRITICAL: 70°C - System will halt execution immediately
+ * - GPU WARNING: 60°C - System will apply extended cooldown
+ * - GPU SAFE: < 60°C - Normal operation
+ * - CPU CRITICAL: 90% - System will reduce batch size
+ * - CPU WARNING: 80% - System will apply cooldown
+ * - RAM CRITICAL: 90% - System will serialize state to disk
+ * - RAM WARNING: 85% - System will reduce batch size
  *
  * @module core/thermal-controller
  * @since 1.0.0
@@ -35,6 +39,36 @@ interface TemperatureReading {
 }
 
 /**
+ * System resource reading (CPU/RAM)
+ */
+interface SystemResourceReading {
+  /** CPU usage percentage (0-100) */
+  cpuUsage: number;
+  /** RAM usage percentage (0-100) */
+  ramUsage: number;
+  /** Available RAM in GB */
+  ramAvailable: number;
+  /** Whether system resources are safe for intensive operations */
+  isSafe: boolean;
+  /** Resource category: 'safe' | 'warning' | 'critical' */
+  category: 'safe' | 'warning' | 'critical';
+}
+
+/**
+ * Hardware profile detected on system
+ */
+interface HardwareProfile {
+  /** Has GPU available */
+  hasGPU: boolean;
+  /** Total RAM in GB */
+  totalRAM: number;
+  /** CPU cores count */
+  cpuCores: number;
+  /** System tier: 'high' | 'medium' | 'low' */
+  tier: 'high' | 'medium' | 'low';
+}
+
+/**
  * Thermal controller configuration
  */
 interface ThermalConfig {
@@ -42,6 +76,14 @@ interface ThermalConfig {
   criticalThreshold: number;
   /** Warning temperature threshold in Celsius (default: 60) */
   warningThreshold: number;
+  /** CPU critical threshold percentage (default: 90) */
+  cpuCriticalThreshold: number;
+  /** CPU warning threshold percentage (default: 80) */
+  cpuWarningThreshold: number;
+  /** RAM critical threshold percentage (default: 90) */
+  ramCriticalThreshold: number;
+  /** RAM warning threshold percentage (default: 85) */
+  ramWarningThreshold: number;
   /** Whether to automatically halt execution on critical temperature */
   autoHalt: boolean;
 }
@@ -65,6 +107,7 @@ export class ThermalController {
   private config: ThermalConfig;
   private lastCheckTime: number = 0;
   private cooldownActive: boolean = false;
+  private hardwareProfile: HardwareProfile | null = null;
 
   /**
    * Creates a new ThermalController instance
@@ -75,6 +118,10 @@ export class ThermalController {
     this.config = {
       criticalThreshold: 70,
       warningThreshold: 60,
+      cpuCriticalThreshold: 90,
+      cpuWarningThreshold: 80,
+      ramCriticalThreshold: 90,
+      ramWarningThreshold: 85,
       autoHalt: true,
       ...config,
     };
@@ -273,6 +320,219 @@ export class ThermalController {
       return 'critical';
     }
     if (temperature >= this.config.warningThreshold) {
+      return 'warning';
+    }
+    return 'safe';
+  }
+
+  /**
+   * Checks system resources (CPU/RAM)
+   *
+   * This method monitors CPU and RAM usage to ensure the system can handle
+   * intensive operations without running out of resources.
+   *
+   * @returns Promise<SystemResourceReading> - Current system resource reading
+   */
+  async checkSystemResources(): Promise<SystemResourceReading> {
+    try {
+      // Get CPU usage (platform-specific)
+      const cpuUsage = await this.getCPUUsage();
+      
+      // Get RAM usage
+      const ramInfo = await this.getRAMUsage();
+      
+      const reading: SystemResourceReading = {
+        cpuUsage,
+        ramUsage: ramInfo.usagePercent,
+        ramAvailable: ramInfo.availableGB,
+        isSafe: cpuUsage < this.config.cpuWarningThreshold && ramInfo.usagePercent < this.config.ramWarningThreshold,
+        category: this.categorizeResources(cpuUsage, ramInfo.usagePercent),
+      };
+      
+      return reading;
+    } catch (error) {
+      console.warn('Failed to check system resources:', error instanceof Error ? error.message : error);
+      // Return safe defaults on failure
+      return {
+        cpuUsage: 0,
+        ramUsage: 0,
+        ramAvailable: 16,
+        isSafe: true,
+        category: 'safe',
+      };
+    }
+  }
+
+  /**
+   * Applies adaptive cooldown based on resource intensity
+   *
+   * @param intensity - Cooldown intensity level
+   * @returns Promise<void>
+   */
+  async applyAdaptiveCooldown(intensity: 'low' | 'medium' | 'high'): Promise<void> {
+    const cooldownDurations = {
+      low: 2000,    // 2 seconds
+      medium: 5000,  // 5 seconds
+      high: 10000,   // 10 seconds
+    };
+    
+    const duration = cooldownDurations[intensity];
+    console.log(`[ThermalController] Applying adaptive cooldown (${intensity}): ${duration / 1000}s`);
+    await this.applyCooldown(duration);
+  }
+
+  /**
+   * Detects hardware capabilities on the system
+   *
+   * @returns Promise<HardwareProfile> - Detected hardware profile
+   */
+  async detectHardwareCapabilities(): Promise<HardwareProfile> {
+    if (this.hardwareProfile) {
+      return this.hardwareProfile;
+    }
+    
+    try {
+      // Check for GPU
+      const hasGPU = await this.checkGPUAvailability();
+      
+      // Get RAM info
+      const ramInfo = await this.getRAMUsage();
+      const totalRAM = ramInfo.totalGB;
+      
+      // Get CPU cores
+      const cpuCores = await this.getCPUCores();
+      
+      // Determine tier
+      let tier: 'high' | 'medium' | 'low' = 'low';
+      if (hasGPU && totalRAM >= 16 && cpuCores >= 8) {
+        tier = 'high';
+      } else if (totalRAM >= 8 && cpuCores >= 4) {
+        tier = 'medium';
+      }
+      
+      this.hardwareProfile = {
+        hasGPU,
+        totalRAM,
+        cpuCores,
+        tier,
+      };
+      
+      console.log(`[ThermalController] Hardware detected: GPU=${hasGPU}, RAM=${totalRAM}GB, Cores=${cpuCores}, Tier=${tier}`);
+      return this.hardwareProfile;
+    } catch (error) {
+      console.warn('Failed to detect hardware capabilities:', error instanceof Error ? error.message : error);
+      // Return conservative defaults
+      this.hardwareProfile = {
+        hasGPU: false,
+        totalRAM: 8,
+        cpuCores: 4,
+        tier: 'medium',
+      };
+      return this.hardwareProfile;
+    }
+  }
+
+  /**
+   * Gets current CPU usage percentage
+   *
+   * @private
+   * @returns Promise<number> - CPU usage percentage (0-100)
+   */
+  private async getCPUUsage(): Promise<number> {
+    try {
+      const platform = process.platform;
+      
+      if (platform === 'win32') {
+        // Windows: use WMIC
+        const { stdout } = await execAsync('wmic cpu get loadpercentage /value');
+        const match = stdout.match(/LoadPercentage=(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      } else if (platform === 'darwin') {
+        // macOS: use ps
+        const { stdout } = await execAsync('ps -A -o %cpu | awk \'{s+=$1} END {print s}\'');
+        return parseFloat(stdout.trim()) || 0;
+      } else {
+        // Linux: use /proc/stat
+        const { stdout } = await execAsync('top -bn1 | grep \'Cpu(s)\' | awk \'{print $2}\' | cut -d\'%\' -f1');
+        return parseFloat(stdout.trim()) || 0;
+      }
+    } catch (error) {
+      console.warn('Failed to get CPU usage:', error instanceof Error ? error.message : error);
+      return 0;
+    }
+  }
+
+  /**
+   * Gets current RAM usage information
+   *
+   * @private
+   * @returns Promise<{usagePercent: number, totalGB: number, availableGB: number}>
+   */
+  private async getRAMUsage(): Promise<{usagePercent: number, totalGB: number, availableGB: number}> {
+    try {
+      const totalMemory = (require('os')).totalmem();
+      const freeMemory = (require('os')).freemem();
+      const usedMemory = totalMemory - freeMemory;
+      const usagePercent = (usedMemory / totalMemory) * 100;
+      
+      return {
+        usagePercent: Math.round(usagePercent),
+        totalGB: Math.round(totalMemory / (1024 * 1024 * 1024)),
+        availableGB: Math.round(freeMemory / (1024 * 1024 * 1024)),
+      };
+    } catch (error) {
+      console.warn('Failed to get RAM usage:', error instanceof Error ? error.message : error);
+      return {
+        usagePercent: 0,
+        totalGB: 8,
+        availableGB: 8,
+      };
+    }
+  }
+
+  /**
+   * Gets CPU core count
+   *
+   * @private
+   * @returns Promise<number> - Number of CPU cores
+   */
+  private async getCPUCores(): Promise<number> {
+    try {
+      return (require('os')).cpus().length;
+    } catch (error) {
+      console.warn('Failed to get CPU cores:', error instanceof Error ? error.message : error);
+      return 4;
+    }
+  }
+
+  /**
+   * Checks if GPU is available
+   *
+   * @private
+   * @returns Promise<boolean> - True if GPU is available
+   */
+  private async checkGPUAvailability(): Promise<boolean> {
+    try {
+      await execAsync('nvidia-smi --query-gpu=name --format=csv,noheader');
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Categorizes system resources into safety levels
+   *
+   * @private
+   * @param cpuUsage - CPU usage percentage
+   * @param ramUsage - RAM usage percentage
+   * @returns Resource category
+   */
+  private categorizeResources(cpuUsage: number, ramUsage: number): 'safe' | 'warning' | 'critical' {
+    if (cpuUsage >= this.config.cpuCriticalThreshold || ramUsage >= this.config.ramCriticalThreshold) {
+      return 'critical';
+    }
+    if (cpuUsage >= this.config.cpuWarningThreshold || ramUsage >= this.config.ramWarningThreshold) {
       return 'warning';
     }
     return 'safe';
