@@ -189,8 +189,6 @@ export class Phase20IntelligentReportComparison {
 
       await this.config.statePersistence.storeAnalysisResults(20, phase20Result, this.config.currentState);
 
-      const executionTimeMs = Date.now() - this.startTime;
-
       console.log(`\nSUCCESS Phase 20 Complete`);
       console.log(`INFO Critical changes: ${severityComparison.critical}`);
       console.log(`INFO High changes: ${severityComparison.high}`);
@@ -428,7 +426,7 @@ export class Phase20IntelligentReportComparison {
 
     // Aggregate findings from all phases
     const analysisResults = this.config.currentState.analysisResults || {};
-    for (const [phaseNumber, phaseData] of Object.entries(analysisResults)) {
+    for (const [, phaseData] of Object.entries(analysisResults)) {
       if (phaseData.findings) {
         findings.push(...phaseData.findings);
       }
@@ -653,24 +651,6 @@ export class Phase20IntelligentReportComparison {
     } catch (error) {
       console.warn('WARNING Failed to run Self-Destruct Secure Mode:', error instanceof Error ? error.message : error);
     }
-  }
-
-  /**
-   * Saves current report to history (PUNTO 3)
-   *
-   * @private
-   * @returns Promise<void>
-   */
-  private async saveReportToHistory(): Promise<void> {
-    const historyDir = path.join(this.config.projectRoot, '.aegis', 'history');
-    if (!fs.existsSync(historyDir)) {
-      fs.mkdirSync(historyDir, { recursive: true });
-    }
-
-    const historyFile = path.join(historyDir, `report-${Date.now()}.json`);
-    
-    // In real implementation, would save current report data
-    console.log(`INFO Saving report to history: ${historyFile}`);
   }
 
   /**

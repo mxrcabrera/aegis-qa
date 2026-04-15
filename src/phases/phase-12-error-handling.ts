@@ -1,5 +1,5 @@
 /**
- * Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED]
+ * Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED + HARDENED]
  *
  * Purpose: Evaluate error handling patterns, observability infrastructure, and resilience
  * to ensure the system can gracefully handle failures and provide actionable insights.
@@ -11,6 +11,10 @@
  * - Error Boundary Detection: Check for React Error Boundaries
  * - Generic Error Handlers: Identify catch blocks without meaningful error handling
  * - Error Context: Detect error handlers that don't log or provide context
+ * - Anti-Swallow Guard: Prohibit empty catch blocks in automatic fixes
+ * - Circuit Breaker Detection: Detect external API calls without timeout/retry
+ * - Log-Level Sanitization: Ensure logs don't include PII or complete request bodies
+ * - Log-Flood Prevention: Detect logging in loops that could saturate I/O
  * - Thermal Verification: Mandatory resource check before scanning
  * - Batch Processing: Use BatchProcessor with adaptive cooldown
  *
@@ -34,7 +38,7 @@ interface ErrorHandlingFinding {
   /** Unique ID based on file hash + line */
   id: string;
   /** Finding type */
-  type: 'empty-catch' | 'console-log-catch' | 'missing-handler' | 'no-stack-trace' | 'sensitive-log' | 'missing-observability' | 'timeout-review' | 'missing-error-boundary' | 'no-error-context';
+  type: 'empty-catch' | 'console-log-catch' | 'missing-handler' | 'no-stack-trace' | 'sensitive-log' | 'missing-observability' | 'timeout-review' | 'missing-error-boundary' | 'no-error-context' | 'anti-swallow-violation' | 'circuit-breaker-missing' | 'log-level-unsafe' | 'log-flood-risk';
   /** Severity: low, medium, high, critical */
   severity: 'low' | 'medium' | 'high' | 'critical';
   /** File path */
@@ -124,13 +128,13 @@ export class Phase12ErrorHandling {
   }
 
   /**
-   * Executes Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED]
+   * Executes Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED + HARDENED]
    *
    * @returns Promise<Phase12Result> - Error handling assessment result
    */
   async execute(): Promise<Phase12Result> {
     const startTime = Date.now();
-    console.log('INFO Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED]\n');
+    console.log('INFO Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED + HARDENED]\n');
 
     try {
       // Thermal Verification: Check system resources before scanning
@@ -386,6 +390,34 @@ export class Phase12ErrorHandling {
       });
     }
 
+    // Anti-Swallow Guard (PUNTO 1): Detect catch blocks without telemetry integration
+    const telemetryLibraries = ['Sentry', 'sentry', 'logger', 'Logger', 'winston', 'pino', 'bunyan', 'log4js'];
+    const catchWithoutTelemetryPattern = /catch\s*\(([^)]+)\)\s*\{([^}]*)\}/g;
+    while ((match = catchWithoutTelemetryPattern.exec(content)) !== null) {
+      const catchBody = match[2];
+      const lineNumber = content.substring(0, match.index).split('\n').length;
+      
+      // Check if catch block has telemetry integration
+      const hasTelemetry = telemetryLibraries.some((lib) => catchBody.includes(lib));
+      const hasMeaningfulHandling = catchBody.includes('throw') || catchBody.includes('retry') || catchBody.includes('rethrow');
+      
+      // If catch block is empty, only has console.log, or lacks telemetry in Core Path
+      if (!hasTelemetry && !hasMeaningfulHandling) {
+        if (catchBody.trim().length < 10 || catchBody.includes('console.')) {
+          findings.push({
+            id: this.generateFindingId(filePath, lineNumber, 'anti-swallow-violation'),
+            type: 'anti-swallow-violation',
+            severity: isCorePath ? 'critical' : 'high',
+            filePath,
+            line: lineNumber,
+            description: 'Anti-Swallow Guard violation: Catch block lacks telemetry integration',
+            suggestion: 'Integrate telemetry (Sentry.captureException, logger.error, etc.) instead of silent swallowing',
+            isCorePath,
+          });
+        }
+      }
+    }
+
     // Detect catch blocks that only do console.log
     const consoleLogCatchPattern = /catch\s*\([^)]*\)\s*\{[\s\S]*?console\.(log|error|warn)[\s\S]*?\}/g;
     while ((match = consoleLogCatchPattern.exec(content)) !== null) {
@@ -528,6 +560,88 @@ export class Phase12ErrorHandling {
           line: lineNumber,
           description: 'Catch block without error context or logging',
           suggestion: 'Add error logging, rethrow, or meaningful error handling logic',
+          isCorePath,
+        });
+      }
+    }
+
+    // Circuit Breaker Pattern Detection (PUNTO 2): Detect external API calls without timeout/retry
+    const apiCallPatterns = [
+      /axios\.(get|post|put|delete|patch)\([^)]+\)/g,
+      /fetch\([^)]+\)/g,
+    ];
+    
+    for (const pattern of apiCallPatterns) {
+      while ((match = pattern.exec(content)) !== null) {
+        const apiCall = match[0];
+        const lineNumber = content.substring(0, match.index).split('\n').length;
+        
+        // Check if the API call has timeout or retry logic
+        const hasTimeout = apiCall.includes('timeout') || apiCall.includes('signal');
+        const hasRetry = content.substring(match.index - 200, match.index + 200).includes('retry') || 
+                        content.substring(match.index - 200, match.index + 200).includes('axios-retry');
+        
+        if (!hasTimeout && !hasRetry) {
+          findings.push({
+            id: this.generateFindingId(filePath, lineNumber, 'circuit-breaker-missing'),
+            type: 'circuit-breaker-missing',
+            severity: isCorePath ? 'high' : 'medium',
+            filePath,
+            line: lineNumber,
+            description: 'External API call without timeout or retry logic - Circuit Breaker pattern recommended',
+            suggestion: 'Add timeout configuration and implement Circuit Breaker pattern (e.g., axios-retry, opencircuitbreaker)',
+            isCorePath,
+          });
+        }
+      }
+    }
+
+    // Log-Level Sanitization (PUNTO 3): Detect logging of complete objects that may contain PII/secrets
+    const unsafeLogPatterns = [
+      /console\.(log|error|warn|info)\([^)]*\{[\s\S]*?\}[^)]*\)/g,
+      /logger\.(log|error|warn|info)\([^)]*\{[\s\S]*?\}[^)]*\)/g,
+      /console\.(log|error|warn|info)\([^)]*request\.body[^)]*\)/gi,
+      /console\.(log|error|warn|info)\([^)]*user[^)]*\)/gi,
+      /console\.(log|error|warn|info)\([^)]*password[^)]*\)/gi,
+    ];
+    
+    for (const pattern of unsafeLogPatterns) {
+      while ((match = pattern.exec(content)) !== null) {
+        const lineNumber = content.substring(0, match.index).split('\n').length;
+        
+        findings.push({
+          id: this.generateFindingId(filePath, lineNumber, 'log-level-unsafe'),
+          type: 'log-level-unsafe',
+          severity: isCorePath ? 'critical' : 'high',
+          filePath,
+          line: lineNumber,
+          description: 'Log-Level Sanitization violation: Logging complete objects that may contain PII/secrets',
+          suggestion: 'Only log error.message and error.stack, never complete objects or request.body',
+          isCorePath,
+        });
+      }
+    }
+
+    // Hardware Guard Log-Flood Prevention (PUNTO 4): Detect logging in loops
+    const loopPatterns = [
+      /\.map\([^)]*\)\s*=>\s*\{[\s\S]*?console\./g,
+      /\.forEach\([^)]*\)\s*\{[\s\S]*?console\./g,
+      /for\s*\([^)]*\)\s*\{[\s\S]*?console\./g,
+      /while\s*\([^)]*\)\s*\{[\s\S]*?console\./g,
+    ];
+    
+    for (const pattern of loopPatterns) {
+      while ((match = pattern.exec(content)) !== null) {
+        const lineNumber = content.substring(0, match.index).split('\n').length;
+        
+        findings.push({
+          id: this.generateFindingId(filePath, lineNumber, 'log-flood-risk'),
+          type: 'log-flood-risk',
+          severity: 'medium',
+          filePath,
+          line: lineNumber,
+          description: 'Hardware Guard Log-Flood Prevention: Logging inside loop may saturate disk I/O',
+          suggestion: 'Implement sampling (e.g., log every 10th iteration) or move logging outside loop',
           isCorePath,
         });
       }
