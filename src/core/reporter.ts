@@ -279,6 +279,13 @@ export class ReportAggregator {
       summary += `- **${category}:** ${count}\n`;
     }
 
+    // Applied/Suggested Fixes section
+    summary += '\n## 🔧 Applied/Suggested Fixes\n\n';
+    summary += '*Atomic fixes applied or suggested from Phase 11*\n\n';
+    summary += '- **Status:** Check partial report for detailed fix results\n';
+    summary += '- **Patch Files:** Available in .sentinel/diffs/\n';
+    summary += '- **Core Path Fixes:** Require explicit confirmation\n\n';
+
     return summary;
   }
 
