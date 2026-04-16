@@ -100,7 +100,6 @@ export class PredictiveBugDetection {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const lineNumber = i + 1;
 
       // Silent Killer: try-catch with empty catch or only console.log
       const silentKiller = this.detectSilentKiller(line, lines, i, isCorePath, filePath);

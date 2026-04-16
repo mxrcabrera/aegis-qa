@@ -15,7 +15,7 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as _path from 'path';
 
 /**
  * Cost detection result
@@ -196,7 +196,6 @@ export class CloudCostDetection {
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n');
 
       for (const rule of this.patternRules) {
         let match: RegExpExecArray | null;

@@ -269,7 +269,7 @@ export class Phase16FixStrategyGeneration {
     // Calculate safety levels
     for (const filePath of sourceFiles) {
       const importCount = importMap.get(filePath)?.size || 0;
-      const exportCount = this.extractExports(filePath);
+      const exportCount = this.countExports(filePath);
       
       // Calculate safety level based on import count
       let safetyLevel = SafetyLevel.SAFE_LEVEL_1;

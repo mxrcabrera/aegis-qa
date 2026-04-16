@@ -26,13 +26,13 @@ import { Phase7TestingStrategy } from '../phases/phase-7-testing-strategy.js';
 import { Phase8Performance } from '../phases/phase-8-performance.js';
 import { Phase9I18nA11y } from '../phases/phase-9-i18n-a11y.js';
 import { Phase10EnvCICD } from '../phases/phase-10-env-cicd.js';
-import { Phase11TestingAudit } from '../phases/phase-11-testing-audit.js';
+import { Phase11AtomicFixes } from '../phases/phase-11-atomic-fixes.js';
 import { Phase12ErrorHandling } from '../phases/phase-12-error-handling.js';
-import { Phase13I18nL10n } from '../phases/phase-13-i18n-l10n.js';
-import { Phase14GitHygiene } from '../phases/phase-14-git-hygiene.js';
-import { Phase15CICDDevOps } from '../phases/phase-15-cicd-devops.js';
-import { Phase15BCloudInfra } from '../phases/phase-15b-cloud-infra.js';
-import { Phase15CContainerization } from '../phases/phase-15c-containerization.js';
+import { Phase13I18nL10n } from '../phases/phase-13a-i18n-l10n.js';
+import { Phase14GitHygiene } from '../phases/phase-14b-git-hygiene.js';
+import { Phase15CICDDevOps } from '../phases/phase-15a-cicd-devops.js';
+import { Phase15BCloudInfra } from '../phases/phase-15c-cloud-infra.js';
+import { Phase15CContainerization } from '../phases/phase-15d-containerization.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
@@ -145,11 +145,9 @@ interface PhaseOrchestratorConfig {
  */
 export class PhaseOrchestrator {
   private config: PhaseOrchestratorConfig;
-  private businessProfile: any = null;
 
   constructor(config: PhaseOrchestratorConfig) {
     this.config = config;
-    this.businessProfile = config.businessProfile || null;
   }
 
   /**
@@ -429,9 +427,6 @@ export class PhaseOrchestrator {
         if (this.config.enableMemoryFlush && this.isHeavyPhase(2)) {
           await this.flushMemory();
         }
-        
-        // Store business profile for context injection into subsequent phases
-        this.businessProfile = phase2Result.businessProfile;
         
         // Update ReportAggregator with business risk findings for risk-driven reporting
         this.config.reportAggregator.setBusinessRiskFindings(phase2Result.businessProfile.riskFindings);
@@ -1248,17 +1243,21 @@ export class PhaseOrchestrator {
     const phase11StartTime = Date.now();
     
     try {
-      const phase11TestingAudit = new Phase11TestingAudit({
+      const phase11AtomicFixes = new Phase11AtomicFixes({
         projectRoot: this.config.projectRoot,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
+        thermalController: this.config.thermalController,
+        autoApply: false,
+        allowCorePathFixes: false,
+        dryRun: true,
       });
 
       const timeoutMs = this.config.phaseTimeoutMs || 300000; // 5 min default
       const phase11Result = await this.runWithTimeout(
-        () => phase11TestingAudit.execute(),
+        () => phase11AtomicFixes.execute(),
         timeoutMs,
-        'Phase 11: Testing Deep Audit'
+        'Phase 11: Atomic Fixes'
       );
 
       if (!phase11Result.success) {
@@ -1284,16 +1283,16 @@ export class PhaseOrchestrator {
           error: phase11Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 11: Testing Deep Audit passed`);
-        console.log(`  ­ƒöì Total findings: ${phase11Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase11Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase11Result.highSeverityFindings}\n`);
+        console.log(`Ô£à Phase 11: Atomic Fixes passed`);
+        console.log(`  ­ƒöì Total fixes attempted: ${phase11Result.remediationResult.totalFixesAttempted}`);
+        console.log(`  ­ƒÜ¿ Fixes applied: ${phase11Result.remediationResult.fixesApplied}`);
+        console.log(`  ÔÜá´©Å  Fixes skipped: ${phase11Result.remediationResult.fixesSkipped}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
             11,
-            'Testing Deep Audit',
-            phase11Result.findings.length,
+            'Atomic Fixes',
+            phase11Result.remediationResult.fixesApplied,
             phase11Result.executionTimeMs
           );
         }
@@ -1302,13 +1301,11 @@ export class PhaseOrchestrator {
           await this.flushMemory();
         }
         
-        await this.config.statePersistence.saveState(this.config.currentState);
-        
         phaseResults.push({
           phase: 11,
-          phaseName: 'Testing Deep Audit',
+          phaseName: 'Atomic Fixes',
           success: true,
-          findingsCount: phase11Result.findings.length,
+          findingsCount: phase11Result.remediationResult.fixesApplied,
           executionTimeMs: phase11Result.executionTimeMs,
         });
       }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * BatchProcessor - Atomic File Processing with Integrity Guarantees
  *
  * Purpose: Process files in batches with atomic operations, ensuring no files
@@ -134,7 +134,7 @@ export class BatchProcessor {
       }
     }
 
-    console.log(`[BatchProcessor] ­ƒÄ» Smart Scoping: ${criticalFiles.length} critical modules prioritized, ${nonCriticalFiles.length} non-critical files deferred`);
+    console.log(`[BatchProcessor] ��Ļ Smart Scoping: ${criticalFiles.length} critical modules prioritized, ${nonCriticalFiles.length} non-critical files deferred`);
     
     // Return critical files first, then non-critical
     return [...criticalFiles, ...nonCriticalFiles];
@@ -177,7 +177,7 @@ export class BatchProcessor {
     try {
       const resources = await this.config.thermalController.checkSystemResources();
       // If thermal controller indicates high or critical load, enable smart scoping
-      resourcesLimited = resources.category === 'high' || resources.category === 'critical';
+      resourcesLimited = resources.category === 'warning' || resources.category === 'critical';
     } catch {
       // If thermal check fails, assume resources are limited to be safe
       resourcesLimited = true;
@@ -186,7 +186,7 @@ export class BatchProcessor {
     // Apply smart scoping: prioritize critical modules only when resources are limited
     if (resourcesLimited) {
       prioritizedFiles = this.prioritizeFiles(files);
-      console.log(`[BatchProcessor] ⚠️  Resources limited - prioritizing ${this.config.criticalModules?.length || 0} critical modules`);
+      console.log(`[BatchProcessor] ??  Resources limited - prioritizing ${this.config.criticalModules?.length || 0} critical modules`);
     }
     
     const totalBatches = Math.ceil(prioritizedFiles.length / this.batchSize);

@@ -356,7 +356,7 @@ export class PhaseRefactor {
     }
 
     // Find code blocks that appear multiple times
-    codeBlocks.forEach((locations, hash) => {
+    codeBlocks.forEach((locations, _hash) => {
       if (locations.length > 2) {
         findings.push({
           id: `duplicate-code-${Date.now()}-${Math.random()}`,

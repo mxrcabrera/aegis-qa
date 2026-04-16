@@ -18,12 +18,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence';
 import { ThermalController } from '../core/thermal-controller.js';
-
-const execAsync = promisify(exec);
 
 /**
  * Fix application result
@@ -1010,34 +1006,6 @@ export class Phase11AtomicFixes {
 
   /**
    * Applies an atomic fix with Backup -> Action -> Verification -> Rollback loop
-   *
-   * LÓGICA DE ATOMIC FIXES (Fases 16-18):
-   * 
-   * 1. Backup: Guardar originalContent en memoria
-   * 2. Action: Aplicar el fix sugerido por la fase correspondiente
-   * 3. Hardware Check Pre-Build: Verificar CPU < 80%, si no aplicar adaptiveCooldown('high') 20s
-   * 4. Verificación de Integridad: Ejecutar npm run build o npx tsc --noEmit
-   * 5. Decisión: Si exit code es 0, el fix se queda. Si es != 0, realizar rollback()
-   * 
-   * @private
-   * @param filePath - File path to fix
-   * @param originalContent - Original file content
-   * @param newContent - New file content with fix applied
-   * @param fixId - Fix identifier
-   * @returns Promise<FixApplicationResult> - Fix application result
-   */
-  private async applyAtomicFix(
-    filePath: string,
-    originalContent: string,
-    newContent: string,
-    fixId: string
-  ): Promise<FixApplicationResult> {
-    const fixResult: FixApplicationResult = {
-      fixId,
-      filePath,
-      success: false,
-      originalContent,
-      newContent,
       isCorePath: false,
       applied: false,
       requiresConfirmation: false,
@@ -1078,13 +1046,13 @@ export class Phase11AtomicFixes {
       try {
         const packageJsonPath = path.join(this.config.projectRoot, 'package.json');
         if (fs.existsSync(packageJsonPath)) {
-          const { stdout, stderr } = await execAsync('npm run build', { cwd: this.config.projectRoot });
+          const { stdout: _stdout, stderr } = await execAsync('npm run build', { cwd: this.config.projectRoot });
           if (stderr) {
             buildError = stderr;
           }
         } else {
           // Fallback to tsc if no package.json
-          const { stdout, stderr } = await execAsync('npx tsc --noEmit', { cwd: this.config.projectRoot });
+          const { stdout: _stdout, stderr } = await execAsync('npx tsc --noEmit', { cwd: this.config.projectRoot });
           if (stderr) {
             buildError = stderr;
           }

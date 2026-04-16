@@ -304,7 +304,6 @@ class ReportAggregator {
         const fileName = violation.file?.path || 'unknown';
         const message = violation.message;
         // Extract cost impact and savings from message if available
-        const costImpact = message.includes('Cost Impact') ? message.split('Cost Impact:')[1]?.split('.')[0] || 'Unknown' : 'Unknown';
         report += `| ${severityEmoji} ${violation.severity} | ${path.basename(fileName)} | ${violation.location.line} | ${violation.rule} | ${message.substring(0, 60)}... |\n`;
       }
       report += '\n';

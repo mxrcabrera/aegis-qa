@@ -47,7 +47,6 @@ export class AtomicFixer {
   private diffsPath: string;
   private interactiveMode: boolean;
   private dryRun: boolean;
-  private appliedFixes: Map<string, string> = new Map(); // Track applied fixes for rollback
 
   constructor(projectRoot: string, interactiveMode: boolean = true, dryRun: boolean = false) {
     this.projectRoot = projectRoot;
@@ -91,7 +90,7 @@ export class AtomicFixer {
   /**
    * Generate fixes based on violations
    */
-  private async generateFixes(violations: any[], domainModel?: any): Promise<Fix[]> {
+  private async generateFixes(violations: any[], _domainModel?: any): Promise<Fix[]> {
     const fixes: Fix[] = [];
 
     // Group violations by type
@@ -128,7 +127,7 @@ export class AtomicFixer {
     }
 
     // Mark fixes with collisions
-    for (const [key, conflictingFixes] of lineMap.entries()) {
+    for (const [_key, conflictingFixes] of lineMap.entries()) {
       if (conflictingFixes.length > 1) {
         for (const fix of conflictingFixes) {
           fix.collisionDetected = true;
@@ -493,7 +492,6 @@ export class AtomicFixer {
     }
 
     try {
-      const content = fs.readFileSync(fix.file, 'utf-8');
       const traceabilityComment = `\n// Sentinel Fix ID: ${fix.id} | Violation ID: ${fix.violationId} | Applied: ${new Date().toISOString()}`;
       fs.appendFileSync(fix.file, traceabilityComment, 'utf-8');
     } catch (error) {

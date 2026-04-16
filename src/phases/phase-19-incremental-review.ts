@@ -384,8 +384,6 @@ export class Phase19IncrementalReview {
     for (const sourceFile of sourceFiles) {
       try {
         const content = fs.readFileSync(sourceFile, 'utf-8');
-        const relativePath = path.relative(this.config.projectRoot, sourceFile);
-
         // Extract import statements
         const importPatterns = [
           /import.*from\s+['"]([^'"]+)['"]/g,

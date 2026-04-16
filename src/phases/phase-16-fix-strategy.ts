@@ -559,7 +559,7 @@ export class Phase16FixStrategyGeneration {
     }
 
     // Detect conflicts
-    for (const [key, strategies] of lineMap.entries()) {
+    for (const [, strategies] of lineMap.entries()) {
       if (strategies.length > 1) {
         totalConflicts++;
         
@@ -719,7 +719,7 @@ export class Phase16FixStrategyGeneration {
     for (const sourceFile of sourceFiles) {
       try {
         const content = fs.readFileSync(sourceFile, 'utf-8');
-        const relativePath = path.relative(this.config.projectRoot, sourceFile);
+        
 
         // Extract import statements
         const importPatterns = [
@@ -836,82 +836,5 @@ export class Phase16FixStrategyGeneration {
     this.strategyCache.clear();
     this.cacheFlushCount++;
     console.log('INFO Strategy cache flushed');
-  }
-
-  /**
-   * Writes partial report for Phase 16
-   *
-   * @private
-   * @param strategyResult - Fix strategy generation result
-   */
-  private async writePartialReport(strategyResult: FixStrategyGenerationResult): Promise<void> {
-    try {
-      const reportPath = path.join(this.config.projectRoot, 'qa-report.partial.md');
-      const timestamp = new Date().toISOString();
-
-      let reportContent = `
-## Phase 16: Fix Strategy Generation - COMPLETED
-- **Timestamp:** ${timestamp}
-
-### Summary
-- **Total Strategies:** ${strategyResult.totalStrategies}
-- **Conflicts Detected:** ${strategyResult.conflictsDetected}
-- **Conflicts Resolved:** ${strategyResult.conflictsResolved}
-- **Human Intervention Required:** ${strategyResult.humanInterventionRequired}
-- **Cache Flushes:** ${strategyResult.cacheFlushes}
-
-### Strategies by Phase
-`;
-
-      for (const [phaseNumber, strategies] of strategyResult.strategiesByPhase.entries()) {
-        reportContent += `
-#### Phase ${phaseNumber}
-- **Strategies:** ${strategies.length}
-`;
-
-        for (const strategy of strategies) {
-          const safeLevelIcon = strategy.safeLevel === 5 ? 'HIGH RISK' : strategy.safeLevel >= 4 ? 'MEDIUM RISK' : 'LOW RISK';
-          reportContent += `- [${safeLevelIcon}] **${strategy.findingType}** ${strategy.filePath}`;
-          if (strategy.line) {
-            reportContent += `:${strategy.line}`;
-          }
-          reportContent += `\n`;
-          reportContent += `  - Safe Level: ${strategy.safeLevel}/5\n`;
-          reportContent += `  - ${strategy.description}\n`;
-          if (strategy.requiresHumanIntervention) {
-            reportContent += `  - REQUIRES HUMAN INTERVENTION\n`;
-          }
-          if (strategy.dependencies.length > 0) {
-            reportContent += `  - Dependencies: ${strategy.dependencies.length} files\n`;
-          }
-          if (strategy.conflictStatus === 'conflict-resolved') {
-            reportContent += `  - CONFLICT RESOLVED (lower priority)\n`;
-          }
-          reportContent += `\n`;
-        }
-      }
-
-      reportContent += `
-
----
-
-`;
-
-      // Append to partial report
-      if (fs.existsSync(reportPath)) {
-        fs.appendFileSync(reportPath, reportContent, 'utf-8');
-      } else {
-        // Create new partial report with header
-        const header = `# Aegis QA - Partial Report
-Generated: ${timestamp}
-
-`;
-        fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
-      }
-
-      console.log(`INFO Partial report written: ${reportPath}`);
-    } catch (error) {
-      console.warn('WARNING Failed to write partial report:', error instanceof Error ? error.message : error);
-    }
   }
 }

@@ -18,7 +18,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
-import { validatePath, sanitizeError, validateFileSize, censorSecrets } from '../core/security-utils.js';
+import { validatePath, sanitizeError } from '../core/security-utils.js';
 
 /**
  * Git/Repo hygiene finding

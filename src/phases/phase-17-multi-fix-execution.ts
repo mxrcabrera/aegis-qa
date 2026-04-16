@@ -447,7 +447,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixHardcodedString(content: string, strategy: any): {
+  private fixHardcodedString(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -463,7 +463,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUnusedVariable(content: string, strategy: any): {
+  private fixUnusedVariable(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -479,7 +479,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUserRoot(content: string, strategy: any): {
+  private fixUserRoot(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -505,7 +505,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixLatestImage(content: string, strategy: any): {
+  private fixLatestImage(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -644,76 +644,5 @@ export class Phase17MultiFixExecution {
     }
 
     return { success: false };
-  }
-
-  /**
-   * Executes parallel fixes with dynamic thermal throttle (PUNTO 3)
-   *
-   * PUNTO 3: Concurrency Throttle Dinámico
-   * 
-   * LÓGICA DE THROTTLE DINÁMICO:
-   * - CPU < 40%: 4 archivos en paralelo
-   * - CPU 40-70%: 2 archivos en paralelo
-   * - CPU > 70%: 1 archivo a la vez con pausa de 2s entre archivos
-   * 
-   * Esto permite que Aegis QA adapte su velocidad al estrés térmico del sistema
-   * 
-   * @private
-   * @param batches - File fix batches
-   * @returns Promise<void>
-   */
-  private async executeParallelFixes(batches: FileFixBatch[]): Promise<void> {
-    let filesProcessed = 0;
-
-    for (let i = 0; i < batches.length; i++) {
-      // Concurrency Throttle Dinámico: Check CPU
-      const resourceCheck = await this.config.thermalController.checkSystemResources();
-      
-      let maxParallel = 4;
-      let pauseBetweenFiles = 0;
-      
-      if (resourceCheck.cpuUsage > 70) {
-        maxParallel = 1;
-        pauseBetweenFiles = 2000;
-        console.log(`INFO CPU high (${resourceCheck.cpuUsage}%). Throttling to 1 file with 2s pause`);
-      } else if (resourceCheck.cpuUsage >= 40) {
-        maxParallel = 2;
-        console.log(`INFO CPU moderate (${resourceCheck.cpuUsage}%). Throttling to 2 files`);
-      } else {
-        console.log(`INFO CPU low (${resourceCheck.cpuUsage}%). Using 4 files parallel`);
-      }
-
-      // Process next batch of files
-      const endIndex = Math.min(i + maxParallel, batches.length);
-      const chunk = batches.slice(i, endIndex);
-
-      await Promise.all(
-        chunk.map(batch => this.applyBatchFixes(batch))
-      );
-
-      filesProcessed += chunk.length;
-
-      // Hardware Guard (I/O Flush): After batch of 20 files, force fs.sync or wait 3s
-      if (filesProcessed % 20 === 0) {
-        console.log(`INFO I/O Flush: Processed ${filesProcessed} files. Forcing filesystem sync...`);
-        try {
-          fs.openSync(path.join(this.config.projectRoot, '.sentinel'), 'r');
-          fs.fdatasyncSync(1); // Force filesystem sync
-        } catch {
-          // If fsync fails, wait 3 seconds instead
-          console.log('INFO fsync not available, waiting 3 seconds for I/O flush...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-      }
-
-      // Pause between files if throttled
-      if (pauseBetweenFiles > 0 && i + maxParallel < batches.length) {
-        console.log(`INFO Pausing ${pauseBetweenFiles}ms between files...`);
-        await new Promise(resolve => setTimeout(resolve, pauseBetweenFiles));
-      }
-
-      // Skip ahead based on maxParallel
-      i += maxParallel - 1;
-    }
   }
 }

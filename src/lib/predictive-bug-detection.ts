@@ -15,7 +15,7 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as _path from 'path';
 
 /**
  * Bug prediction result
@@ -188,7 +188,6 @@ export class PredictiveBugDetection {
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n');
 
       for (const rule of this.patternRules) {
         let match: RegExpExecArray | null;
@@ -267,7 +266,7 @@ export class PredictiveBugDetection {
    * @param rule - Pattern rule
    * @returns 'low' | 'medium' | 'high' - Confidence level
    */
-  private calculateConfidence(context: string, rule: PatternRule): 'low' | 'medium' | 'high' {
+  private calculateConfidence(context: string, _rule: PatternRule): 'low' | 'medium' | 'high' {
     // Simple heuristic: if context contains error handling, lower confidence
     const hasErrorHandling = /try|catch|\.catch|if\s*\([^)]*null|if\s*\([^)]*undefined/.test(context);
     

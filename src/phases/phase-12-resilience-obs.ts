@@ -384,6 +384,7 @@ export class Phase12ResilienceObs {
 
     // Check for console.log in production code
     const consoleLogPattern = /console\.log\(/g;
+    let match: RegExpExecArray | null;
     while ((match = consoleLogPattern.exec(content)) !== null) {
       const lineNumber = content.substring(0, match.index).split('\n').length;
       findings.push({

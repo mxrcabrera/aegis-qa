@@ -153,7 +153,7 @@ class DomainInference {
   /**
    * Parsea schema de Prisma
    */
-  private parsePrismaSchema(content: string, filePath: string): Entity | null {
+  private parsePrismaSchema(content: string, _filePath: string): Entity | null {
     const modelMatch = content.match(/model\s+(\w+)\s*\{([\s\S]*?)\}/);
 
     if (!modelMatch) return null;
@@ -198,7 +198,7 @@ class DomainInference {
    */
   private parseTypeScriptSchema(
     content: string,
-    filePath: string,
+    _filePath: string,
   ): Entity | null {
     const interfaceMatch = content.match(/interface\s+(\w+)/);
     const typeMatch = content.match(/type\s+(\w+)\s*=/);

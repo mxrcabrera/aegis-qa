@@ -86,10 +86,7 @@ export class QAOrchestrator {
 
     // Inicializar StatePersistence si no se skip
     if (!this.config.skipTests) {
-      this.statePersistence = new StatePersistence({
-        projectRoot: this.config.projectPath,
-      });
-      await this.statePersistence.initialize();
+      this.statePersistence = new StatePersistence(this.config.projectPath);
     }
 
     // Ejecutar diagnóstico térmico
@@ -107,17 +104,16 @@ export class QAOrchestrator {
         reportAggregator: this.reportAggregator,
         statePersistence: this.statePersistence,
         currentState: {
-          sessionId: 'qa-session-' + Date.now(),
-          lastCompletedPhase: 0,
+          projectRoot: this.config.projectPath,
           currentPhase: 0,
           totalPhases: 20,
-          filesProcessed: 0,
-          totalFiles: 0,
-          sessionStartTime: Date.now(),
-          lastSaveTime: Date.now(),
-          isComplete: false,
-          analysisResults: {},
-          phaseState: {},
+          phases: [],
+          files: [],
+          lastSaveTime: new Date().toISOString(),
+          thermalLogs: [],
+          totalFindings: 0,
+          startTime: new Date().toISOString(),
+          interrupted: false,
         },
       });
     }
