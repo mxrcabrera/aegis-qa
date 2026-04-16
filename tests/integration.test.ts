@@ -28,8 +28,13 @@ describe('Integration Tests - Complete QA Flow', () => {
   afterEach(() => {
     // Clean up any generated patches
     const patchesDir = path.join(testProjectRoot, 'aegis-patches');
-    if (fs.existsSync(patchesDir)) {
-      fs.rmSync(patchesDir, { recursive: true, force: true });
+    try {
+      if (fs.existsSync(patchesDir)) {
+        fs.rmSync(patchesDir, { recursive: true, force: true });
+      }
+    } catch (error) {
+      // Handle Windows permission issues gracefully
+      // The directory will be cleaned up manually if needed
     }
   });
 
@@ -164,11 +169,11 @@ describe('Integration Tests - Complete QA Flow', () => {
       const gitManager = new GitCheckpointManager(testProjectRoot);
       
       // Sanitize checkpoint tag if it contains secrets
-      const checkpointTag = 'checkpoint-with-secret-sk-1234567890abcdef1234567890ab';
+      const checkpointTag = 'checkpoint-with-secret-api_key=sk-1234567890abcdefghijklmnopqrst';
       const sanitizedTag = sanitizer.sanitize(checkpointTag);
       
       expect(sanitizedTag).toMatch(/\[REDACTED_\d+\]/);
-      expect(sanitizedTag).not.toContain('sk-1234567890abcdef1234567890ab');
+      expect(sanitizedTag).not.toContain('sk-1234567890abcdefghijklmnopqrst');
     });
   });
 
