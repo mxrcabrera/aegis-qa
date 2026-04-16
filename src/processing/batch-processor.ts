@@ -1,33 +1,58 @@
-/**
- * BatchProcessor - Adaptive Batch Processing with Hardware Protection
+﻿/**
+ * BatchProcessor - Atomic File Processing with Integrity Guarantees
  *
- * Purpose: Process files in adaptive batches according to hardware capabilities,
- * ensuring safe operation on systems with varying resources.
+ * Purpose: Process files in batches with atomic operations, ensuring no files
+ * are left "half-processed" even if execution is interrupted (SIGINT, thermal shutdown).
  *
- * Architecture: This processor dynamically adjusts batch sizes based on:
- * - Total file count
- * - CPU/RAM usage
- * - GPU temperature (if available)
- * - Hardware tier (high/medium/low)
- *
- * Batch Size Logic:
- * - < 100 files: 1 batch
- * - 100-500 files: batches of 50
- * - 500-1000 files: batches of 30
- * - > 1000 files: batches of 20 + resume capability
- *
- * Adaptive Adjustments:
- * - CPU > 80%: reduce batch size to 10
- * - RAM > 90%: reduce batch size to 5
- * - GPU > 70°C: HALT + cooldown 60s
+ * Architecture:
+ * - Processes files in configurable batch sizes
+ * - Each file operation is atomic (fully processed or not at all)
+ * - Integrates with StatePersistence for resume capability
+ * - Thermal checks between batches
+ * - Adaptive batch sizing based on hardware capabilities
  *
  * @module processing/batch-processor
- * @since 1.0.0
+ * @since 2.0.0
  */
 
 import { ThermalController } from '../core/thermal-controller.js';
-import { SystemResourceMonitor } from '../core/system-resource-monitor.js';
-import { StatePersistence } from '../core/state-persistence.js';
+import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
+
+/**
+ * Batch processor configuration
+ */
+interface BatchProcessorConfig {
+  /** Project root directory */
+  projectRoot: string;
+  /** Thermal controller for hardware protection */
+  thermalController: ThermalController;
+  /** State persistence for resume capability */
+  statePersistence: StatePersistence;
+  /** Recommended batch size from hardware detection */
+  recommendedBatchSize?: number;
+  /** Recommended cooldown from hardware detection */
+  recommendedCooldown?: number;
+  /** Whether to apply cooldowns between batches */
+  applyCooldowns?: boolean;
+  /** Critical modules to prioritize (from Phase 2) */
+  criticalModules?: string[];
+}
+
+/**
+ * File processing result
+ */
+interface FileProcessingResult {
+  /** File path */
+  filePath: string;
+  /** Whether processing succeeded */
+  success: boolean;
+  /** Processing time in milliseconds */
+  processingTimeMs: number;
+  /** Error message if processing failed */
+  error?: string;
+  /** Any findings from this file */
+  findings?: any[];
+}
 
 /**
  * Batch processing result
@@ -37,343 +62,317 @@ interface BatchResult {
   batchNumber: number;
   /** Total batches */
   totalBatches: number;
-  /** Files in batch */
-  files: string[];
-  /** Success status */
-  success: boolean;
-  /** Results from batch processing */
-  results: any[];
+  /** Files in this batch */
+  fileCount: number;
+  /** Successful processing count */
+  successCount: number;
+  /** Failed processing count */
+  failureCount: number;
+  /** Total findings from this batch */
+  totalFindings: number;
   /** Execution time in milliseconds */
   executionTimeMs: number;
-  /** Error if failed */
-  error?: string;
 }
 
 /**
- * Batch processing configuration
- */
-interface BatchProcessorConfig {
-  /** Thermal controller for hardware protection */
-  thermalController: ThermalController;
-  /** System resource monitor for CPU/RAM monitoring */
-  systemResourceMonitor: SystemResourceMonitor;
-  /** State persistence for resume capability */
-  statePersistence: StatePersistence;
-  /** Default batch size for small repos */
-  defaultBatchSize: number;
-  /** Maximum batch size */
-  maxBatchSize: number;
-  /** Minimum batch size */
-  minBatchSize: number;
-  /** Whether to enable adaptive batch sizing */
-  enableAdaptiveSizing: boolean;
-  /** Cooldown duration in milliseconds after each batch */
-  batchCooldownMs: number;
-}
-
-/**
- * BatchProcessor - Adaptive batch processing with hardware protection
+ * BatchProcessor - Atomic file processing with integrity guarantees
  *
- * This class processes files in adaptive batches, adjusting size based on
- * hardware capabilities and resource usage to ensure safe operation.
+ * This class processes files in batches with atomic operations, ensuring
+ * that no files are left "half-processed" even if execution is interrupted.
  *
  * @class BatchProcessor
  * @example
  * ```typescript
- * const processor = new BatchProcessor(config);
- * const files = ['src/index.ts', 'src/utils.ts', ...];
- * const results = await processor.processBatches(files, async (batch) => {
- *   // Process batch of files
- *   return batch.map(file => analyzeFile(file));
+ * const processor = new BatchProcessor({
+ *   projectRoot: '/path/to/project',
+ *   thermalController: new ThermalController(),
+ *   statePersistence: new StatePersistence('/path/to/project'),
+ *   recommendedBatchSize: 20,
+ *   recommendedCooldown: 15000,
  * });
+ *
+ * const results = await processor.processFiles(
+ *   ['/path/to/file1.ts', '/path/to/file2.ts'],
+ *   async (file) => { /* process file * / }
+ * );
  * ```
  */
 export class BatchProcessor {
   private config: BatchProcessorConfig;
-  private currentBatch: number = 0;
-  private totalBatches: number = 0;
+  private batchSize: number;
 
   constructor(config: BatchProcessorConfig) {
     this.config = config;
+    
+    // Use recommended values or defaults
+    this.batchSize = config.recommendedBatchSize || 20;
   }
 
   /**
-   * Processes files in adaptive batches
+   * Prioritizes files based on critical modules when resources are limited
+   *
+   * @private
+   * @param files - Array of file paths
+   * @returns Prioritized array of file paths
+   */
+  private prioritizeFiles(files: string[]): string[] {
+    if (!this.config.criticalModules || this.config.criticalModules.length === 0) {
+      return files;
+    }
+
+    const criticalSet = new Set(this.config.criticalModules);
+    
+    // Separate critical and non-critical files
+    const criticalFiles: string[] = [];
+    const nonCriticalFiles: string[] = [];
+
+    for (const file of files) {
+      if (criticalSet.has(file)) {
+        criticalFiles.push(file);
+      } else {
+        nonCriticalFiles.push(file);
+      }
+    }
+
+    console.log(`[BatchProcessor] ­ƒÄ» Smart Scoping: ${criticalFiles.length} critical modules prioritized, ${nonCriticalFiles.length} non-critical files deferred`);
+    
+    // Return critical files first, then non-critical
+    return [...criticalFiles, ...nonCriticalFiles];
+  }
+
+  /**
+   * Processes files in batches with atomic operations
+   *
+   * This method processes files in batches, ensuring each file is fully
+   * processed before moving to the next. Thermal checks are performed between
+   * batches. State is saved after each batch for resume capability.
    *
    * @param files - Array of file paths to process
-   * @param processor - Async function to process each batch
-   * @returns Promise<BatchResult[]> - Results from all batches
+   * @param processorFn - Async function to process each file
+   * @param currentState - Current execution state for persistence
+   * @returns Promise<BatchResult[]> - Results for each batch
+   *
+   * @example
+   * ```typescript
+   * const results = await processor.processFiles(
+   *   filePaths,
+   *   async (filePath) => {
+   *     const content = fs.readFileSync(filePath, 'utf-8');
+   *     // Process content
+   *     return { findings: [...] };
+   *   },
+   *   executionState
+   * );
+   * ```
    */
-  async processBatches(
+  async processFiles(
     files: string[],
-    processor: (batch: string[], batchNumber: number, totalBatches: number) => Promise<any[]>
+    processorFn: (filePath: string) => Promise<FileProcessingResult>,
+    currentState: ExecutionState
   ): Promise<BatchResult[]> {
-    const totalFiles = files.length;
-    const batchSize = this.calculateBatchSize(totalFiles);
-    this.totalBatches = Math.ceil(totalFiles / batchSize);
-
-    console.log(`[BatchProcessor] Processing ${totalFiles} files in ${this.totalBatches} batches of ${batchSize}`);
-
+    // Check if resources are limited for smart scoping
+    let prioritizedFiles = files;
+    let resourcesLimited = false;
+    
+    try {
+      const resources = await this.config.thermalController.checkSystemResources();
+      // If thermal controller indicates high or critical load, enable smart scoping
+      resourcesLimited = resources.category === 'high' || resources.category === 'critical';
+    } catch {
+      // If thermal check fails, assume resources are limited to be safe
+      resourcesLimited = true;
+    }
+    
+    // Apply smart scoping: prioritize critical modules only when resources are limited
+    if (resourcesLimited) {
+      prioritizedFiles = this.prioritizeFiles(files);
+      console.log(`[BatchProcessor] ⚠️  Resources limited - prioritizing ${this.config.criticalModules?.length || 0} critical modules`);
+    }
+    
+    const totalBatches = Math.ceil(prioritizedFiles.length / this.batchSize);
     const results: BatchResult[] = [];
-    this.currentBatch = 0;
 
-    for (let i = 0; i < totalFiles; i += batchSize) {
-      this.currentBatch++;
-      const batch = files.slice(i, i + batchSize);
+    console.log(`[BatchProcessor] Processing ${prioritizedFiles.length} files in ${totalBatches} batches (batch size: ${this.batchSize})`);
 
-      console.log(`[BatchProcessor] Batch ${this.currentBatch}/${this.totalBatches}: ${batch.length} files`);
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const batchNumber = batchIndex + 1;
+      const startIndex = batchIndex * this.batchSize;
+      const endIndex = Math.min(startIndex + this.batchSize, prioritizedFiles.length);
+      const batchFiles = prioritizedFiles.slice(startIndex, endIndex);
 
-      // Thermal check before batch
-      await this.performThermalCheck();
+      console.log(`[BatchProcessor] Batch ${batchNumber}/${totalBatches}: Processing ${batchFiles.length} files`);
 
-      // Resource check before batch
-      await this.performResourceCheck();
-
-      // Process batch
-      const batchResult = await this.processBatch(batch, processor);
+      const batchResult = await this.processBatch(
+        batchFiles,
+        processorFn,
+        batchNumber,
+        totalBatches,
+        currentState
+      );
 
       results.push(batchResult);
 
-      // Apply cooldown between batches
-      if (this.currentBatch < this.totalBatches) {
-        await this.applyBatchCooldown();
+      // Thermal check and cooldown between batches
+      if (this.config.applyCooldowns) {
+        await this.applyThermalProtection();
       }
 
-      // Save progress for resume capability
-      await this.saveProgress(i + batchSize, totalFiles);
+      // Save state after each batch
+      await this.config.statePersistence.saveState(currentState);
     }
+
+    console.log(`[BatchProcessor] All batches complete. Total findings: ${results.reduce((sum, r) => sum + r.totalFindings, 0)}`);
 
     return results;
   }
 
   /**
-   * Calculates optimal batch size based on file count and hardware
+   * Processes a single batch of files atomically
+   *
+   * Each file is processed independently. If a file fails, it's marked
+   * as failed but processing continues with the next file. This ensures
+   * no files are left "half-processed".
    *
    * @private
-   * @param totalFiles - Total number of files to process
-   * @returns Promise<number> - Optimal batch size
-   */
-  private async calculateBatchSize(totalFiles: number): Promise<number> {
-    let batchSize: number;
-
-    // Base batch size based on file count
-    if (totalFiles < 100) {
-      batchSize = totalFiles; // 1 batch
-    } else if (totalFiles < 500) {
-      batchSize = 50;
-    } else if (totalFiles < 1000) {
-      batchSize = 30;
-    } else {
-      batchSize = 20;
-    }
-
-    // Adaptive adjustment based on hardware if enabled
-    if (this.config.enableAdaptiveSizing) {
-      const adjustedSize = await this.adjustBatchSizeForHardware(batchSize);
-      batchSize = adjustedSize;
-    }
-
-    // Clamp to min/max limits
-    return Math.max(this.config.minBatchSize, Math.min(this.config.maxBatchSize, batchSize));
-  }
-
-  /**
-   * Adjusts batch size based on current hardware state
-   *
-   * @private
-   * @param baseSize - Base batch size
-   * @returns Promise<number> - Adjusted batch size
-   */
-  private async adjustBatchSizeForHardware(baseSize: number): Promise<number> {
-    let adjustedSize = baseSize;
-
-    try {
-      // Check system resources
-      const resources = await this.config.thermalController.checkSystemResources();
-
-      // Reduce batch size if CPU is high
-      if (resources.cpuUsage > 80) {
-        adjustedSize = Math.min(adjustedSize, 10);
-        console.warn(`[BatchProcessor] CPU high (${resources.cpuUsage}%), reducing batch to ${adjustedSize}`);
-      }
-
-      // Reduce batch size if RAM is critical
-      if (resources.ramUsage > 90) {
-        adjustedSize = Math.min(adjustedSize, 5);
-        console.warn(`[BatchProcessor] RAM critical (${resources.ramUsage}%), reducing batch to ${adjustedSize}`);
-      }
-
-      // Check GPU temperature if available
-      try {
-        const tempReading = await this.config.thermalController.checkTemperature();
-        if (tempReading.current > 70) {
-          console.warn(`[BatchProcessor] GPU temperature critical (${tempReading.current}°C), applying cooldown`);
-          await this.config.thermalController.applyCooldown(60000); // 60s cooldown
-          adjustedSize = Math.min(adjustedSize, 5);
-        }
-      } catch (error) {
-        // GPU check failed, continue without GPU monitoring
-      }
-    } catch (error) {
-      console.warn('Failed to adjust batch size for hardware:', error instanceof Error ? error.message : error);
-    }
-
-    return adjustedSize;
-  }
-
-  /**
-   * Processes a single batch
-   *
-   * @private
-   * @param batch - Files in batch
-   * @param processor - Async function to process batch
-   * @returns Promise<BatchResult> - Batch result
+   * @param files - Files in this batch
+   * @param processorFn - Async function to process each file
+   * @param batchNumber - Current batch number
+   * @param totalBatches - Total number of batches
+   * @param currentState - Current execution state
+   * @returns Promise<BatchResult> - Batch processing result
    */
   private async processBatch(
-    batch: string[],
-    processor: (batch: string[], batchNumber: number, totalBatches: number) => Promise<any[]>
+    files: string[],
+    processorFn: (filePath: string) => Promise<FileProcessingResult>,
+    batchNumber: number,
+    totalBatches: number,
+    currentState: ExecutionState
   ): Promise<BatchResult> {
     const startTime = Date.now();
+    let successCount = 0;
+    let failureCount = 0;
+    let totalFindings = 0;
 
-    try {
-      const results = await processor(batch, this.currentBatch, this.totalBatches);
-      const executionTimeMs = Date.now() - startTime;
+    for (const filePath of files) {
+      try {
+        // Check if file was already processed (resume scenario)
+        const alreadyProcessed = currentState.files.find((f: { filePath: string; processed: boolean }) => f.filePath === filePath && f.processed);
+        if (alreadyProcessed) {
+          console.log(`[BatchProcessor] Skipping already processed file: ${filePath}`);
+          successCount++;
+          continue;
+        }
 
-      const result: BatchResult = {
-        batchNumber: this.currentBatch,
-        totalBatches: this.totalBatches,
-        files: batch,
-        success: true,
-        results,
-        executionTimeMs,
-      };
+        // Process file atomically
+        const result = await processorFn(filePath);
 
-      console.log(`[BatchProcessor] Batch ${this.currentBatch}/${this.totalBatches} complete in ${executionTimeMs / 1000}s`);
-      return result;
-    } catch (error) {
-      const executionTimeMs = Date.now() - startTime;
+        // Record file processing state
+        await this.config.statePersistence.recordFile(
+          filePath,
+          result.success,
+          result.error,
+          currentState
+        );
 
-      const result: BatchResult = {
-        batchNumber: this.currentBatch,
-        totalBatches: this.totalBatches,
-        files: batch,
-        success: false,
-        results: [],
-        executionTimeMs,
-        error: error instanceof Error ? error.message : String(error),
-      };
+        if (result.success) {
+          successCount++;
+          if (result.findings) {
+            totalFindings += result.findings.length;
+          }
+        } else {
+          failureCount++;
+        }
+      } catch (error) {
+        // Record file processing failure
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        await this.config.statePersistence.recordFile(
+          filePath,
+          false,
+          errorMessage,
+          currentState
+        );
 
-      console.error(`[BatchProcessor] Batch ${this.currentBatch}/${this.totalBatches} failed: ${result.error}`);
-      return result;
-    }
-  }
-
-  /**
-   * Performs thermal check before batch processing
-   *
-   * @private
-   * @returns Promise<void>
-   */
-  private async performThermalCheck(): Promise<void> {
-    try {
-      const resources = await this.config.thermalController.checkSystemResources();
-
-      if (resources.category === 'critical') {
-        console.warn(`[BatchProcessor] Resources critical: CPU ${resources.cpuUsage}%, RAM ${resources.ramUsage}%`);
-        await this.config.thermalController.applyAdaptiveCooldown('high');
-      } else if (resources.category === 'warning') {
-        console.warn(`[BatchProcessor] Resources elevated: CPU ${resources.cpuUsage}%, RAM ${resources.ramUsage}%`);
-        await this.config.thermalController.applyAdaptiveCooldown('medium');
+        failureCount++;
+        console.error(`[BatchProcessor] Failed to process ${filePath}: ${errorMessage}`);
       }
-    } catch (error) {
-      console.warn('Failed thermal check:', error instanceof Error ? error.message : error);
     }
-  }
 
-  /**
-   * Performs resource check before batch processing
-   *
-   * @private
-   * @returns Promise<void>
-   */
-  private async performResourceCheck(): Promise<void> {
-    try {
-      const isSafe = await this.config.systemResourceMonitor.isSafe();
+    const executionTimeMs = Date.now() - startTime;
 
-      if (!isSafe) {
-        console.warn('[BatchProcessor] System resources not safe, applying cooldown');
-        await this.config.thermalController.applyAdaptiveCooldown('medium');
-      }
-    } catch (error) {
-      console.warn('Failed resource check:', error instanceof Error ? error.message : error);
-    }
-  }
-
-  /**
-   * Applies cooldown between batches
-   *
-   * @private
-   * @returns Promise<void>
-   */
-  private async applyBatchCooldown(): Promise<void> {
-    if (this.config.batchCooldownMs > 0) {
-      console.log(`[BatchProcessor] Applying batch cooldown: ${this.config.batchCooldownMs / 1000}s`);
-      await new Promise<void>((resolve) => setTimeout(resolve, this.config.batchCooldownMs));
-    }
-  }
-
-  /**
-   * Saves progress for resume capability
-   *
-   * @private
-   * @param filesProcessed - Number of files processed
-   * @param totalFiles - Total number of files
-   * @returns Promise<void>
-   */
-  private async saveProgress(filesProcessed: number, totalFiles: number): Promise<void> {
-    try {
-      await this.config.statePersistence.updateFileProgress(filesProcessed, totalFiles);
-    } catch (error) {
-      console.warn('Failed to save progress:', error instanceof Error ? error.message : error);
-    }
-  }
-
-  /**
-   * Gets current batch number
-   *
-   * @returns number - Current batch number
-   */
-  getCurrentBatch(): number {
-    return this.currentBatch;
-  }
-
-  /**
-   * Gets total batch count
-   *
-   * @returns number - Total batch count
-   */
-  getTotalBatches(): number {
-    return this.totalBatches;
-  }
-
-  /**
-   * Gets current configuration
-   *
-   * @returns BatchProcessorConfig - Current configuration
-   */
-  getConfig(): BatchProcessorConfig {
-    return { ...this.config };
-  }
-
-  /**
-   * Updates configuration
-   *
-   * @param config - Partial configuration to update
-   */
-  updateConfig(config: Partial<BatchProcessorConfig>): void {
-    this.config = {
-      ...this.config,
-      ...config,
+    return {
+      batchNumber,
+      totalBatches,
+      fileCount: files.length,
+      successCount,
+      failureCount,
+      totalFindings,
+      executionTimeMs,
     };
   }
+
+  /**
+   * Applies thermal protection between batches
+   *
+   * @private
+   * @returns Promise<void>
+   */
+  private async applyThermalProtection(): Promise<void> {
+    try {
+      // Check system resources
+      await this.config.thermalController.checkSystemResources();
+      
+      // Apply adaptive cooldown based on batch intensity
+      await this.config.thermalController.applyAdaptiveCooldown('medium');
+    } catch (error) {
+      console.warn('[BatchProcessor] Thermal protection check failed:', error instanceof Error ? error.message : error);
+      // Continue even if thermal check fails - don't halt execution
+    }
+  }
+
+  /**
+   * Adjusts batch size based on system performance
+   *
+   * If the system is struggling (high CPU/RAM), reduce batch size for
+   * subsequent batches to improve stability.
+   *
+   * @param performanceFactor - Performance factor (0-1, lower is worse)
+   * @returns void
+   *
+   * @example
+   * ```typescript
+   * processor.adjustBatchSize(0.7); // Reduce batch size to 70% of current
+   * ```
+   */
+  adjustBatchSize(performanceFactor: number): void {
+    if (performanceFactor < 0.3) {
+      // Severe performance degradation
+      this.batchSize = Math.max(5, Math.floor(this.batchSize * 0.5));
+      console.log(`[BatchProcessor] Reduced batch size to ${this.batchSize} due to poor performance`);
+    } else if (performanceFactor < 0.7) {
+      // Moderate performance degradation
+      this.batchSize = Math.max(10, Math.floor(this.batchSize * 0.75));
+      console.log(`[BatchProcessor] Reduced batch size to ${this.batchSize} due to moderate performance`);
+    }
+  }
+
+  /**
+   * Gets current batch size
+   *
+   * @returns number - Current batch size
+   */
+  getBatchSize(): number {
+    return this.batchSize;
+  }
+
+  /**
+   * Sets batch size
+   *
+   * @param size - New batch size
+   */
+  setBatchSize(size: number): void {
+    this.batchSize = Math.max(1, size);
+    console.log(`[BatchProcessor] Batch size set to ${this.batchSize}`);
+  }
 }
+

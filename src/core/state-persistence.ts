@@ -1,490 +1,513 @@
-/**
- * StatePersistence - Resume Capability and Progress Tracking
+﻿/**
+ * StatePersistence - Black Box for Progress Tracking
  *
- * Purpose: Save execution progress for resume capability, allowing Aegis QA to
- * continue from where it left off after interruption.
+ * Purpose: Save and restore execution state to enable resume capability after
+ * interruptions (SIGINT, thermal shutdown, system crash). This is the "black box"
+ * that records everything Aegis QA has analyzed so far.
  *
- * Architecture: This component persists critical state information to disk,
- * enabling safe resumption of operations after crashes or manual interruptions.
- *
- * Stored Data:
- * - Last completed phase
- * - Files processed
- * - Thermal logs
- * - Current configuration
- * - Timestamp of last save
+ * Architecture:
+ * - Saves state after each phase or every 50 files
+ * - Stores phase progress, file progress, and thermal logs
+ * - Enables "aegis resume" to continue exactly where execution stopped
+ * - Survives SIGINT (Ctrl+C) and thermal shutdown
  *
  * @module core/state-persistence
- * @since 1.0.0
+ * @since 2.0.0
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
+import { resolve } from 'path';
 
 /**
- * Execution state snapshot
+ * Phase execution state
  */
-export interface ExecutionState {
-  /** Unique session ID */
-  sessionId: string;
-  /** Last completed phase number */
-  lastCompletedPhase: number;
-  /** Current phase being executed */
-  currentPhase: number;
-  /** Total number of phases */
-  totalPhases: number;
-  /** Files processed count */
-  filesProcessed: number;
-  /** Total files to process */
-  totalFiles: number;
-  /** Timestamp of session start */
-  sessionStartTime: number;
-  /** Timestamp of last save */
-  lastSaveTime: number;
-  /** Whether session is complete */
-  isComplete: boolean;
-  /** Analysis results from phases */
-  analysisResults: Record<number, any>;
-  /** Phase-specific state data */
-  phaseState: Record<number, any>;
+interface PhaseState {
+  /** Phase number */
+  phase: number;
+  /** Phase name */
+  phaseName: string;
+  /** Whether phase completed */
+  completed: boolean;
+  /** Findings count from this phase */
+  findingsCount: number;
+  /** Execution time in milliseconds */
+  executionTimeMs: number;
+}
+
+/**
+ * File processing state
+ */
+interface FileState {
+  /** File path */
+  filePath: string;
+  /** Whether file was processed */
+  processed: boolean;
+  /** Processing timestamp */
+  timestamp: string;
+  /** Any errors during processing */
+  error?: string;
 }
 
 /**
  * Thermal log entry
  */
 interface ThermalLogEntry {
-  /** Timestamp of log entry */
-  timestamp: number;
-  /** Phase number when log was created */
-  phaseNumber: number;
+  /** Timestamp */
+  timestamp: string;
+  /** GPU temperature in Celsius (if available) */
+  gpuTemp?: number;
   /** CPU usage percentage */
   cpuUsage: number;
   /** RAM usage percentage */
   ramUsage: number;
-  /** GPU temperature (if available) */
-  gpuTemp?: number;
-  /** Event type: 'check' | 'cooldown' | 'alert' */
-  eventType: 'check' | 'cooldown' | 'alert';
-  /** Additional context */
-  context?: string;
+  /** Event type */
+  event: 'check' | 'cooldown' | 'critical' | 'warning';
+  /** Message */
+  message?: string;
 }
 
 /**
- * StatePersistence configuration
+ * Complete execution state
  */
-interface StatePersistenceConfig {
+export interface ExecutionState {
   /** Project root directory */
-  projectRoot?: string;
-  /** Directory for state storage */
-  stateDir: string;
-  /** Maximum number of thermal log entries to keep */
-  maxThermalLogs: number;
-  /** Auto-save interval in milliseconds */
-  autoSaveIntervalMs: number;
+  projectRoot: string;
+  /** Current phase number */
+  currentPhase: number;
+  /** Total phases */
+  totalPhases: number;
+  /** Phase states */
+  phases: PhaseState[];
+  /** File states */
+  files: FileState[];
+  /** Thermal logs */
+  thermalLogs: ThermalLogEntry[];
+  /** Total findings so far */
+  totalFindings: number;
+  /** Execution start timestamp */
+  startTime: string;
+  /** Last save timestamp */
+  lastSaveTime: string;
+  /** Whether execution was interrupted */
+  interrupted: boolean;
+  /** Interruption reason */
+  interruptionReason?: string;
+  /** Analysis results cache (shared context between phases) */
+  analysisResults?: Record<string, any>;
+  /** High risk blocker flag - if true, commits should be blocked */
+  highRiskBlocker?: boolean;
+  /** Context store for cross-phase communication */
+  contextStore?: Record<string, any>;
+  /** Ready for audit flag - if true, report is ready for audit */
+  readyForAudit?: boolean;
 }
 
 /**
- * StatePersistence - Resume capability and progress tracking
+ * StatePersistence - Progress tracking and resume capability
  *
- * This class manages persistence of execution state, allowing Aegis QA to
- * resume operations after interruption. It stores progress, thermal logs,
- * and analysis results to disk.
+ * This class manages the "black box" that records all execution state,
+ * enabling Aegis QA to resume exactly where it left off after any interruption.
  *
  * @class StatePersistence
  * @example
  * ```typescript
- * const persistence = new StatePersistence({ stateDir: '.aegis/state' });
- * await persistence.initialize();
- * const state = await persistence.loadState();
- * await persistence.savePhaseCompletion(5, { findings: [...] });
- * const thermalLogs = await persistence.getThermalLogs();
+ * const persistence = new StatePersistence('/path/to/project');
+ * await persistence.saveState(state);
+ * const restored = await persistence.loadState();
  * ```
  */
 export class StatePersistence {
-  private config: StatePersistenceConfig;
-  private currentState: ExecutionState | null = null;
-  private thermalLogs: ThermalLogEntry[] = [];
-  private autoSaveInterval: NodeJS.Timeout | null = null;
+  private projectRoot: string;
+  private stateFilePath: string;
+  private saveInterval: number = 50; // Save every 50 files
+  private fileCount: number = 0;
 
-  constructor(config?: Partial<StatePersistenceConfig>) {
-    this.config = {
-      stateDir: '.aegis/state',
-      maxThermalLogs: 1000,
-      autoSaveIntervalMs: 30000, // 30 seconds
-      ...config,
-    };
+  constructor(projectRoot: string) {
+    this.projectRoot = resolve(projectRoot);
+    this.stateFilePath = path.join(this.projectRoot, '.aegis-state.json');
   }
 
   /**
-   * Initializes state persistence system
+   * Saves execution state to disk
    *
-   * Creates necessary directories and loads existing state if available.
+   * This method writes the current execution state to the state file.
+   * Called after each phase completion or every N files processed.
    *
+   * @param state - Current execution state
    * @returns Promise<void>
-   */
-  async initialize(): Promise<void> {
-    // Create state directory if it doesn't exist
-    if (!fs.existsSync(this.config.stateDir)) {
-      fs.mkdirSync(this.config.stateDir, { recursive: true });
-    }
-
-    // Load existing state if available
-    const existingState = await this.loadState();
-    if (existingState) {
-      this.currentState = existingState;
-      console.log(`[StatePersistence] Resumed session: ${existingState.sessionId}`);
-    } else {
-      // Create new session
-      this.currentState = this.createInitialState();
-      console.log(`[StatePersistence] Created new session: ${this.currentState.sessionId}`);
-    }
-
-    // Load thermal logs
-    await this.loadThermalLogs();
-
-    // Start auto-save
-    this.startAutoSave();
-  }
-
-  /**
-   * Creates a new initial state
    *
-   * @private
-   * @returns ExecutionState - New initial state
+   * @example
+   * ```typescript
+   * await persistence.saveState({
+   *   projectRoot: '/path/to/project',
+   *   currentPhase: 5,
+   *   totalPhases: 20,
+   *   phases: [...],
+   *   files: [...],
+   *   thermalLogs: [...],
+   *   totalFindings: 42,
+   *   startTime: new Date().toISOString(),
+   *   lastSaveTime: new Date().toISOString(),
+   *   interrupted: false,
+   * });
+   * ```
    */
-  private createInitialState(): ExecutionState {
-    return {
-      sessionId: crypto.randomUUID(),
-      lastCompletedPhase: -1,
-      currentPhase: 0,
-      totalPhases: 20,
-      filesProcessed: 0,
-      totalFiles: 0,
-      sessionStartTime: Date.now(),
-      lastSaveTime: Date.now(),
-      isComplete: false,
-      analysisResults: {},
-      phaseState: {},
-    };
+  async saveState(state: ExecutionState): Promise<void> {
+    try {
+      const stateToSave = {
+        ...state,
+        lastSaveTime: new Date().toISOString(),
+      };
+
+      const stateJson = JSON.stringify(stateToSave, null, 2);
+      fs.writeFileSync(this.stateFilePath, stateJson, 'utf-8');
+      
+      console.log(`[StatePersistence] State saved to ${this.stateFilePath}`);
+    } catch (error) {
+      console.error('[StatePersistence] Failed to save state:', error instanceof Error ? error.message : error);
+      // Don't throw - state save failure should not halt execution
+    }
   }
 
   /**
    * Loads execution state from disk
    *
-   * @returns Promise<ExecutionState | null> - Loaded state or null if not found
+   * This method reads the saved state file if it exists.
+   * Returns null if no state file exists.
+   *
+   * @returns Promise<ExecutionState | null> - Restored state or null
+   *
+   * @example
+   * ```typescript
+   * const state = await persistence.loadState();
+   * if (state) {
+   *   console.log(`Resuming from phase ${state.currentPhase}`);
+   * } else {
+   *   console.log('No saved state found, starting fresh');
+   * }
+   * ```
    */
-  public async loadState(): Promise<ExecutionState | null> {
+  async loadState(): Promise<ExecutionState | null> {
     try {
-      const stateFilePath = this.getStateFilePath();
-      if (!fs.existsSync(stateFilePath)) {
+      if (!fs.existsSync(this.stateFilePath)) {
         return null;
       }
 
-      const content = fs.readFileSync(stateFilePath, 'utf-8');
-      const state = JSON.parse(content) as ExecutionState;
+      const stateJson = fs.readFileSync(this.stateFilePath, 'utf-8');
+      const state = JSON.parse(stateJson) as ExecutionState;
+
+      console.log(`[StatePersistence] State loaded from ${this.stateFilePath}`);
+      console.log(`[StatePersistence] Resuming from phase ${state.currentPhase}/${state.totalPhases}`);
+      console.log(`[StatePersistence] Files processed: ${state.files.filter(f => f.processed).length}/${state.files.length}`);
+      console.log(`[StatePersistence] Total findings: ${state.totalFindings}`);
+      
       return state;
     } catch (error) {
-      console.error('Failed to load state:', error instanceof Error ? error.message : error);
+      console.error('[StatePersistence] Failed to load state:', error instanceof Error ? error.message : error);
+      // Return null on error - start fresh
       return null;
     }
   }
 
   /**
-   * Clears execution state from disk
+   * Checks if a saved state exists
+   *
+   * @returns boolean - Whether state file exists
+   */
+  hasState(): boolean {
+    return fs.existsSync(this.stateFilePath);
+  }
+
+  /**
+   * Deletes saved state
+   *
+   * Call this after successful completion to clean up.
    *
    * @returns Promise<void>
    */
-  public async clearState(): Promise<void> {
+  async clearState(): Promise<void> {
     try {
-      const stateFilePath = this.getStateFilePath();
-      if (fs.existsSync(stateFilePath)) {
-        fs.unlinkSync(stateFilePath);
-        console.log('[StatePersistence] State cleared');
+      if (fs.existsSync(this.stateFilePath)) {
+        fs.unlinkSync(this.stateFilePath);
+        console.log(`[StatePersistence] State cleared from ${this.stateFilePath}`);
       }
     } catch (error) {
-      console.error('Failed to clear state:', error instanceof Error ? error.message : error);
+      console.error('[StatePersistence] Failed to clear state:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  /**
+   * Records file processing progress
+   *
+   * Call this after processing each file. Automatically saves state
+   * every N files (configurable via saveInterval).
+   *
+   * @param filePath - Path to processed file
+   * @param processed - Whether processing succeeded
+   * @param error - Error message if processing failed
+   * @param currentState - Current execution state
+   * @returns Promise<void>
+   *
+   * @example
+   * ```typescript
+   * await persistence.recordFile('/path/to/file.ts', true, undefined, currentState);
+   * ```
+   */
+  async recordFile(
+    filePath: string,
+    processed: boolean,
+    error: string | undefined,
+    currentState: ExecutionState
+  ): Promise<void> {
+    const fileState: FileState = {
+      filePath,
+      processed,
+      timestamp: new Date().toISOString(),
+      error,
+    };
+
+    // Update or add file state
+    const existingIndex = currentState.files.findIndex(f => f.filePath === filePath);
+    if (existingIndex >= 0) {
+      currentState.files[existingIndex] = fileState;
+    } else {
+      currentState.files.push(fileState);
+    }
+
+    this.fileCount++;
+
+    // Save state every N files
+    if (this.fileCount % this.saveInterval === 0) {
+      await this.saveState(currentState);
+    }
+  }
+
+  /**
+   * Records phase completion
+   *
+   * Call this after completing each phase.
+   *
+   * @param phaseNumber - Phase number
+   * @param phaseName - Phase name
+   * @param completed - Whether phase completed successfully
+   * @param findingsCount - Number of findings from this phase
+   * @param executionTimeMs - Execution time in milliseconds
+   * @param currentState - Current execution state
+   * @returns Promise<void>
+   *
+   * @example
+   * ```typescript
+   * await persistence.recordPhase(2, 'Business Logic', true, 15, 5000, currentState);
+   * ```
+   */
+  async recordPhase(
+    phaseNumber: number,
+    phaseName: string,
+    completed: boolean,
+    findingsCount: number,
+    executionTimeMs: number,
+    currentState: ExecutionState
+  ): Promise<void> {
+    const phaseState: PhaseState = {
+      phase: phaseNumber,
+      phaseName,
+      completed,
+      findingsCount,
+      executionTimeMs,
+    };
+
+    // Update or add phase state
+    const existingIndex = currentState.phases.findIndex(p => p.phase === phaseNumber);
+    if (existingIndex >= 0) {
+      currentState.phases[existingIndex] = phaseState;
+    } else {
+      currentState.phases.push(phaseState);
+    }
+
+    // Update current phase
+    currentState.currentPhase = phaseNumber;
+
+    // Save state after each phase
+    await this.saveState(currentState);
+  }
+
+  /**
+   * Records thermal event
+   *
+   * Call this to log thermal events for debugging and analysis.
+   *
+   * @param gpuTemp - GPU temperature in Celsius (if available)
+   * @param cpuUsage - CPU usage percentage
+   * @param ramUsage - RAM usage percentage
+   * @param event - Event type
+   * @param message - Optional message
+   * @param currentState - Current execution state
+   * @returns Promise<void>
+   *
+   * @example
+   * ```typescript
+   * await persistence.recordThermalEvent(65, 45, 60, 'warning', 'Temperature elevated', currentState);
+   * ```
+   */
+  async recordThermalEvent(
+    gpuTemp: number | undefined,
+    cpuUsage: number,
+    ramUsage: number,
+    event: 'check' | 'cooldown' | 'critical' | 'warning',
+    message: string | undefined,
+    currentState: ExecutionState
+  ): Promise<void> {
+    const logEntry: ThermalLogEntry = {
+      timestamp: new Date().toISOString(),
+      gpuTemp,
+      cpuUsage,
+      ramUsage,
+      event,
+      message,
+    };
+
+    currentState.thermalLogs.push(logEntry);
+
+    // Keep only last 1000 thermal logs to prevent file bloat
+    if (currentState.thermalLogs.length > 1000) {
+      currentState.thermalLogs = currentState.thermalLogs.slice(-1000);
     }
   }
 
   /**
    * Marks execution as interrupted
    *
+   * Call this when handling SIGINT or thermal shutdown.
+   *
    * @param reason - Reason for interruption
    * @param currentState - Current execution state
    * @returns Promise<void>
+   *
+   * @example
+   * ```typescript
+   * await persistence.markInterrupted('SIGINT received', currentState);
+   * ```
    */
-  public async markInterrupted(reason: string, currentState: ExecutionState): Promise<void> {
-    currentState.isComplete = false;
-    currentState.lastSaveTime = Date.now();
-    await this.saveState();
+  async markInterrupted(reason: string, currentState: ExecutionState): Promise<void> {
+    currentState.interrupted = true;
+    currentState.interruptionReason = reason;
+    
     console.log(`[StatePersistence] Execution interrupted: ${reason}`);
+    await this.saveState(currentState);
   }
 
   /**
-   * Saves current execution state to disk
+   * Creates initial execution state
    *
-   * @returns Promise<void>
-   */
-  async saveState(): Promise<void> {
-    if (!this.currentState) {
-      console.warn('No state to save');
-      return;
-    }
-
-    try {
-      this.currentState.lastSaveTime = Date.now();
-      const stateFilePath = this.getStateFilePath();
-      const content = JSON.stringify(this.currentState, null, 2);
-      fs.writeFileSync(stateFilePath, content, 'utf-8');
-      console.log(`[StatePersistence] State saved: Phase ${this.currentState.currentPhase}/${this.currentState.totalPhases}`);
-    } catch (error) {
-      console.error('Failed to save state:', error instanceof Error ? error.message : error);
-    }
-  }
-
-  /**
-   * Saves phase completion and stores analysis results
+   * Call this at the start of execution to initialize state.
    *
-   * @param phaseNumber - Phase number that was completed
-   * @param results - Analysis results from the phase
-   * @param phaseState - Optional phase-specific state data
-   * @returns Promise<void>
-   */
-  async savePhaseCompletion(
-    phaseNumber: number,
-    results: any,
-    phaseState?: any
-  ): Promise<void> {
-    if (!this.currentState) {
-      console.warn('No current state to update');
-      return;
-    }
-
-    this.currentState.lastCompletedPhase = phaseNumber;
-    this.currentState.currentPhase = phaseNumber + 1;
-    this.currentState.analysisResults[phaseNumber] = results;
-    
-    if (phaseState) {
-      this.currentState.phaseState[phaseNumber] = phaseState;
-    }
-
-    if (this.currentState.currentPhase >= this.currentState.totalPhases) {
-      this.currentState.isComplete = true;
-    }
-
-    await this.saveState();
-  }
-
-  /**
-   * Stores analysis results for a phase
+   * @param totalPhases - Total number of phases
+   * @returns ExecutionState - Initial state
    *
-   * @param phaseNumber - Phase number
-   * @param results - Analysis results
-   * @param state - Current execution state
-   * @returns Promise<void>
+   * @example
+   * ```typescript
+   * const initialState = persistence.createInitialState(20);
+   * ```
    */
-  async storeAnalysisResults(phaseNumber: number, results: any, state: ExecutionState): Promise<void> {
-    if (!this.currentState) {
-      this.currentState = state;
-    }
-    
-    this.currentState.analysisResults[phaseNumber] = results;
-    await this.saveState();
-  }
-
-  /**
-   * Gets analysis results for a specific phase
-   *
-   * @param phaseNumber - Phase number
-   * @param state - Current execution state
-   * @returns any - Analysis results or undefined
-   */
-  getAnalysisResults(phaseNumber: number, state: ExecutionState): any {
-    return state.analysisResults?.[phaseNumber];
-  }
-
-  /**
-   * Updates file processing progress
-   *
-   * @param filesProcessed - Number of files processed
-   * @param totalFiles - Total number of files to process
-   * @returns Promise<void>
-   */
-  async updateFileProgress(filesProcessed: number, totalFiles: number): Promise<void> {
-    if (!this.currentState) {
-      return;
-    }
-
-    this.currentState.filesProcessed = filesProcessed;
-    this.currentState.totalFiles = totalFiles;
-    await this.saveState();
-  }
-
-  /**
-   * Adds a thermal log entry
-   *
-   * @param entry - Thermal log entry to add
-   * @returns Promise<void>
-   */
-  async addThermalLog(entry: ThermalLogEntry): Promise<void> {
-    this.thermalLogs.push(entry);
-
-    // Trim logs if exceeding max
-    if (this.thermalLogs.length > this.config.maxThermalLogs) {
-      this.thermalLogs = this.thermalLogs.slice(-this.config.maxThermalLogs);
-    }
-
-    await this.saveThermalLogs();
-  }
-
-  /**
-   * Gets thermal logs
-   *
-   * @param limit - Maximum number of logs to return
-   * @returns Promise<ThermalLogEntry[]> - Thermal log entries
-   */
-  async getThermalLogs(limit?: number): Promise<ThermalLogEntry[]> {
-    if (limit) {
-      return this.thermalLogs.slice(-limit);
-    }
-    return [...this.thermalLogs];
-  }
-
-  /**
-   * Saves thermal logs to disk
-   *
-   * @private
-   * @returns Promise<void>
-   */
-  private async saveThermalLogs(): Promise<void> {
-    try {
-      const logsFilePath = this.getThermalLogsFilePath();
-      const content = JSON.stringify(this.thermalLogs, null, 2);
-      fs.writeFileSync(logsFilePath, content, 'utf-8');
-    } catch (error) {
-      console.error('Failed to save thermal logs:', error instanceof Error ? error.message : error);
-    }
-  }
-
-  /**
-   * Loads thermal logs from disk
-   *
-   * @private
-   * @returns Promise<void>
-   */
-  private async loadThermalLogs(): Promise<void> {
-    try {
-      const logsFilePath = this.getThermalLogsFilePath();
-      if (!fs.existsSync(logsFilePath)) {
-        return;
-      }
-
-      const content = fs.readFileSync(logsFilePath, 'utf-8');
-      this.thermalLogs = JSON.parse(content) as ThermalLogEntry[];
-      console.log(`[StatePersistence] Loaded ${this.thermalLogs.length} thermal log entries`);
-    } catch (error) {
-      console.warn('Failed to load thermal logs:', error instanceof Error ? error.message : error);
-      this.thermalLogs = [];
-    }
-  }
-
-  /**
-   * Gets current execution state
-   *
-   * @returns ExecutionState | null - Current state or null
-   */
-  getCurrentState(): ExecutionState | null {
-    return this.currentState;
-  }
-
-  /**
-   * Checks if session can be resumed
-   *
-   * @returns boolean - True if session can be resumed
-   */
-  canResume(): boolean {
-    return this.currentState !== null && !this.currentState.isComplete;
-  }
-
-  /**
-   * Resets the current session (starts fresh)
-   *
-   * @returns Promise<void>
-   */
-  async resetSession(): Promise<void> {
-    this.currentState = this.createInitialState();
-    this.thermalLogs = [];
-    await this.saveState();
-    await this.saveThermalLogs();
-    console.log('[StatePersistence] Session reset');
-  }
-
-  /**
-   * Cleans up resources and stops auto-save
-   *
-   * @returns Promise<void>
-   */
-  async cleanup(): Promise<void> {
-    if (this.autoSaveInterval) {
-      clearInterval(this.autoSaveInterval);
-      this.autoSaveInterval = null;
-    }
-
-    // Final save
-    await this.saveState();
-    await this.saveThermalLogs();
-  }
-
-  /**
-   * Starts auto-save interval
-   *
-   * @private
-   */
-  private startAutoSave(): void {
-    this.autoSaveInterval = setInterval(async () => {
-      await this.saveState();
-    }, this.config.autoSaveIntervalMs);
-  }
-
-  /**
-   * Gets the state file path
-   *
-   * @private
-   * @returns string - Path to state file
-   */
-  private getStateFilePath(): string {
-    return path.join(this.config.stateDir, 'execution-state.json');
-  }
-
-  /**
-   * Gets the thermal logs file path
-   *
-   * @private
-   * @returns string - Path to thermal logs file
-   */
-  private getThermalLogsFilePath(): string {
-    return path.join(this.config.stateDir, 'thermal-logs.json');
-  }
-
-  /**
-   * Gets current configuration
-   *
-   * @returns StatePersistenceConfig - Current configuration
-   */
-  getConfig(): StatePersistenceConfig {
-    return { ...this.config };
-  }
-
-  /**
-   * Updates configuration
-   *
-   * @param config - Partial configuration to update
-   */
-  updateConfig(config: Partial<StatePersistenceConfig>): void {
-    this.config = {
-      ...this.config,
-      ...config,
+  createInitialState(totalPhases: number): ExecutionState {
+    return {
+      projectRoot: this.projectRoot,
+      currentPhase: 0,
+      totalPhases,
+      phases: [],
+      files: [],
+      thermalLogs: [],
+      totalFindings: 0,
+      startTime: new Date().toISOString(),
+      lastSaveTime: new Date().toISOString(),
+      interrupted: false,
     };
   }
+
+  /**
+   * Sets the save interval (number of files between saves)
+   *
+   * @param interval - Save interval in files
+   */
+  setSaveInterval(interval: number): void {
+    this.saveInterval = interval;
+  }
+
+  /**
+   * Stores analysis results for a specific phase
+   *
+   * @param phase - Phase number
+   * @param results - Analysis results object
+   * @param currentState - Current execution state
+   * @returns Promise<void>
+   *
+   * @example
+   * ```typescript
+   * await persistence.storeAnalysisResults(1, { fileScores: [...], totalFindings: 42 }, currentState);
+   * ```
+   */
+  async storeAnalysisResults(phase: number, results: any, currentState: ExecutionState): Promise<void> {
+    if (!currentState.analysisResults) {
+      currentState.analysisResults = {};
+    }
+    currentState.analysisResults[`phase${phase}`] = results;
+    await this.saveState(currentState);
+  }
+
+  /**
+   * Retrieves analysis results for a specific phase
+   *
+   * @param phase - Phase number
+   * @param currentState - Current execution state
+   * @returns Analysis results or null
+   *
+   * @example
+   * ```typescript
+   * const results = await persistence.getAnalysisResults(1, currentState);
+   * if (results) {
+   *   console.log('Phase 1 results:', results);
+   * }
+   * ```
+   */
+  getAnalysisResults(phase: number, currentState: ExecutionState): any | null {
+    if (!currentState.analysisResults) {
+      return null;
+    }
+    return currentState.analysisResults[`phase${phase}`] || null;
+  }
+
+  /**
+   * Stores file hash cache for Phase 1
+   *
+   * @param filePath - File path
+   * @param hash - SHA-1 hash of file content
+   * @param score - Quality score
+   * @param currentState - Current execution state
+   * @returns Promise<void>
+   */
+  async storeFileHash(filePath: string, hash: string, score: number, currentState: ExecutionState): Promise<void> {
+    if (!currentState.analysisResults) {
+      currentState.analysisResults = {};
+    }
+    if (!currentState.analysisResults.fileHashCache) {
+      currentState.analysisResults.fileHashCache = {};
+    }
+    currentState.analysisResults.fileHashCache[filePath] = { hash, score, timestamp: new Date().toISOString() };
+  }
+
+  /**
+   * Gets file hash from cache
+   *
+   * @param filePath - File path
+   * @param currentState - Current execution state
+   * @returns File hash info or null
+   */
+  getFileHash(filePath: string, currentState: ExecutionState): { hash: string; score: number; timestamp: string } | null {
+    if (!currentState.analysisResults || !currentState.analysisResults.fileHashCache) {
+      return null;
+    }
+    return currentState.analysisResults.fileHashCache[filePath] || null;
+  }
 }
+
