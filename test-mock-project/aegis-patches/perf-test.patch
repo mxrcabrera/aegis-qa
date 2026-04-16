@@ -1,0 +1,14 @@
+# Aegis QA - Proposed Fixes
+# Generated: 2026-04-16T22:55:06.536Z
+# Total files: 1
+# Total lines changed: 4
+#
+# To apply these patches, run:
+#   git apply perf-test.patch
+#
+
+--- a/test.ts
++++ b/test.ts
+@@ -1,0 +1,0 @@
+-const x = 1;
++const x = 2;
