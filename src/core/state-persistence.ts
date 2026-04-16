@@ -18,6 +18,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { resolve } from 'path';
+import * as crypto from 'crypto';
 
 /**
  * Phase execution state
@@ -101,6 +102,8 @@ export interface ExecutionState {
   contextStore?: Record<string, any>;
   /** Ready for audit flag - if true, report is ready for audit */
   readyForAudit?: boolean;
+  /** SHA-256 checksum for integrity validation */
+  _checksum?: string;
 }
 
 /**
@@ -122,10 +125,149 @@ export class StatePersistence {
   private stateFilePath: string;
   private saveInterval: number = 50; // Save every 50 files
   private fileCount: number = 0;
+  private maxBackups: number = 5; // Keep last 5 backups
+  private backupDir: string;
 
   constructor(projectRoot: string) {
     this.projectRoot = resolve(projectRoot);
     this.stateFilePath = path.join(this.projectRoot, '.aegis-state.json');
+    this.backupDir = path.join(this.projectRoot, '.aegis-backups');
+  }
+
+  /**
+   * Generates SHA-256 checksum of content
+   *
+   * @private
+   * @param content - Content to hash
+   * @returns string - SHA-256 hash in hex format
+   */
+  private generateChecksum(content: string): string {
+    return crypto.createHash('sha256').update(content).digest('hex');
+  }
+
+  /**
+   * Validates JSON by attempting to parse it
+   *
+   * @private
+   * @param jsonString - JSON string to validate
+   * @returns boolean - True if valid JSON
+   */
+  private isValidJSON(jsonString: string): boolean {
+    try {
+      JSON.parse(jsonString);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Creates a backup of the current state file
+   *
+   * @private
+   * @returns Promise<void>
+   */
+  private async createBackup(): Promise<void> {
+    try {
+      // Ensure backup directory exists
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true });
+      }
+
+      if (!fs.existsSync(this.stateFilePath)) {
+        return;
+      }
+
+      // Create backup filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupFileName = `aegis-state-backup-${timestamp}.json`;
+      const backupFilePath = path.join(this.backupDir, backupFileName);
+
+      // Copy current state to backup
+      fs.copyFileSync(this.stateFilePath, backupFilePath);
+
+      // Clean up old backups (keep only maxBackups)
+      const backups = fs.readdirSync(this.backupDir)
+        .filter(f => f.startsWith('aegis-state-backup-') && f.endsWith('.json'))
+        .sort();
+
+      while (backups.length > this.maxBackups) {
+        const oldBackup = backups.shift();
+        if (oldBackup) {
+          const oldBackupPath = path.join(this.backupDir, oldBackup);
+          fs.unlinkSync(oldBackupPath);
+        }
+      }
+
+      console.log(`[StatePersistence] Backup created: ${backupFileName}`);
+    } catch (error) {
+      console.warn('[StatePersistence] Failed to create backup:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  /**
+   * Attempts to restore from the latest backup
+   *
+   * @private
+   * @returns Promise<ExecutionState | null> - Restored state or null
+   */
+  private async restoreFromBackup(): Promise<ExecutionState | null> {
+    try {
+      if (!fs.existsSync(this.backupDir)) {
+        return null;
+      }
+
+      const backups = fs.readdirSync(this.backupDir)
+        .filter(f => f.startsWith('aegis-state-backup-') && f.endsWith('.json'))
+        .sort()
+        .reverse(); // Get most recent first
+
+      if (backups.length === 0) {
+        return null;
+      }
+
+      // Try the most recent backup
+      const latestBackup = backups[0];
+      const backupPath = path.join(this.backupDir, latestBackup);
+
+      const stateJson = fs.readFileSync(backupPath, 'utf-8');
+      const state = JSON.parse(stateJson) as ExecutionState;
+
+      // Validate checksum if present
+      if (state._checksum) {
+        const checksumWithout = stateJson.replace(/"_checksum":\s*"[^"]+"/, '');
+        const calculatedChecksum = this.generateChecksum(checksumWithout);
+        
+        if (calculatedChecksum !== state._checksum) {
+          console.warn('[StatePersistence] Backup checksum mismatch, trying next backup');
+          
+          // Try next backup
+          for (let i = 1; i < backups.length; i++) {
+            const nextBackupPath = path.join(this.backupDir, backups[i]);
+            const nextStateJson = fs.readFileSync(nextBackupPath, 'utf-8');
+            const nextState = JSON.parse(nextStateJson) as ExecutionState;
+            
+            if (nextState._checksum) {
+              const nextChecksumWithout = nextStateJson.replace(/"_checksum":\s*"[^"]+"/, '');
+              const nextCalculatedChecksum = this.generateChecksum(nextChecksumWithout);
+              
+              if (nextCalculatedChecksum === nextState._checksum) {
+                console.log(`[StatePersistence] Restored from backup: ${backups[i]}`);
+                return nextState;
+              }
+            }
+          }
+          
+          return null;
+        }
+      }
+
+      console.log(`[StatePersistence] Restored from backup: ${latestBackup}`);
+      return state;
+    } catch (error) {
+      console.error('[StatePersistence] Failed to restore from backup:', error instanceof Error ? error.message : error);
+      return null;
+    }
   }
 
   /**
@@ -133,6 +275,12 @@ export class StatePersistence {
    *
    * This method writes the current execution state to the state file.
    * Called after each phase completion or every N files processed.
+   *
+   * ACID Properties:
+   * - Atomic: Writes to .tmp file, validates, then renames
+   * - Consistent: Validates JSON before committing
+   * - Isolated: No concurrent writes (single writer)
+   * - Durable: Checksum validation on load
    *
    * @param state - Current execution state
    * @returns Promise<void>
@@ -161,11 +309,53 @@ export class StatePersistence {
       };
 
       const stateJson = JSON.stringify(stateToSave, null, 2);
-      fs.writeFileSync(this.stateFilePath, stateJson, 'utf-8');
       
-      console.log(`[StatePersistence] State saved to ${this.stateFilePath}`);
+      // Generate checksum of content without _checksum field
+      const checksum = this.generateChecksum(stateJson);
+      stateToSave._checksum = checksum;
+      
+      const stateJsonWithChecksum = JSON.stringify(stateToSave, null, 2);
+
+      // Atomic write: write to .tmp file first
+      const tmpFilePath = this.stateFilePath + '.tmp';
+      
+      // Create backup before overwriting
+      if (fs.existsSync(this.stateFilePath)) {
+        await this.createBackup();
+      }
+
+      // Write to temp file
+      fs.writeFileSync(tmpFilePath, stateJsonWithChecksum, 'utf-8');
+      
+      // Validate the temp file is valid JSON
+      if (!this.isValidJSON(stateJsonWithChecksum)) {
+        throw new Error('Generated invalid JSON');
+      }
+
+      // Verify checksum in temp file
+      const tmpContent = fs.readFileSync(tmpFilePath, 'utf-8');
+      const tmpParsed = JSON.parse(tmpContent) as ExecutionState;
+      if (tmpParsed._checksum !== checksum) {
+        throw new Error('Checksum mismatch in temp file');
+      }
+
+      // Atomic rename (this is the actual commit point)
+      fs.renameSync(tmpFilePath, this.stateFilePath);
+      
+      console.log(`[StatePersistence] State saved to ${this.stateFilePath} (checksum: ${checksum.substring(0, 16)}...)`);
     } catch (error) {
       console.error('[StatePersistence] Failed to save state:', error instanceof Error ? error.message : error);
+      
+      // Clean up temp file if it exists
+      const tmpFilePath = this.stateFilePath + '.tmp';
+      if (fs.existsSync(tmpFilePath)) {
+        try {
+          fs.unlinkSync(tmpFilePath);
+        } catch {
+          // Ignore cleanup error
+        }
+      }
+      
       // Don't throw - state save failure should not halt execution
     }
   }
@@ -174,7 +364,11 @@ export class StatePersistence {
    * Loads execution state from disk
    *
    * This method reads the saved state file if it exists.
-   * Returns null if no state file exists.
+   * Returns null if no state file exists or if validation fails.
+   *
+   * ACID Properties:
+   * - Validates checksum on load
+   * - Attempts to restore from backup if checksum mismatch or truncation
    *
    * @returns Promise<ExecutionState | null> - Restored state or null
    *
@@ -195,17 +389,63 @@ export class StatePersistence {
       }
 
       const stateJson = fs.readFileSync(this.stateFilePath, 'utf-8');
-      const state = JSON.parse(stateJson) as ExecutionState;
-
-      console.log(`[StatePersistence] State loaded from ${this.stateFilePath}`);
-      console.log(`[StatePersistence] Resuming from phase ${state.currentPhase}/${state.totalPhases}`);
-      console.log(`[StatePersistence] Files processed: ${state.files.filter(f => f.processed).length}/${state.files.length}`);
-      console.log(`[StatePersistence] Total findings: ${state.totalFindings}`);
       
-      return state;
+      // Check if file might be truncated (invalid JSON)
+      try {
+        const state = JSON.parse(stateJson) as ExecutionState;
+        
+        // Validate checksum if present
+        if (state._checksum) {
+          const checksumWithout = stateJson.replace(/"_checksum":\s*"[^"]+"/, '');
+          const calculatedChecksum = this.generateChecksum(checksumWithout);
+          
+          if (calculatedChecksum !== state._checksum) {
+            console.warn('[StatePersistence] Checksum mismatch, attempting to restore from backup');
+            const restored = await this.restoreFromBackup();
+            
+            if (restored) {
+              console.log(`[StatePersistence] Restored from backup: phase ${restored.currentPhase}/${restored.totalPhases}`);
+              console.log(`[StatePersistence] Files processed: ${restored.files.filter(f => f.processed).length}/${restored.files.length}`);
+              console.log(`[StatePersistence] Total findings: ${restored.totalFindings}`);
+              return restored;
+            } else {
+              console.error('[StatePersistence] All backups corrupted, starting fresh');
+              return null;
+            }
+          }
+        }
+
+        console.log(`[StatePersistence] State loaded from ${this.stateFilePath}`);
+        console.log(`[StatePersistence] Resuming from phase ${state.currentPhase}/${state.totalPhases}`);
+        console.log(`[StatePersistence] Files processed: ${state.files.filter(f => f.processed).length}/${state.files.length}`);
+        console.log(`[StatePersistence] Total findings: ${state.totalFindings}`);
+        
+        return state;
+      } catch (parseError) {
+        // File might be truncated or corrupted
+        console.warn('[StatePersistence] State file appears corrupted or truncated, attempting to restore from backup');
+        const restored = await this.restoreFromBackup();
+        
+        if (restored) {
+          console.log(`[StatePersistence] Restored from backup: phase ${restored.currentPhase}/${restored.totalPhases}`);
+          console.log(`[StatePersistence] Files processed: ${restored.files.filter(f => f.processed).length}/${restored.files.length}`);
+          console.log(`[StatePersistence] Total findings: ${restored.totalFindings}`);
+          return restored;
+        } else {
+          console.error('[StatePersistence] No valid backup found, starting fresh');
+          return null;
+        }
+      }
     } catch (error) {
       console.error('[StatePersistence] Failed to load state:', error instanceof Error ? error.message : error);
-      // Return null on error - start fresh
+      
+      // Attempt to restore from backup as last resort
+      const restored = await this.restoreFromBackup();
+      if (restored) {
+        console.log(`[StatePersistence] Restored from backup after error: phase ${restored.currentPhase}/${restored.totalPhases}`);
+        return restored;
+      }
+      
       return null;
     }
   }

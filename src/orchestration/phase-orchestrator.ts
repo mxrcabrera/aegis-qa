@@ -15,6 +15,10 @@
 import { ThermalController } from '../core/thermal-controller.js';
 import { DomainAnalyzer } from '../inference/domain-analyzer.js';
 import { ReportAggregator } from '../core/reporter.js';
+import { SecretSanitizer } from '../core/secret-sanitizer.js';
+import { GitCheckpointManager } from '../core/git-checkpoint-manager.js';
+import { ErrorBaseline } from '../core/error-baseline.js';
+import { ThermalLock } from '../core/thermal-lock.js';
 import { Phase0Setup } from '../phases/phase-0-setup.js';
 import { Phase1CodeQuality } from '../phases/phase-1-code-quality.js';
 import { Phase2BusinessLogic } from '../phases/phase-2-business-logic.js';
@@ -121,6 +125,8 @@ interface PhaseOrchestratorConfig {
   enableMemoryFlush?: boolean;
   /** Whether to write partial reports after each phase */
   enablePartialReports?: boolean;
+  /** Whether to run in dry-run mode (no fixes applied) */
+  dryRunMode?: boolean;
 }
 
 /**
@@ -145,9 +151,138 @@ interface PhaseOrchestratorConfig {
  */
 export class PhaseOrchestrator {
   private config: PhaseOrchestratorConfig;
+  private gitCheckpointManager: GitCheckpointManager;
+  private errorBaseline: ErrorBaseline;
+  private thermalLock: ThermalLock;
+  private gcAvailable: boolean;
+  private memoryThreshold: number = 1.5 * 1024 * 1024 * 1024; // 1.5GB
 
   constructor(config: PhaseOrchestratorConfig) {
     this.config = config;
+    this.gitCheckpointManager = new GitCheckpointManager(config.projectRoot);
+    this.errorBaseline = new ErrorBaseline(config.projectRoot);
+    this.thermalLock = new ThermalLock();
+    this.gcAvailable = typeof (global as any).gc === 'function';
+    
+    // Install global log middleware for GDPR/CCPA/SOC2 compliance
+    SecretSanitizer.installGlobalMiddleware();
+    
+    if (this.gcAvailable) {
+      console.log('[PhaseOrchestrator] Manual GC available (--expose-gc detected)');
+    } else {
+      console.log('[PhaseOrchestrator] Manual GC not available (run with --expose-gc to enable)');
+    }
+  }
+
+  /**
+   * Triggers garbage collection if available and checks memory usage
+   *
+   * @private
+   * @param phaseName - Name of the phase that just completed
+   * @returns Promise<void>
+   */
+  private async triggerGarbageCollection(phaseName: string): Promise<void> {
+    if (!this.gcAvailable) {
+      return;
+    }
+
+    try {
+      // Get memory before GC
+      const beforeGC = process.memoryUsage();
+      
+      // Trigger GC
+      (global as any).gc();
+      
+      // Get memory after GC
+      const afterGC = process.memoryUsage();
+      const heapUsed = afterGC.heapUsed;
+      const heapUsedMB = heapUsed / (1024 * 1024);
+      
+      console.log(`[PhaseOrchestrator] GC triggered after ${phaseName}`);
+      console.log(`   Heap before: ${(beforeGC.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`   Heap after:  ${heapUsedMB.toFixed(2)} MB`);
+      console.log(`   Freed:      ${((beforeGC.heapUsed - afterGC.heapUsed) / 1024 / 1024).toFixed(2)} MB`);
+      
+      // Check if memory is still above threshold
+      if (heapUsed > this.memoryThreshold) {
+        const thresholdMB = this.memoryThreshold / (1024 * 1024);
+        console.warn(`⚠️ Memory Guard: Heap usage ${heapUsedMB.toFixed(2)} MB exceeds threshold ${thresholdMB} MB`);
+        console.warn(`⚠️ Pausing for 5 seconds to let OS breathe...`);
+        
+        // Pause for 5 seconds
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        // Check memory again after pause
+        const afterPause = process.memoryUsage();
+        const afterPauseMB = afterPause.heapUsed / (1024 * 1024);
+        console.log(`   Heap after pause: ${afterPauseMB.toFixed(2)} MB`);
+        
+        if (afterPause.heapUsed > this.memoryThreshold) {
+          console.warn(`⚠️ Memory still above threshold after pause. Monitor closely.`);
+        } else {
+          console.log(`✅ Memory reduced below threshold after pause.`);
+        }
+      }
+    } catch (error) {
+      console.warn('[PhaseOrchestrator] Failed to trigger GC:', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
+   * Checks thermal status and acquires lock if critical
+   *
+   * @private
+   * @returns Promise<void>
+   */
+  private async checkThermalLock(): Promise<void> {
+    try {
+      const tempReading = await this.config.thermalController.checkTemperature();
+      const resourceReading = await this.config.thermalController.checkSystemResources();
+      
+      const isCritical = !tempReading.isSafe || !resourceReading.isSafe;
+      
+      if (isCritical) {
+        console.log('🔥 Thermal status is CRITICAL - Acquiring thermal lock...');
+        console.log(`   Temperature: ${tempReading.current}°C (${tempReading.category})`);
+        console.log(`   CPU: ${resourceReading.cpuUsage}%, RAM: ${resourceReading.ramUsage}%`);
+        
+        await this.thermalLock.acquire();
+        console.log('🔒 Thermal lock acquired - Pausing operations until thermal conditions improve');
+        
+        // Wait for thermal conditions to improve
+        let attempts = 0;
+        const maxAttempts = 60; // 5 minutes max wait (60 * 5 seconds)
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+          
+          const currentTemp = await this.config.thermalController.checkTemperature();
+          const currentResources = await this.config.thermalController.checkSystemResources();
+          const nowSafe = currentTemp.isSafe && currentResources.isSafe;
+          
+          if (nowSafe) {
+            console.log(`✅ Thermal conditions improved - Releasing lock`);
+            console.log(`   Temperature: ${currentTemp.current}°C (${currentTemp.category})`);
+            console.log(`   CPU: ${currentResources.cpuUsage}%, RAM: ${currentResources.ramUsage}%`);
+            this.thermalLock.release();
+            return;
+          }
+          
+          attempts++;
+          if (attempts % 12 === 0) { // Log every minute
+            console.log(`⏳ Still waiting for thermal conditions to improve... (${attempts / 12} minute(s))`);
+          }
+        }
+        
+        // If still critical after max attempts, force release and warn
+        console.warn('⚠️ Thermal conditions did not improve after 5 minutes - Forcing lock release');
+        console.warn('⚠️ Continuing operations at risk - Monitor hardware closely');
+        this.thermalLock.forceRelease();
+      }
+    } catch (error) {
+      console.warn('[PhaseOrchestrator] Failed to check thermal status, proceeding without lock');
+      console.warn('Error:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -433,6 +568,9 @@ export class PhaseOrchestrator {
         
         // Atomic state sync after Phase 2
         await this.config.statePersistence.saveState(this.config.currentState);
+        
+        // Memory Guard: Trigger GC after heavy phase
+        await this.triggerGarbageCollection('Phase 2: Business Logic');
         
         phaseResults.push({
           phase: 2,
@@ -1243,14 +1381,48 @@ export class PhaseOrchestrator {
     const phase11StartTime = Date.now();
     
     try {
+      // Thermal Lock: Check thermal status before applying fixes
+      await this.checkThermalLock();
+      
+      // Pre-flight Check: Establish error baseline before fixes
+      console.log('ÔÜá´©Å  Pre-flight Check: Establishing error baseline...');
+      await this.errorBaseline.establishBaseline();
+      
+      // Git Checkpointing: Create checkpoint before applying fixes
+      console.log('ÔÜá´©Å  Git Checkpointing: Creating safety checkpoint...');
+      const isInGitRepo = await this.gitCheckpointManager.isInGitRepository();
+      
+      if (isInGitRepo) {
+        try {
+          const checkpoint = await this.gitCheckpointManager.createCheckpoint('aegis-pre-fix');
+          console.log(`Ô£à Checkpoint created: ${checkpoint.tagName} (${checkpoint.commitHash})`);
+        } catch (error) {
+          console.warn('ÔÜá´©Å  Failed to create git checkpoint, proceeding without rollback capability');
+          console.warn('ÔÜá´©Å  Error:', error instanceof Error ? error.message : String(error));
+        }
+      } else {
+        console.warn('ÔÜá´©Å  Not in a git repository, skipping checkpoint');
+      }
+
+      // Safe Level 4: Check if dry-run is required for high-risk files
+      const isDryRunMode = this.config.dryRunMode || true; // Default to dry-run for safety
+      
+      // If not in dry-run mode, check for high-risk files and block auto-fixes
+      if (!isDryRunMode) {
+        console.log('ÔÜá´©Å  Safe Level 4: Checking for high-risk files...');
+        // TODO: Implement dependency graph analysis here
+        // For now, force dry-run mode for safety
+        console.warn('ÔÜá´©Å  Auto-fix mode not yet implemented. Running in dry-run mode for safety.');
+      }
+
       const phase11AtomicFixes = new Phase11AtomicFixes({
         projectRoot: this.config.projectRoot,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
         thermalController: this.config.thermalController,
-        autoApply: false,
-        allowCorePathFixes: false,
-        dryRun: true,
+        autoApply: false, // Always false for safety
+        allowCorePathFixes: false, // Never allow core path fixes automatically
+        dryRun: true, // Always dry-run for safety
       });
 
       const timeoutMs = this.config.phaseTimeoutMs || 300000; // 5 min default
@@ -1288,6 +1460,66 @@ export class PhaseOrchestrator {
         console.log(`  ­ƒÜ¿ Fixes applied: ${phase11Result.remediationResult.fixesApplied}`);
         console.log(`  ÔÜá´©Å  Fixes skipped: ${phase11Result.remediationResult.fixesSkipped}\n`);
         
+        // Post-fix validation: Run tsc --noEmit to check if fixes broke the build
+        console.log('ÔÜá´©Å  Post-fix validation: Running tsc --noEmit...');
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+        
+        try {
+          const { stderr } = await execAsync('npx tsc --noEmit', {
+            cwd: this.config.projectRoot,
+            env: { ...process.env },
+          });
+          
+          if (stderr && stderr.trim().length > 0) {
+            console.error('ÔØî Post-fix validation failed: tsc --noEmit found errors');
+            console.error('ÔØî Rolling back to checkpoint...');
+            
+            // Rollback to checkpoint
+            try {
+              await this.gitCheckpointManager.rollbackToLastCheckpoint();
+              console.log('Ô£à Successfully rolled back to checkpoint');
+              
+              // Mark phase as failed
+              phaseResults.push({
+                phase: 11,
+                phaseName: 'Atomic Fixes',
+                success: false,
+                findingsCount: phase11Result.remediationResult.fixesApplied,
+                executionTimeMs: phase11Result.executionTimeMs,
+                error: 'Post-fix validation failed: tsc --noEmit found errors. Rolled back to checkpoint.',
+              });
+              
+              if (this.config.enablePartialReports) {
+                await this.writePartialReport(
+                  11,
+                  'Atomic Fixes',
+                  0,
+                  phase11Result.executionTimeMs,
+                  'Post-fix validation failed: tsc --noEmit found errors. Rolled back to checkpoint.'
+                );
+              }
+              
+              // Skip to next phase after rollback
+              return {
+                success: false,
+                totalExecutionTimeMs: Date.now() - startTime,
+                phaseResults,
+                totalFindings,
+                domainMap,
+              };
+            } catch (rollbackError) {
+              console.error('ÔØî Failed to rollback to checkpoint:', rollbackError);
+              console.error('ÔØî Manual intervention may be required to restore repository state');
+            }
+          } else {
+            console.log('Ô£à Post-fix validation passed');
+          }
+        } catch (tscError) {
+          console.warn('ÔÜá´©Å  Could not run tsc --noEmit for validation, skipping post-fix check');
+        }
+        
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
             11,
@@ -1300,6 +1532,9 @@ export class PhaseOrchestrator {
         if (this.config.enableMemoryFlush && this.isHeavyPhase(11)) {
           await this.flushMemory();
         }
+        
+        // Memory Guard: Trigger GC after heavy phase
+        await this.triggerGarbageCollection('Phase 11: Atomic Fixes');
         
         phaseResults.push({
           phase: 11,

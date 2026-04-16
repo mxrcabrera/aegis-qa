@@ -9,6 +9,7 @@
  */
 
 import * as path from 'path';
+import { SecretSanitizer } from '../core/secret-sanitizer.js';
 
 interface Violation {
   id: string;
@@ -57,6 +58,17 @@ class ReportAggregator {
   private hardwareMetrics: HardwareMetrics | null = null;
   private readyForAudit: boolean = false;
   private remediationResults: RemediationResults | null = null;
+  private sanitizer: SecretSanitizer;
+
+  constructor() {
+    this.sanitizer = new SecretSanitizer({
+      sanitizeLogs: true,
+      sanitizeReports: true,
+      allowedPatterns: ['TEST_API_KEY', 'MOCK_SECRET', 'DEMO_KEY'],
+      logLevel: 'warn',
+      complianceMode: false,
+    });
+  }
 
   /**
    * Adds violations from an auditor
@@ -310,7 +322,10 @@ class ReportAggregator {
       report += '**Note:** In the cloud, time is literally money. These issues directly impact your monthly bill.\n\n';
     }
 
-    return report;
+    // Sanitize the report to remove sensitive data (GDPR/CCPA/SOC2 compliance)
+    const sanitizedReport = this.sanitizer.sanitizeReport(report);
+
+    return sanitizedReport;
   }
 
   /**
