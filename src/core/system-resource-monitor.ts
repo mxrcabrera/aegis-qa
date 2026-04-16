@@ -306,14 +306,20 @@ export class SystemResourceMonitor extends EventEmitter {
       const os = require('os');
       const cpus = os.cpus();
       
-      // Calculate CPU usage from CPU times
-      const cpuInfo = cpus[0];
-      const times = cpuInfo.times;
-      const total = times.user + times.nice + times.sys + times.idle + times.irq;
-      const idle = times.idle;
-      const usage = ((total - idle) / total) * 100;
+      // Calculate average CPU usage across all cores
+      let totalUsage = 0;
+      for (const cpuInfo of cpus) {
+        const times = cpuInfo.times;
+        const total = times.user + times.nice + times.sys + times.idle + times.irq;
+        const idle = times.idle;
+        const usage = ((total - idle) / total) * 100;
+        totalUsage += usage;
+      }
       
-      return Math.round(usage);
+      // Average across all cores to get system-wide CPU usage
+      const averageUsage = totalUsage / cpus.length;
+      
+      return Math.round(averageUsage);
     } catch (error) {
       console.warn('Failed to get CPU usage:', error instanceof Error ? error.message : error);
       return 0;

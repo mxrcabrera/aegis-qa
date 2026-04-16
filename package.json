@@ -9,7 +9,8 @@
     "build": "tsc",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "aegis:review": "node dist/cli.js review ."
   },
   "keywords": [
     "qa",

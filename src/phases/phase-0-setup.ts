@@ -471,13 +471,83 @@ Generated: ${timestamp}
     const errorFiles: { path: string; error: string }[] = [];
     let filesChecked = 0;
 
-    // Get file filter if not provided
+    try {
+      // Use tsc --noEmit for accurate syntax checking
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      const { stderr } = await execAsync('npx tsc --noEmit', {
+        cwd: projectRoot,
+        env: { ...process.env },
+      });
+
+      // If tsc --noEmit succeeded, syntax is valid
+      if (!stderr) {
+        // Count TypeScript files for reporting
+        const fileFilter = this.config.fileFilter || new FileFilter();
+        const ignoreHandler = this.config.ignoreHandler || new IgnoreHandler({ projectRoot });
+        const patterns = ['src/**/*.ts', 'src/**/*.tsx', 'src/**/*.js', 'src/**/*.jsx', 'app/**/*.ts', 'app/**/*.tsx'];
+
+        for (const pattern of patterns) {
+          const { glob } = await import('glob');
+          const files = await glob(pattern, {
+            cwd: projectRoot,
+            absolute: true,
+          });
+
+          for (const file of files) {
+            if (!ignoreHandler.shouldIgnore(file)) {
+              const filterResult = fileFilter.shouldAnalyzeFile(file);
+              if (filterResult.shouldAnalyze) {
+                filesChecked++;
+              }
+            }
+          }
+        }
+
+        return {
+          valid: true,
+          errorFiles: [],
+          filesChecked,
+        };
+      }
+
+      // Parse tsc errors
+      const errorLines = stderr.split('\n').filter(line => line.trim());
+      for (const line of errorLines) {
+        const match = line.match(/^(.+?\.ts(?:x)?)(\(\d+,\d+\))?:\s+(.+)$/);
+        if (match) {
+          errorFiles.push({ path: match[1], error: match[3] });
+          filesChecked++;
+        }
+      }
+    } catch (error) {
+      // If tsc is not available, fall back to basic check
+      console.warn('tsc not available, falling back to basic syntax check');
+      return this.basicSyntaxCheckFallback();
+    }
+
+    return {
+      valid: errorFiles.length === 0,
+      errorFiles,
+      filesChecked,
+    };
+  }
+
+  /**
+   * Fallback basic syntax check when tsc is not available
+   *
+   * @private
+   * @returns Promise<SyntaxCheckResult>
+   */
+  private async basicSyntaxCheckFallback(): Promise<SyntaxCheckResult> {
+    const projectRoot = this.config.projectRoot;
+    const errorFiles: { path: string; error: string }[] = [];
+    let filesChecked = 0;
+
     const fileFilter = this.config.fileFilter || new FileFilter();
-
-    // Get ignore handler if not provided
     const ignoreHandler = this.config.ignoreHandler || new IgnoreHandler({ projectRoot });
-
-    // Scan for TypeScript/JavaScript files
     const patterns = ['src/**/*.ts', 'src/**/*.tsx', 'src/**/*.js', 'src/**/*.jsx', 'app/**/*.ts', 'app/**/*.tsx'];
 
     for (const pattern of patterns) {
@@ -488,12 +558,10 @@ Generated: ${timestamp}
       });
 
       for (const file of files) {
-        // Skip ignored files
         if (ignoreHandler.shouldIgnore(file)) {
           continue;
         }
 
-        // Skip large files
         const filterResult = fileFilter.shouldAnalyzeFile(file);
         if (!filterResult.shouldAnalyze) {
           continue;
@@ -503,11 +571,7 @@ Generated: ${timestamp}
 
         try {
           const content = fs.readFileSync(file, 'utf-8');
-          
-          // Basic syntax check - try to parse TypeScript/JavaScript
-          // This is a simplified check - in a real implementation, use tsc or similar
           if (file.endsWith('.ts') || file.endsWith('.tsx')) {
-            // Check for basic syntax errors (unbalanced braces, etc.)
             if (!this.basicSyntaxCheck(content)) {
               errorFiles.push({ path: file, error: 'Basic syntax check failed' });
             }
@@ -517,7 +581,6 @@ Generated: ${timestamp}
           errorFiles.push({ path: file, error: errorMessage });
         }
 
-        // Limit check to first 20 files for performance
         if (filesChecked >= 20) {
           break;
         }
