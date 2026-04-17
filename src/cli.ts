@@ -18,12 +18,22 @@ import { ReportAggregator } from './core/reporter.js';
 import { DomainAnalyzer } from './inference/domain-analyzer.js';
 import { PhaseOrchestrator } from './orchestration/phase-orchestrator.js';
 import { StatePersistence, type ExecutionState } from './core/state-persistence.js';
-import { resolve } from 'path';
+import { ErrorMessages } from './core/error-messages.js';
+import { resolve, normalize } from 'path';
+import * as fs from 'fs';
 
 interface CLIConfig {
   command: 'review' | 'fix' | 'incremental' | 'help';
   targetDir: string;
   skipThermal?: boolean;
+  ciMode?: boolean;
+  applyMode?: boolean;
+  yesMode?: boolean;
+  verboseMode?: boolean;
+  safeOnly?: boolean;
+  previewDiffs?: boolean;
+  auditOnly?: boolean;
+  interactiveFix?: boolean;
 }
 
 class AegisCLI {
@@ -36,17 +46,85 @@ class AegisCLI {
     this.config = config;
   }
 
+  /**
+   * Validates CLI input for security
+   *
+   * @static
+   * @param command - Command to validate
+   * @param targetDir - Target directory to validate
+   * @param applyMode - Whether apply mode is enabled
+   * @param yesMode - Whether yes mode is enabled
+   * @throws {Error} If validation fails
+   */
+  static validateInput(
+    command: string,
+    targetDir: string,
+    applyMode: boolean,
+    yesMode: boolean
+  ): void {
+    // Validate command
+    const validCommands = ['review', 'fix', 'incremental', 'help'];
+    if (!validCommands.includes(command)) {
+      throw new Error(`[Security] Invalid command: ${command}. Valid commands: ${validCommands.join(', ')}`);
+    }
+
+    // Validate target directory
+    const resolvedPath = resolve(targetDir);
+    const normalizedPath = normalize(resolvedPath);
+
+    // Check for path traversal attempts
+    if (normalizedPath.includes('..')) {
+      throw new Error(`[Security] Path traversal attempt detected in target directory: ${targetDir}`);
+    }
+
+    // Check if directory exists
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(`[Security] Target directory does not exist: ${resolvedPath}`);
+    }
+
+    // Check if it's a directory
+    const stats = fs.statSync(resolvedPath);
+    if (!stats.isDirectory()) {
+      throw new Error(`[Security] Target path is not a directory: ${resolvedPath}`);
+    }
+
+    // Check for system directories (Windows)
+    const systemDirs = ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', '/etc', '/usr', '/bin', '/sbin'];
+    for (const sysDir of systemDirs) {
+      if (normalizedPath.startsWith(sysDir) || resolvedPath.startsWith(sysDir)) {
+        throw new Error(`[Security] Cannot run Aegis QA on system directory: ${resolvedPath}`);
+      }
+    }
+
+    // Validate flag combinations
+    if (yesMode && !applyMode) {
+      throw new Error(`[Security] --yes flag requires --apply flag. Using --yes without --apply is not allowed.`);
+    }
+
+    // Log validation success
+    console.log(`[Security] Input validation passed for command: ${command}, target: ${resolvedPath}`);
+  }
+
   async run(): Promise<void> {
     const { command, targetDir } = this.config;
 
-    console.log('­ƒøí´©Å  Aegis QA - Advanced Quality Assurance Orchestrator');
-    console.log(`­ƒôé Target Directory: ${resolve(targetDir)}\n`);
+    // Security: Enforce dry-run mode by default
+    const isApplyMode = this.config.applyMode === true;
+    if (!isApplyMode && command === 'fix') {
+      console.log('[Security] Dry-run mode enabled by default for fix command.');
+      console.log('[Security] Use --apply flag to disable dry-run mode and apply changes.');
+    }
+
+    if (!this.config.ciMode) {
+      console.log('­ƒøí´©Å  Aegis QA - Advanced Quality Assurance Orchestrator');
+      console.log(`­ƒôé Target Directory: ${resolve(targetDir)}\n`);
+    }
 
     // Initialize core components
-    const thermalController = new ThermalController();
+    const thermalController = new ThermalController({}, resolve(targetDir));
     const secretManager = new SecretManager({ mockMode: true });
     // Create report aggregator (will be updated with business risk findings after Phase 2)
-    const reportAggregator = new ReportAggregator();
+    const reportAggregator = new ReportAggregator({ projectRoot: resolve(targetDir) });
     this.statePersistence = new StatePersistence(resolve(targetDir));
 
     // Initialize execution state
@@ -55,14 +133,27 @@ class AegisCLI {
     // Set up SIGINT handler for graceful shutdown
     this.setupSigintHandler();
 
+    // Establish error baseline before running phases
+    if (!this.config.ciMode) {
+      console.log('­ƒö¼ Establishing error baseline...');
+    }
+    await reportAggregator.establishBaseline();
+    if (!this.config.ciMode) {
+      console.log('Ô£à Baseline established\n');
+    }
+
     // Run self-diagnostic stress test on startup
     if (!this.config.skipThermal) {
-      console.log('­ƒö¼ Running self-diagnostic stress test...');
+      if (!this.config.ciMode) {
+        console.log('­ƒö¼ Running self-diagnostic stress test...');
+      }
       const diagnosticResult = await thermalController.runSelfDiagnostic(5000);
-      console.log(`  Diagnostic passed: ${diagnosticResult.pass}`);
-      console.log(`  Temperature rise rate: ${diagnosticResult.temperatureRiseRate.toFixed(2)}┬░C/s`);
-      console.log(`  Thresholds adjusted: ${diagnosticResult.adjustedThresholds}`);
-      console.log('Ô£à Self-diagnostic complete\n');
+      if (!this.config.ciMode) {
+        console.log(`  Diagnostic passed: ${diagnosticResult.pass}`);
+        console.log(`  Temperature rise rate: ${diagnosticResult.temperatureRiseRate.toFixed(2)}┬░C/s`);
+        console.log(`  Thresholds adjusted: ${diagnosticResult.adjustedThresholds}`);
+        console.log('Ô£à Self-diagnostic complete\n');
+      }
     }
 
     const domainAnalyzer = new DomainAnalyzer({
@@ -86,15 +177,19 @@ class AegisCLI {
     }, secretManager);
 
     // Detect hardware capabilities
-    console.log('­ƒöº Detecting hardware capabilities...');
+    if (!this.config.ciMode) {
+      console.log('­ƒöº Detecting hardware capabilities...');
+    }
     const hardwareProfile = await thermalController.detectHardwareCapabilities();
-    console.log(`  GPU: ${hardwareProfile.hasGPU ? hardwareProfile.gpuModel : 'Not detected'}`);
-    console.log(`  VRAM: ${hardwareProfile.gpuVRAM ? `${hardwareProfile.gpuVRAM}GB` : 'N/A'}`);
-    console.log(`  CPU Cores: ${hardwareProfile.cpuCores}`);
-    console.log(`  RAM: ${hardwareProfile.ramTotal}GB`);
-    console.log(`  Recommended Batch Size: ${hardwareProfile.recommendedBatchSize}`);
-    console.log(`  Recommended Cooldown: ${hardwareProfile.recommendedCooldown}ms`);
-    console.log('Ô£à Hardware detection complete\n');
+    if (!this.config.ciMode) {
+      console.log(`  GPU: ${hardwareProfile.hasGPU ? hardwareProfile.gpuModel : 'Not detected'}`);
+      console.log(`  VRAM: ${hardwareProfile.gpuVRAM ? `${hardwareProfile.gpuVRAM}GB` : 'N/A'}`);
+      console.log(`  CPU Cores: ${hardwareProfile.cpuCores}`);
+      console.log(`  RAM: ${hardwareProfile.ramTotal}GB`);
+      console.log(`  Recommended Batch Size: ${hardwareProfile.recommendedBatchSize}`);
+      console.log(`  Recommended Cooldown: ${hardwareProfile.recommendedCooldown}ms`);
+      console.log('Ô£à Hardware detection complete\n');
+    }
 
     // Create phase orchestrator with execution hardening enabled
     const phaseOrchestrator = new PhaseOrchestrator({
@@ -108,18 +203,25 @@ class AegisCLI {
       phaseTimeoutMs: 300000, // 5 minutes per phase
       enableMemoryFlush: true, // Enable memory flush after heavy phases
       enablePartialReports: true, // Write partial reports after each phase
+      dryRunMode: !this.config.applyMode, // Default to dry-run, false only if --apply
+      yesMode: this.config.yesMode || false, // Skip confirmation prompts
+      safeOnly: this.config.safeOnly || false, // Safe-only mode: report only, no modifications
+      verboseMode: this.config.verboseMode || false, // Enable verbose logging
+      previewDiffs: this.config.previewDiffs || false, // Show batch diff preview before applying fixes
+      auditOnly: this.config.auditOnly || false, // Audit-only mode for compliance
+      interactiveFix: this.config.interactiveFix || false, // Per-fix interactive approval
     });
 
     // Execute command
     switch (command) {
       case 'review':
-        await this.runReview(phaseOrchestrator);
+        await this.runReview(phaseOrchestrator, reportAggregator);
         break;
       case 'fix':
-        await this.runFix(phaseOrchestrator);
+        await this.runFix(phaseOrchestrator, reportAggregator);
         break;
       case 'incremental':
-        await this.runIncremental(phaseOrchestrator);
+        await this.runIncremental(phaseOrchestrator, reportAggregator);
         break;
       case 'help':
         this.printHelp();
@@ -152,47 +254,110 @@ class AegisCLI {
     process.on('SIGINT', this.sigintHandler);
   }
 
-  private async runReview(phaseOrchestrator: PhaseOrchestrator): Promise<void> {
-    console.log('´┐¢ Running Full Review (Phases 0-15)\n');
+  private async runReview(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
+    if (!this.config.ciMode) {
+      console.log('´┐¢ Running Full Review (Phases 0-15)\n');
+    }
 
     const result = await phaseOrchestrator.runFullReview();
 
     if (result.success) {
-      console.log('\nÔ£à Review Complete');
-      console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
-      console.log(`ÔÅ▒´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+      const newViolationCount = reportAggregator.getNewViolationCount();
+      const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
+
+      if (!this.config.ciMode) {
+        console.log('\nÔ£à Review Complete');
+        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
+        console.log(`ÔÅ▒´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`­ƒå New Issues: ${newViolationCount}`);
+        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+      } else {
+        console.log(`Review Complete: ${result.totalFindings} findings, ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+      }
+
+      // Smart exit code: success if only inherited errors, failure if new errors
+      if (newViolationCount > 0) {
+        console.log('\nÔØî New issues detected');
+        process.exit(1);
+      } else if (inheritedViolationCount > 0) {
+        console.log('\nÔ£à No new issues (all errors inherited)');
+        process.exit(0);
+      }
     } else {
       console.log('\nÔØî Review Failed');
       process.exit(1);
     }
   }
 
-  private async runFix(phaseOrchestrator: PhaseOrchestrator): Promise<void> {
-    console.log('­ƒöº Running Atomic Fixes (Phases 16-18)\n');
+  private async runFix(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
+    if (!this.config.ciMode) {
+      console.log('­ƒöº Running Atomic Fixes (Phases 16-18)\n');
+    }
 
     const result = await phaseOrchestrator.runFixes();
 
     if (result.success) {
-      console.log('\nÔ£à Fixes Complete');
-      console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
-      console.log(`Ô£à Fixed: ${result.fixedCount}`);
-      console.log(`ÔÜá´©Å  Needs Human Review: ${result.needsHumanReview}`);
-      console.log(`ÔØî Failed: ${result.failedCount}`);
+      const newViolationCount = reportAggregator.getNewViolationCount();
+      const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
+
+      if (!this.config.ciMode) {
+        console.log('\nÔ£à Fixes Complete');
+        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
+        console.log(`Ô£à Fixed: ${result.fixedCount}`);
+        console.log(`ÔÜá´©Å  Needs Human Review: ${result.needsHumanReview}`);
+        console.log(`ÔØî Failed: ${result.failedCount}`);
+        console.log(`­ƒå New Issues: ${newViolationCount}`);
+        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+      } else {
+        console.log(`Fixes Complete: ${result.fixedCount} fixed, ${result.needsHumanReview} needs review, ${result.failedCount} failed`);
+        console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+      }
+
+      // Smart exit code: success if only inherited errors, failure if new errors
+      if (newViolationCount > 0) {
+        console.log('\nÔØî New issues detected');
+        process.exit(1);
+      } else if (inheritedViolationCount > 0) {
+        console.log('\nÔ£à No new issues (all errors inherited)');
+        process.exit(0);
+      }
     } else {
       console.log('\nÔØî Fixes Failed');
       process.exit(1);
     }
   }
 
-  private async runIncremental(phaseOrchestrator: PhaseOrchestrator): Promise<void> {
-    console.log('­ƒöä Running Incremental Review (Phase 19)\n');
+  private async runIncremental(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
+    if (!this.config.ciMode) {
+      console.log('­ƒöä Running Incremental Review (Phase 19)\n');
+    }
 
     const result = await phaseOrchestrator.runIncrementalReview();
 
     if (result.success) {
-      console.log('\nÔ£à Incremental Review Complete');
-      console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
-      console.log(`ÔÅ▒´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+      const newViolationCount = reportAggregator.getNewViolationCount();
+      const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
+
+      if (!this.config.ciMode) {
+        console.log('\nÔ£à Incremental Review Complete');
+        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
+        console.log(`ÔÅ▒´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`­ƒå New Issues: ${newViolationCount}`);
+        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+      } else {
+        console.log(`Incremental Review Complete: ${result.totalFindings} findings, ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+      }
+
+      // Smart exit code: success if only inherited errors, failure if new errors
+      if (newViolationCount > 0) {
+        console.log('\nÔØî New issues detected');
+        process.exit(1);
+      } else if (inheritedViolationCount > 0) {
+        console.log('\nÔ£à No new issues (all errors inherited)');
+        process.exit(0);
+      }
     } else {
       console.log('\nÔØî Incremental Review Failed');
       process.exit(1);
@@ -216,6 +381,16 @@ EXAMPLES:
 
 OPTIONS:
   [directory]                   Target directory (default: current directory)
+  --apply                       Apply fixes to filesystem (default: dry-run mode)
+  --yes, -y                     Skip confirmation prompts (use with --apply)
+  --verbose, -v                 Enable verbose logging for debugging
+  --ci                          CI mode (minimalist output, permissive thermal locks)
+  CI=true                       Set environment variable to enable CI mode
+
+SAFETY:
+  By default, Aegis runs in dry-run mode. Use --apply to write changes.
+  Auto-backup is created before applying any fixes.
+  Interactive confirmation is required unless --yes is specified.
 
 For more information, visit: https://github.com/mxrcabrera/aegis-qa
 `);
@@ -225,13 +400,23 @@ For more information, visit: https://github.com/mxrcabrera/aegis-qa
 // Main execution
 async function main() {
   const args = process.argv.slice(2);
-  
+
   const command = (args[0] || 'review') as 'review' | 'fix' | 'incremental' | 'help';
   const targetDir = args[1] || '.';
+  const ciMode = args.includes('--ci') || process.env.CI === 'true';
+  const applyMode = args.includes('--apply');
+  const yesMode = args.includes('--yes') || args.includes('-y');
+  const verboseMode = args.includes('--verbose') || args.includes('-v');
+  const safeOnly = args.includes('--safe-only');
+  const previewDiffs = args.includes('--preview-diffs');
+  const auditOnly = args.includes('--audit-only');
+  const interactiveFix = args.includes('--interactive-fix');
 
-  if (!['review', 'fix', 'incremental', 'help'].includes(command)) {
-    console.error(`ÔØî Unknown command: ${command}`);
-    console.log('Run "aegis-qa help" for usage information');
+  // Security: Validate all input before proceeding
+  try {
+    AegisCLI.validateInput(command, targetDir, applyMode, yesMode);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 
@@ -239,12 +424,20 @@ async function main() {
     command,
     targetDir,
     skipThermal: false,
+    ciMode,
+    applyMode,
+    yesMode,
+    verboseMode,
+    safeOnly,
+    previewDiffs,
+    auditOnly,
+    interactiveFix,
   });
 
   try {
     await cli.run();
   } catch (error) {
-    console.error('ÔØî Execution failed:', error);
+    ErrorMessages.logError(error as Error, verboseMode);
     process.exit(1);
   }
 }

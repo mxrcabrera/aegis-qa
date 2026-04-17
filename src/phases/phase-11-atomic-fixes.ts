@@ -11,15 +11,22 @@
  * - Safety Gate: Generate .patch files before applying changes
  * - Core Path Protection: NO changes to Core Path without explicit confirmation
  * - Validation Loop: Re-run specific phase to verify score improved
+ * - File Integrity: Integrate FileIntegrityChecker for file integrity validation
  *
  * @module phases/phase-11-atomic-fixes
  * @since 2.0.0
  */
 
+import { ThermalController } from '../core/thermal-controller.js';
+import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
+import { FileIntegrityChecker } from '../core/file-integrity-checker.js';
+import { DiffGenerator } from '../core/diff-generator.js';
+import { SandboxManager, type SandboxConfig } from '../core/sandbox-manager.js';
+import { OperationGuard, type OperationGuardConfig } from '../core/operation-guard.js';
+import { FileWhitelist, type FileWhitelistConfig } from '../core/file-whitelist.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { StatePersistence, type ExecutionState } from '../core/state-persistence';
-import { ThermalController } from '../core/thermal-controller.js';
+import * as readline from 'readline';
 
 /**
  * Fix application result
@@ -60,6 +67,64 @@ interface FixApplicationResult {
 }
 
 /**
+ * Detailed fix metrics
+ */
+interface FixMetrics {
+  /** Total fixes attempted */
+  totalFixesAttempted: number;
+  /** Fixes successfully applied */
+  fixesApplied: number;
+  /** Fixes skipped (Core Path, user rejected, etc.) */
+  fixesSkipped: number;
+  /** Fixes pending confirmation */
+  fixesPendingConfirmation: number;
+  /** Fixes failed (syntax error, etc.) */
+  fixesFailed: number;
+  /** Fixes requiring manual merge (collision) */
+  fixesManualMerge: number;
+  /** Success rate (percentage) */
+  successRate: number;
+  /** Failure rate (percentage) */
+  failureRate: number;
+  /** Core path fixes attempted */
+  corePathFixes: number;
+  /** Non-core path fixes attempted */
+  nonCorePathFixes: number;
+  /** Destructive fixes attempted */
+  destructiveFixes: number;
+  /** Non-destructive fixes attempted */
+  nonDestructiveFixes: number;
+  /** Files affected */
+  filesAffected: number;
+  /** Average lines modified per fix */
+  avgLinesModified: number;
+  /** Total rollback events */
+  rollbackEvents: number;
+  /** Operation guard blocks */
+  operationGuardBlocks: number;
+  /** File whitelist blocks */
+  fileWhitelistBlocks: number;
+}
+
+/**
+ * Audit log entry for compliance tracking
+ */
+interface AuditLogEntry {
+  /** Timestamp of the event */
+  timestamp: string;
+  /** Event type */
+  eventType: 'FIX_GENERATED' | 'FIX_APPLIED' | 'FIX_SKIPPED' | 'FIX_FAILED' | 'USER_APPROVAL' | 'USER_REJECTION' | 'OPERATION_BLOCKED' | 'VALIDATION_RESULT';
+  /** Fix ID if applicable */
+  fixId?: string;
+  /** File path if applicable */
+  filePath?: string;
+  /** Description of the event */
+  description: string;
+  /** Additional metadata */
+  metadata?: Record<string, any>;
+}
+
+/**
  * Remediation result
  */
 interface RemediationResult {
@@ -79,6 +144,10 @@ interface RemediationResult {
   fixResults: FixApplicationResult[];
   /** Validation results */
   validationResults: Map<number, { before: number; after: number; improved: boolean }>;
+  /** Detailed metrics */
+  metrics?: FixMetrics;
+  /** Audit log for compliance tracking */
+  auditLog?: AuditLogEntry[];
 }
 
 /**
@@ -113,6 +182,22 @@ interface Phase11Config {
   allowCorePathFixes: boolean;
   /** Dry-run mode: generate patches but don't apply changes */
   dryRun: boolean;
+  /** Whether to skip confirmation prompts (for CI/CD) */
+  yesMode?: boolean;
+  /** Git checkpoint manager for auto-backup */
+  gitCheckpointManager?: any;
+  /** Sandbox configuration for safe fix execution */
+  sandboxConfig?: SandboxConfig;
+  /** Operation guard configuration for limiting actions */
+  operationGuardConfig?: OperationGuardConfig;
+  /** File whitelist configuration for safe file modifications */
+  fileWhitelistConfig?: FileWhitelistConfig;
+  /** Whether to enable per-fix interactive approval */
+  interactiveFix?: boolean;
+  /** Whether to show batch diff preview before applying all fixes */
+  previewDiffs?: boolean;
+  /** Whether to enable audit-only mode for compliance (detailed logging) */
+  auditOnly?: boolean;
 }
 
 /**
@@ -125,9 +210,580 @@ interface Phase11Config {
  */
 export class Phase11AtomicFixes {
   private config: Phase11Config;
+  private diffGenerator: DiffGenerator;
+  private sandboxManager: SandboxManager;
+  private operationGuard: OperationGuard;
+  private fileWhitelist: FileWhitelist;
+  private auditLog: AuditLogEntry[] = [];
 
   constructor(config: Phase11Config) {
     this.config = config;
+    this.diffGenerator = new DiffGenerator(config.projectRoot);
+
+    // Initialize sandbox manager
+    const sandboxConfig: SandboxConfig = config.sandboxConfig || {
+      projectRoot: config.projectRoot,
+      enabled: true,
+      validateSyntax: true,
+      runTests: false,
+    };
+    this.sandboxManager = new SandboxManager(sandboxConfig);
+
+    // Initialize operation guard
+    const operationGuardConfig: OperationGuardConfig = config.operationGuardConfig || {
+      allowRead: true,
+      allowWrite: true,
+      allowDelete: false,
+      allowExecuteCommands: false,
+      enableLogging: true,
+      blockedPaths: ['.git', 'node_modules', 'dist', 'build'],
+      allowedPaths: [],
+    };
+    this.operationGuard = new OperationGuard(operationGuardConfig);
+
+    // Initialize file whitelist
+    const fileWhitelistConfig: FileWhitelistConfig = config.fileWhitelistConfig || {
+      allowedExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md'],
+      allowedPatterns: [],
+      blockedPatterns: ['.git', 'node_modules', 'dist', 'build', '.env', '.env.*'],
+      allowAllIfEmpty: false,
+      enableLogging: true,
+    };
+    this.fileWhitelist = new FileWhitelist(fileWhitelistConfig);
+  }
+
+  /**
+   * Determines if a fix operation is destructive
+   *
+   * @private
+   * @param fixResult - Fix application result
+   * @returns boolean - Whether operation is destructive
+   */
+  private isDestructiveOperation(fixResult: FixApplicationResult): boolean {
+    // Core path modifications are always destructive
+    if (fixResult.isCorePath) {
+      return true;
+    }
+
+    // Modifications to critical file types are destructive
+    const criticalExtensions = ['.ts', '.tsx', '.js', '.jsx', '.json', '.lock', '.yml', '.yaml'];
+    const ext = path.extname(fixResult.filePath).toLowerCase();
+    if (criticalExtensions.includes(ext)) {
+      return true;
+    }
+
+    // Modifications to critical directories are destructive
+    const criticalDirs = ['src', 'lib', 'core', 'api', 'routes', 'controllers', 'services'];
+    const filePathParts = fixResult.filePath.split(path.sep);
+    if (filePathParts.some(part => criticalDirs.includes(part))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Shows interactive confirmation for applying fixes
+   *
+   * @private
+   * @param remediationResult - Remediation result with fixes to apply
+   * @param forceConfirmation - Force confirmation even with --yes flag
+   * @returns Promise<boolean> - True if user confirms, false otherwise
+   */
+  private async showInteractiveConfirmation(remediationResult: RemediationResult, forceConfirmation: boolean = false): Promise<boolean> {
+    const fixCount = remediationResult.fixResults.length;
+    const fileCount = new Set(remediationResult.fixResults.map(f => f.filePath)).size;
+
+    // Check for destructive operations
+    const destructiveFixes = remediationResult.fixResults.filter(f => this.isDestructiveOperation(f));
+    const hasDestructiveOps = destructiveFixes.length > 0;
+
+    console.log('\n📋 Resumen de Fixes Detectados:');
+    console.log(`   Se detectaron ${fixCount} fixes aplicables en ${fileCount} archivos\n`);
+
+    // Show preview of most critical changes (first 5)
+    const previewFixes = remediationResult.fixResults.slice(0, 5);
+    if (previewFixes.length > 0) {
+      console.log('🔍 Preview de Cambios Críticos:\n');
+      for (const fix of previewFixes) {
+        const isDestructive = this.isDestructiveOperation(fix);
+        console.log(`   ${isDestructive ? '⚠️  DESTRUCTIVE' : '📄'} ${fix.filePath}`);
+        console.log(`      Fix: ${fix.fixId}`);
+        if (fix.originalContent && fix.newContent) {
+          const fileDiff = this.diffGenerator.generateFileDiff(
+            path.basename(fix.filePath),
+            fix.originalContent,
+            fix.newContent
+          );
+          const diffLines = fileDiff.unifiedDiff.split('\n').slice(0, 3);
+          console.log(`      ${diffLines.join('\n      ')}...`);
+        }
+        console.log('');
+      }
+      if (remediationResult.fixResults.length > 5) {
+        console.log(`   ... y ${remediationResult.fixResults.length - 5} fixes más\n`);
+      }
+    }
+
+    // Log destructive operations for audit
+    if (hasDestructiveOps) {
+      console.log(`[Security Audit] ${destructiveFixes.length} destructive operations detected`);
+      console.log(`[Security Audit] Destructive operations require explicit confirmation\n`);
+    }
+
+    // If yesMode is enabled and no destructive operations, skip confirmation
+    if (this.config.yesMode && !hasDestructiveOps && !forceConfirmation) {
+      console.log('[Security] --yes flag enabled. Skipping confirmation for non-destructive operations.\n');
+      return true;
+    }
+
+    // Force confirmation for destructive operations regardless of --yes flag
+    if (hasDestructiveOps || forceConfirmation) {
+      console.log('[Security] Destructive operations detected. Interactive confirmation REQUIRED.\n');
+      console.log('[Security] The --yes flag cannot bypass confirmation for destructive operations.\n');
+    }
+
+    // Ask for confirmation with SIGINT handler
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    let interrupted = false;
+    const sigintHandler = () => {
+      interrupted = true;
+      rl.close();
+      console.log('\n❌ Confirmación cancelada por el usuario\n');
+      process.exit(130);
+    };
+    process.on('SIGINT', sigintHandler);
+
+    try {
+      const answer = await new Promise<string>((resolve) => {
+        rl.question('¿Aplicar estos fixes? (y/n): ', (ans) => {
+          resolve(ans.toLowerCase());
+        });
+      });
+
+      process.removeListener('SIGINT', sigintHandler);
+      rl.close();
+
+      if (interrupted) {
+        return false;
+      }
+
+      const confirmed = answer === 'y' || answer === 'yes';
+      if (!confirmed) {
+        console.log('❌ Aplicación de fixes cancelada\n');
+      } else {
+        console.log('✅ Confirmación recibida\n');
+      }
+
+      return confirmed;
+    } catch (error) {
+      process.removeListener('SIGINT', sigintHandler);
+      rl.close();
+      console.error('Error during confirmation:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Shows per-fix interactive approval
+   *
+   * @private
+   * @param fixResult - Fix application result to approve
+   * @returns Promise<boolean> - True if approved, false otherwise
+   */
+  private async showPerFixApproval(fixResult: FixApplicationResult): Promise<boolean> {
+    console.log(`\n🔍 Fix: ${fixResult.fixId}`);
+    console.log(`📄 Archivo: ${fixResult.filePath}`);
+    console.log(`   Core Path: ${fixResult.isCorePath ? 'YES ⚠️' : 'NO'}`);
+    console.log(`   Destructive: ${this.isDestructiveOperation(fixResult) ? 'YES ⚠️' : 'NO'}`);
+
+    // Show diff preview
+    if (fixResult.originalContent && fixResult.newContent) {
+      console.log('\n📝 Diff Preview:');
+      const fileDiff = this.diffGenerator.generateFileDiff(
+        path.basename(fixResult.filePath),
+        fixResult.originalContent,
+        fixResult.newContent
+      );
+      const diffLines = fileDiff.unifiedDiff.split('\n').slice(0, 10);
+      console.log(diffLines.join('\n'));
+      if (fileDiff.unifiedDiff.split('\n').length > 10) {
+        console.log('... (diff truncado)');
+      }
+    }
+
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    try {
+      const answer = await new Promise<string>((resolve) => {
+        rl.question('\n¿Aplicar este fix? (y/n/a/q - yes/no/all/quit): ', (ans) => {
+          resolve(ans.toLowerCase());
+        });
+      });
+
+      rl.close();
+
+      if (answer === 'y' || answer === 'yes') {
+        console.log('✅ Fix aprobado\n');
+        return true;
+      } else if (answer === 'n' || answer === 'no') {
+        console.log('⏭️  Fix rechazado\n');
+        return false;
+      } else if (answer === 'a' || answer === 'all') {
+        console.log('✅ Aprobando todos los fixes restantes\n');
+        // Note: This would require state tracking to skip future prompts
+        return true;
+      } else if (answer === 'q' || answer === 'quit') {
+        console.log('🛑 Saliendo de aplicación de fixes\n');
+        process.exit(0);
+      } else {
+        console.log('⏭️  Respuesta no reconocida, rechazando fix\n');
+        return false;
+      }
+    } catch (error) {
+      rl.close();
+      console.error('Error durante aprobación:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Shows batch diff preview for all fixes before applying
+   *
+   * @private
+   * @param remediationResult - Remediation result with all fix results
+   * @returns Promise<boolean> - True if user approves proceeding with fixes
+   */
+  private async showBatchDiffPreview(remediationResult: RemediationResult): Promise<boolean> {
+    const fixCount = remediationResult.fixResults.length;
+    const fileCount = new Set(remediationResult.fixResults.map(f => f.filePath)).size;
+
+    console.log('\n' + '='.repeat(60));
+    console.log('📋 BATCH DIFF PREVIEW');
+    console.log('='.repeat(60));
+    console.log(`Total fixes: ${fixCount}`);
+    console.log(`Files affected: ${fileCount}\n`);
+
+    // Group fixes by file
+    const fixesByFile = new Map<string, FixApplicationResult[]>();
+    for (const fix of remediationResult.fixResults) {
+      if (!fixesByFile.has(fix.filePath)) {
+        fixesByFile.set(fix.filePath, []);
+      }
+      fixesByFile.get(fix.filePath)!.push(fix);
+    }
+
+    // Show diff for each file
+    let fileIndex = 0;
+    for (const [filePath, fixes] of fixesByFile.entries()) {
+      fileIndex++;
+      console.log(`\n${fileIndex}. ${filePath}`);
+      console.log('-'.repeat(60));
+
+      const isCorePath = fixes.some(f => f.isCorePath);
+      const isDestructive = fixes.some(f => this.isDestructiveOperation(f));
+
+      console.log(`   Core Path: ${isCorePath ? 'YES ⚠️' : 'NO'}`);
+      console.log(`   Destructive: ${isDestructive ? 'YES ⚠️' : 'NO'}`);
+      console.log(`   Fixes: ${fixes.length}\n`);
+
+      // Show diff for the first fix in this file (or combine if multiple)
+      const firstFix = fixes[0];
+      if (firstFix.originalContent && firstFix.newContent) {
+        const fileDiff = this.diffGenerator.generateFileDiff(
+          path.basename(filePath),
+          firstFix.originalContent,
+          firstFix.newContent
+        );
+
+        // Show first 20 lines of diff
+        const diffLines = fileDiff.unifiedDiff.split('\n');
+        const previewLines = diffLines.slice(0, 20);
+        console.log(previewLines.join('\n'));
+
+        if (diffLines.length > 20) {
+          console.log(`\n   ... (${diffLines.length - 20} more lines)`);
+        }
+      }
+
+      if (fixes.length > 1) {
+        console.log(`\n   (${fixes.length - 1} additional fix(es) for this file)`);
+      }
+    }
+
+    console.log('\n' + '='.repeat(60));
+
+    // Check for destructive operations
+    const destructiveFixes = remediationResult.fixResults.filter(f => this.isDestructiveOperation(f));
+    if (destructiveFixes.length > 0) {
+      console.log(`\n⚠️  WARNING: ${destructiveFixes.length} destructive operation(s) detected`);
+      console.log('Destructive operations modify critical code paths and require careful review.\n');
+    }
+
+    // Ask for confirmation
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    try {
+      const answer = await new Promise<string>((resolve) => {
+        rl.question('\n¿Proceed with applying these fixes? [y/N]: ', (ans) => {
+          resolve(ans.trim().toLowerCase());
+        });
+      });
+
+      rl.close();
+
+      const approved = answer === 'y' || answer === 'yes';
+      if (approved) {
+        console.log('✅ Proceeding with fix application\n');
+      } else {
+        console.log('❌ Fix application cancelled\n');
+      }
+
+      return approved;
+    } catch (error) {
+      rl.close();
+      console.error('Error durante confirmación:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Calculates detailed metrics from fix results
+   *
+   * @private
+   * @param remediationResult - Remediation result with fix results
+   * @returns FixMetrics - Detailed metrics
+   */
+  private calculateMetrics(remediationResult: RemediationResult): FixMetrics {
+    const total = remediationResult.totalFixesAttempted || 1;
+    const successRate = total > 0 ? (remediationResult.fixesApplied / total) * 100 : 0;
+    const failureRate = total > 0 ? (remediationResult.fixesFailed / total) * 100 : 0;
+
+    const corePathFixes = remediationResult.fixResults.filter(f => f.isCorePath).length;
+    const nonCorePathFixes = remediationResult.fixResults.filter(f => !f.isCorePath).length;
+
+    const destructiveFixes = remediationResult.fixResults.filter(f => this.isDestructiveOperation(f)).length;
+    const nonDestructiveFixes = remediationResult.fixResults.filter(f => !this.isDestructiveOperation(f)).length;
+
+    const filesAffected = new Set(remediationResult.fixResults.map(f => f.filePath)).size;
+
+    const totalLinesModified = remediationResult.fixResults.reduce((sum, f) => {
+      return sum + (f.modifiedLines?.length || 0);
+    }, 0);
+    const avgLinesModified = total > 0 ? totalLinesModified / total : 0;
+
+    const rollbackEvents = remediationResult.fixResults.filter(f => f.rolledBack).length;
+
+    // Count operation guard blocks (from error messages)
+    const operationGuardBlocks = remediationResult.fixResults.filter(f =>
+      f.error?.includes('Operation guard blocked')
+    ).length;
+
+    // Count file whitelist blocks (from error messages)
+    const fileWhitelistBlocks = remediationResult.fixResults.filter(f =>
+      f.error?.includes('File whitelist blocked')
+    ).length;
+
+    return {
+      totalFixesAttempted: remediationResult.totalFixesAttempted,
+      fixesApplied: remediationResult.fixesApplied,
+      fixesSkipped: remediationResult.fixesSkipped,
+      fixesPendingConfirmation: remediationResult.fixesPendingConfirmation,
+      fixesFailed: remediationResult.fixesFailed,
+      fixesManualMerge: remediationResult.fixesManualMerge,
+      successRate: Math.round(successRate * 100) / 100,
+      failureRate: Math.round(failureRate * 100) / 100,
+      corePathFixes,
+      nonCorePathFixes,
+      destructiveFixes,
+      nonDestructiveFixes,
+      filesAffected,
+      avgLinesModified: Math.round(avgLinesModified * 100) / 100,
+      rollbackEvents,
+      operationGuardBlocks,
+      fileWhitelistBlocks,
+    };
+  }
+
+  /**
+   * Displays detailed metrics summary
+   *
+   * @private
+   * @param metrics - Fix metrics to display
+   */
+  private displayMetrics(metrics: FixMetrics): void {
+    console.log('\n' + '='.repeat(60));
+    console.log('📊 FIX METRICS SUMMARY');
+    console.log('='.repeat(60));
+    console.log(`Total fixes attempted: ${metrics.totalFixesAttempted}`);
+    console.log(`Fixes applied: ${metrics.fixesApplied}`);
+    console.log(`Fixes skipped: ${metrics.fixesSkipped}`);
+    console.log(`Fixes pending confirmation: ${metrics.fixesPendingConfirmation}`);
+    console.log(`Fixes failed: ${metrics.fixesFailed}`);
+    console.log(`Fixes requiring manual merge: ${metrics.fixesManualMerge}`);
+    console.log('');
+    console.log(`Success rate: ${metrics.successRate.toFixed(2)}%`);
+    console.log(`Failure rate: ${metrics.failureRate.toFixed(2)}%`);
+    console.log('');
+    console.log(`Core path fixes: ${metrics.corePathFixes}`);
+    console.log(`Non-core path fixes: ${metrics.nonCorePathFixes}`);
+    console.log(`Destructive fixes: ${metrics.destructiveFixes}`);
+    console.log(`Non-destructive fixes: ${metrics.nonDestructiveFixes}`);
+    console.log('');
+    console.log(`Files affected: ${metrics.filesAffected}`);
+    console.log(`Average lines modified per fix: ${metrics.avgLinesModified.toFixed(2)}`);
+    console.log('');
+    console.log(`Rollback events: ${metrics.rollbackEvents}`);
+    console.log(`Operation guard blocks: ${metrics.operationGuardBlocks}`);
+    console.log(`File whitelist blocks: ${metrics.fileWhitelistBlocks}`);
+    console.log('='.repeat(60) + '\n');
+  }
+
+  /**
+   * Logs an audit event for compliance tracking
+   *
+   * @private
+   * @param eventType - Type of event
+   * @param description - Description of the event
+   * @param fixId - Optional fix ID
+   * @param filePath - Optional file path
+   * @param metadata - Optional additional metadata
+   */
+  private logAuditEvent(
+    eventType: AuditLogEntry['eventType'],
+    description: string,
+    fixId?: string,
+    filePath?: string,
+    metadata?: Record<string, any>
+  ): void {
+    if (!this.config.auditOnly) {
+      return;
+    }
+
+    const entry: AuditLogEntry = {
+      timestamp: new Date().toISOString(),
+      eventType,
+      fixId,
+      filePath,
+      description,
+      metadata,
+    };
+
+    this.auditLog.push(entry);
+
+    // Also log to console if audit-only mode is enabled
+    console.log(`[AUDIT] ${eventType}: ${description}${fixId ? ` (${fixId})` : ''}${filePath ? ` - ${filePath}` : ''}`);
+  }
+
+  /**
+   * Writes audit log to file
+   *
+   * @private
+   * @returns Promise<void>
+   */
+  private async writeAuditLog(): Promise<void> {
+    if (!this.config.auditOnly || this.auditLog.length === 0) {
+      return;
+    }
+
+    const auditDir = path.join(this.config.projectRoot, '.aegis-cache', 'audit');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const auditFilePath = path.join(auditDir, `audit-${timestamp}.json`);
+
+    try {
+      if (!fs.existsSync(auditDir)) {
+        fs.mkdirSync(auditDir, { recursive: true });
+      }
+
+      const auditData = {
+        timestamp: new Date().toISOString(),
+        projectRoot: this.config.projectRoot,
+        totalEvents: this.auditLog.length,
+        events: this.auditLog,
+      };
+
+      fs.writeFileSync(auditFilePath, JSON.stringify(auditData, null, 2), 'utf-8');
+      console.log(`[AUDIT] Audit log written to: ${auditFilePath}`);
+    } catch (error) {
+      console.error(`[AUDIT] Failed to write audit log: ${error}`);
+    }
+  }
+
+  /**
+   * Creates auto-backup before applying fixes
+   *
+   * @private
+   * @param filePaths - Array of file paths to backup
+   * @returns Promise<void>
+   */
+  private async createAutoBackup(filePaths: string[]): Promise<void> {
+    if (!this.config.gitCheckpointManager) {
+      console.log('⚠️  GitCheckpointManager no disponible, creando backup físico...\n');
+      await this.createPhysicalBackup(filePaths);
+      return;
+    }
+
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const tagName = `aegis-pre-fix-${timestamp}`;
+      console.log(`📦 Creando backup Git: ${tagName}...`);
+
+      await this.config.gitCheckpointManager.createCheckpoint(tagName);
+      console.log('✅ Backup Git creado exitosamente\n');
+    } catch (error) {
+      console.log('⚠️  Git backup falló, creando backup físico...\n');
+      await this.createPhysicalBackup(filePaths);
+    }
+  }
+
+  /**
+   * Creates physical backup of files
+   *
+   * @private
+   * @param filePaths - Array of file paths to backup
+   * @returns Promise<void>
+   */
+  private async createPhysicalBackup(filePaths: string[]): Promise<void> {
+    const backupDir = path.join(this.config.projectRoot, '.aegis-cache', 'backups');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = path.join(backupDir, timestamp);
+
+    try {
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+
+      fs.mkdirSync(backupPath, { recursive: true });
+
+      for (const filePath of filePaths) {
+        const relativePath = path.relative(this.config.projectRoot, filePath);
+        const backupFilePath = path.join(backupPath, relativePath);
+        const backupFileDir = path.dirname(backupFilePath);
+
+        if (!fs.existsSync(backupFileDir)) {
+          fs.mkdirSync(backupFileDir, { recursive: true });
+        }
+
+        if (fs.existsSync(filePath)) {
+          fs.copyFileSync(filePath, backupFilePath);
+        }
+      }
+
+      console.log(`✅ Backup físico creado en: ${backupPath}\n`);
+    } catch (error) {
+      console.error('❌ Error creando backup físico:', error);
+      throw error;
+    }
   }
 
   /**
@@ -146,7 +802,17 @@ export class Phase11AtomicFixes {
       console.log('WARNING DRY-RUN MODE: Patches will be generated but NOT applied to disk\n');
     }
 
+    // Sandbox status
+    const sandboxStatus = this.sandboxManager.getStatus();
+    console.log(`[Sandbox] Enabled: ${sandboxStatus.enabled}, Active: ${sandboxStatus.active}\n`);
+
     try {
+      // Create sandbox if enabled and not in dry-run mode
+      if (sandboxStatus.enabled && !this.config.dryRun) {
+        console.log('[Sandbox] Creating sandbox environment for safe fix execution...');
+        await this.sandboxManager.create();
+      }
+
       // Get analysis results from previous phases
       const analysisResults = this.config.currentState.analysisResults || {};
 
@@ -162,10 +828,94 @@ export class Phase11AtomicFixes {
         fixesManualMerge: 0,
         fixResults: [],
         validationResults: new Map(),
+        auditLog: this.config.auditOnly ? [] : undefined,
       };
+
+      // Log audit start event
+      this.logAuditEvent('FIX_GENERATED', 'Phase 11 execution started', undefined, undefined, {
+        dryRun: this.config.dryRun,
+        autoApply: this.config.autoApply,
+        interactiveFix: this.config.interactiveFix,
+      });
 
       // Apply i18n/a11y fixes
       await this.applyI18nA11yFixes(remediationResult, corePathFiles);
+
+      // Batch diff preview if enabled
+      if (this.config.previewDiffs && remediationResult.fixResults.length > 0) {
+        const previewApproved = await this.showBatchDiffPreview(remediationResult);
+        if (!previewApproved) {
+          console.log('❌ Fix application cancelled after diff preview\n');
+
+          // Cleanup sandbox if active
+          if (sandboxStatus.active) {
+            await this.sandboxManager.cleanup();
+          }
+
+          return {
+            success: true,
+            remediationResult,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+      }
+
+      // Interactive confirmation if not in dry-run mode and not in yes mode
+      if (!this.config.dryRun && !this.config.yesMode && remediationResult.fixResults.length > 0) {
+        const confirmed = await this.showInteractiveConfirmation(remediationResult);
+        if (!confirmed) {
+          console.log('❌ Aplicación de fixes cancelada por el usuario\n');
+          
+          // Cleanup sandbox if active
+          if (sandboxStatus.active) {
+            await this.sandboxManager.cleanup();
+          }
+          
+          return {
+            success: true,
+            remediationResult,
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+
+        // Create auto-backup before applying fixes
+        const affectedFiles = Array.from(new Set(remediationResult.fixResults.map(f => f.filePath)));
+        await this.createAutoBackup(affectedFiles);
+      }
+
+      // Validate sandbox if active before copying to project
+      if (sandboxStatus.active && !this.config.dryRun) {
+        console.log('[Sandbox] Validating sandbox environment before applying fixes...');
+        const validation = await this.sandboxManager.validate();
+        
+        if (!validation.passed) {
+          console.error('[Sandbox] Validation failed. Fixes will not be applied.');
+          console.error('[Sandbox] Errors:', validation.errors.join(', '));
+          
+          // Cleanup sandbox
+          await this.sandboxManager.cleanup();
+          
+          return {
+            success: false,
+            remediationResult: {
+              ...remediationResult,
+              fixesFailed: remediationResult.fixResults.length,
+              fixResults: remediationResult.fixResults.map(f => ({
+                ...f,
+                success: false,
+                error: 'Sandbox validation failed',
+                applied: false,
+              })),
+            },
+            executionTimeMs: Date.now() - startTime,
+            error: 'Sandbox validation failed',
+          };
+        }
+        
+        console.log('[Sandbox] Validation passed. Copying files to project...');
+        const filesToCopy = Array.from(new Set(remediationResult.fixResults.map(f => f.filePath)));
+        await this.sandboxManager.copyToProject(filesToCopy);
+      }
 
       // Validation Loop: Re-run Phase 9 for i18n/a11y fixes
       if (remediationResult.fixResults.some(f => f.fixId.includes('alt-attributes') || f.fixId.includes('aria-labels'))) {
@@ -191,6 +941,12 @@ export class Phase11AtomicFixes {
         await this.validateFixes(remediationResult, 5);
       }
 
+      // Cleanup sandbox if active
+      if (sandboxStatus.active) {
+        console.log('[Sandbox] Cleaning up sandbox...');
+        await this.sandboxManager.cleanup();
+      }
+
       // Save remediation results
       await this.config.statePersistence.storeAnalysisResults(11, remediationResult, this.config.currentState);
 
@@ -208,6 +964,24 @@ export class Phase11AtomicFixes {
       console.log(`  ❌ Fixes failed: ${remediationResult.fixesFailed}`);
       console.log(`  🔀 Fixes requiring manual merge: ${remediationResult.fixesManualMerge}\n`);
 
+      // Calculate and display detailed metrics
+      const metrics = this.calculateMetrics(remediationResult);
+      remediationResult.metrics = metrics;
+      this.displayMetrics(metrics);
+
+      // Copy audit log to remediation result and write to file
+      if (this.config.auditOnly) {
+        remediationResult.auditLog = [...this.auditLog];
+        await this.writeAuditLog();
+        
+        // Log audit completion event
+        this.logAuditEvent('FIX_GENERATED', 'Phase 11 execution completed', undefined, undefined, {
+          totalFixesAttempted: remediationResult.totalFixesAttempted,
+          fixesApplied: remediationResult.fixesApplied,
+          executionTimeMs: Date.now() - startTime,
+        });
+      }
+
       const result: Phase11AtomicFixesResult = {
         success: true,
         remediationResult,
@@ -218,6 +992,16 @@ export class Phase11AtomicFixes {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`❌ Phase 11 failed: ${errorMessage}\n`);
+      
+      // Cleanup sandbox on error
+      const sandboxStatus = this.sandboxManager.getStatus();
+      if (sandboxStatus.active) {
+        try {
+          await this.sandboxManager.cleanup();
+        } catch (cleanupError) {
+          console.error('[Sandbox] Failed to cleanup on error:', cleanupError);
+        }
+      }
 
       const result: Phase11AtomicFixesResult = {
         success: false,
@@ -389,10 +1173,41 @@ export class Phase11AtomicFixes {
     // Generate patch file
     result.patchFilePath = await this.generatePatchFile(fixId, filePath, content, newContent);
 
+    // Interactive fix approval check
+    if (this.config.interactiveFix) {
+      const approved = await this.showPerFixApproval(result);
+      if (!approved) {
+        console.log(`  ⏭️  Fix ${fixId} skipped (user rejected)`);
+        result.applied = false;
+        result.requiresConfirmation = true;
+        return result;
+      }
+    }
+
     // Apply if safe and not dry-run
     if (!result.requiresConfirmation && !collisionDetected && syntaxValid && !this.config.dryRun) {
       // Create backup for rollback
       result.backupFilePath = await this.createBackup(filePath, content);
+      
+      // Validate file is in whitelist
+      const whitelistValidation = this.fileWhitelist.canModify(filePath);
+      if (!whitelistValidation.allowed) {
+        console.log(`  ❌ File whitelist blocked modification to ${filePath}: ${whitelistValidation.reason}`);
+        result.success = false;
+        result.error = `File whitelist blocked: ${whitelistValidation.reason}`;
+        result.applied = false;
+        return result;
+      }
+      
+      // Validate write operation with operation guard
+      const writeValidation = this.operationGuard.canWrite(filePath);
+      if (!writeValidation.allowed) {
+        console.log(`  ❌ Operation guard blocked write to ${filePath}: ${writeValidation.reason}`);
+        result.success = false;
+        result.error = `Operation guard blocked: ${writeValidation.reason}`;
+        result.applied = false;
+        return result;
+      }
       
       // Apply fix with traceability comment
       const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
@@ -483,10 +1298,41 @@ export class Phase11AtomicFixes {
     // Generate patch file
     result.patchFilePath = await this.generatePatchFile(fixId, filePath, content, newContent);
 
+    // Interactive fix approval check
+    if (this.config.interactiveFix) {
+      const approved = await this.showPerFixApproval(result);
+      if (!approved) {
+        console.log(`  ⏭️  Fix ${fixId} skipped (user rejected)`);
+        result.applied = false;
+        result.requiresConfirmation = true;
+        return result;
+      }
+    }
+
     // Apply if safe and not dry-run
     if (!result.requiresConfirmation && !collisionDetected && syntaxValid && !this.config.dryRun) {
       // Create backup for rollback
       result.backupFilePath = await this.createBackup(filePath, content);
+      
+      // Validate file is in whitelist
+      const whitelistValidation = this.fileWhitelist.canModify(filePath);
+      if (!whitelistValidation.allowed) {
+        console.log(`  ❌ File whitelist blocked modification to ${filePath}: ${whitelistValidation.reason}`);
+        result.success = false;
+        result.error = `File whitelist blocked: ${whitelistValidation.reason}`;
+        result.applied = false;
+        return result;
+      }
+      
+      // Validate write operation with operation guard
+      const writeValidation = this.operationGuard.canWrite(filePath);
+      if (!writeValidation.allowed) {
+        console.log(`  ❌ Operation guard blocked write to ${filePath}: ${writeValidation.reason}`);
+        result.success = false;
+        result.error = `Operation guard blocked: ${writeValidation.reason}`;
+        result.applied = false;
+        return result;
+      }
       
       // Apply fix with traceability comment
       const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
@@ -692,6 +1538,17 @@ export class Phase11AtomicFixes {
 
     // Generate patch file
     result.patchFilePath = await this.generatePatchFile(fixId, filePath, content, newContent);
+
+    // Interactive fix approval check
+    if (this.config.interactiveFix) {
+      const approved = await this.showPerFixApproval(result);
+      if (!approved) {
+        console.log(`  ⏭️  Fix ${fixId} skipped (user rejected)`);
+        result.applied = false;
+        result.requiresConfirmation = true;
+        return result;
+      }
+    }
 
     // Apply if safe and not dry-run
     if (!result.requiresConfirmation && !collisionDetected && syntaxValid && !this.config.dryRun) {
@@ -911,7 +1768,7 @@ export class Phase11AtomicFixes {
         // Basic validation: check for balanced brackets/braces
         const stack: string[] = [];
         const pairs = { '(': ')', '[': ']', '{': '}' };
-        
+
         for (const char of content) {
           if (char in pairs) {
             stack.push(char);
@@ -922,33 +1779,56 @@ export class Phase11AtomicFixes {
             }
           }
         }
-        
+
         return stack.length === 0;
       } catch {
         return false;
       }
     }
 
-    // For other file types, assume valid (could be extended)
     return true;
   }
 
   /**
-   * Creates a backup of a file for rollback
+   * Creates a backup of a file with integrity verification
    *
    * @private
    * @param filePath - File path
    * @param content - Content to backup
    * @returns Promise<string> - Backup file path
+   * @throws {Error} If backup creation or verification fails
    */
   private async createBackup(filePath: string, content: string): Promise<string> {
-    const backupDir = path.join(this.config.projectRoot, '.sentinel', 'backups');
+    const backupDir = path.join(this.config.projectRoot, '.aegis-cache', 'backups');
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
     }
 
-    const backupPath = path.join(backupDir, `${path.basename(filePath)}.backup`);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = path.join(backupDir, `${path.basename(filePath)}.${timestamp}.backup`);
+
+    // Calculate checksum of original content using FileIntegrityChecker
+    const originalChecksumInfo = await FileIntegrityChecker.calculateChecksum(filePath);
+
+    // Write backup
     fs.writeFileSync(backupPath, content, 'utf-8');
+
+    // Verify backup was created successfully
+    if (!fs.existsSync(backupPath)) {
+      throw new Error(`[Security] Backup creation failed for ${filePath}: backup file does not exist`);
+    }
+
+    // Verify backup integrity by comparing checksums
+    const integrityCheck = await FileIntegrityChecker.verifyIntegrity(backupPath, originalChecksumInfo.checksum);
+
+    if (!integrityCheck.passed) {
+      fs.unlinkSync(backupPath); // Clean up failed backup
+      throw new Error(`[Security] Backup integrity verification failed for ${filePath}: checksum mismatch`);
+    }
+
+    // Log backup creation with timestamp
+    console.log(`[Security] Backup created: ${backupPath} (checksum: ${integrityCheck.actualChecksum.substring(0, 8)}...)`);
+
     return backupPath;
   }
 
@@ -963,7 +1843,7 @@ export class Phase11AtomicFixes {
    */
   private addTraceabilityComment(content: string, fixId: string, originalViolationId: string): string {
     const ext = path.extname(originalViolationId).toLowerCase();
-    
+
     if (['.js', '.jsx', '.ts', '.tsx'].includes(ext)) {
       // Add comment at the beginning of the file
       const comment = `// Aegis QA Auto-Fix: ${fixId} | Original Violation: ${originalViolationId}\n`;

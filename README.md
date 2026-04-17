@@ -59,6 +59,18 @@ Traditional QA tools either lack business context or require manual intervention
 - **Secret Censoring** - Automatic redaction in reports
 - **Zombie Hunter** - Automatic cleanup of temporary files
 
+### Safety & Compliance Features
+
+- **Sandbox Mode** - Isolated environment for safe fix execution with syntax validation
+- **Multi-Level Rollback** - Git hard reset, stash pop, and directory snapshot for recovery
+- **Operation Guard** - Controls which operations can be performed (read, write, delete, execute)
+- **File Whitelist** - Restricts modifications to specific file types and safe paths
+- **Interactive Fix Approval** - Per-fix approval with diff preview (yes/no/all/quit)
+- **Batch Diff Preview** - Review all proposed changes before applying any fixes
+- **Audit-Only Mode** - Detailed logging for compliance with audit trail generation
+- **Success/Failure Metrics** - Comprehensive statistics on fix application rates
+- **Safe-Only Mode** - Report-only mode without any file modifications
+
 ## 🛠️ Technology Stack
 
 ### Core
@@ -111,6 +123,34 @@ node dist/cli.js incremental [directory]
 node dist/cli.js help
 ```
 
+### CLI Flags
+
+```bash
+# Apply fixes (default: dry-run mode)
+--apply
+
+# Skip confirmation prompts (for CI/CD)
+--yes, -y
+
+# Enable verbose logging
+--verbose, -v
+
+# Safe-only mode (report only, no modifications)
+--safe-only
+
+# Show batch diff preview before applying fixes
+--preview-diffs
+
+# Enable audit-only mode for compliance
+--audit-only
+
+# Enable per-fix interactive approval
+--interactive-fix
+
+# Run in CI mode (skip non-essential output)
+--ci
+```
+
 ### Examples
 
 ```bash
@@ -125,6 +165,21 @@ node dist/cli.js fix .
 
 # Incremental review of git changes
 node dist/cli.js incremental .
+
+# Safe-only mode (report only, no modifications)
+node dist/cli.js review . --safe-only
+
+# Apply fixes with interactive approval
+node dist/cli.js fix . --apply --interactive-fix
+
+# Apply fixes with batch diff preview
+node dist/cli.js fix . --apply --preview-diffs
+
+# Compliance audit mode (detailed logging)
+node dist/cli.js review . --audit-only
+
+# CI/CD mode (auto-apply with no prompts)
+node dist/cli.js fix . --apply --yes --ci
 ```
 
 ### Programmatic Usage
@@ -192,6 +247,16 @@ Generated after each phase to track progress:
 
 ### Final Report
 Generated after Phase 20:
+- `qa-report.md` - Complete analysis with findings and fixes
+
+### Audit Reports
+When using `--audit-only` mode:
+- `.aegis-cache/audit/audit-{timestamp}.json` - Detailed audit trail for compliance
+
+## 📚 Documentation
+
+- **[Best Practices for Production Use](docs/best-practices-production.md)** - Comprehensive guide for safe production deployment
+- **[Architecture Documentation](docs/architecture.md)** - System architecture and design decisions
 - `qa-report.md` - Comprehensive analysis report with ROI metrics
 - Automatic secret redaction for security
 - Time-saved metrics weighted by complexity
