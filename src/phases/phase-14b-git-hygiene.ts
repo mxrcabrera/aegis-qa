@@ -21,10 +21,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { execSafe } from '../core/command-sanitizer.js';
 
 /**
  * Git hygiene finding
@@ -445,8 +442,8 @@ export class Phase14GitHygiene {
 
     // Deep Git Check: Detect sensitive files tracked by Git (even if in .gitignore now)
     try {
-      const { stdout } = await execAsync('git ls-files', { cwd: this.config.projectRoot });
-      const gitTrackedFiles = stdout.split('\n').filter(f => f.trim());
+      const { stdout } = await execSafe('git', ['ls-files'], { cwd: this.config.projectRoot });
+      const gitTrackedFiles = stdout.split('\n').filter((f: string) => f.trim());
       
       const sensitivePatterns = ['.env', '.pem', 'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', '.key', '.cert', '.crt', '.p12', '.pfx'];
       

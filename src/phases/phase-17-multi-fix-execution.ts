@@ -15,12 +15,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { execSafe } from '../core/command-sanitizer.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
-
-const execAsync = promisify(exec);
 
 /**
  * Multi-fix execution result
@@ -552,7 +549,7 @@ export class Phase17MultiFixExecution {
       // Paso 1: npx eslint --fix (solo en el archivo afectado)
       try {
         console.log(`INFO Running eslint --fix on ${filePath}`);
-        await execAsync(`npx eslint --fix "${fullPath}"`, { cwd: this.config.projectRoot });
+        await execSafe('npx', ['eslint', '--fix', fullPath], { cwd: this.config.projectRoot });
       } catch (error) {
         console.warn(`WARNING eslint --fix failed for ${filePath}:`, error instanceof Error ? error.message : error);
       }
@@ -561,7 +558,7 @@ export class Phase17MultiFixExecution {
       if (['.ts', '.tsx'].includes(ext)) {
         try {
           console.log(`INFO Running tsc --noEmit on ${filePath}`);
-          await execAsync(`npx tsc --noEmit "${fullPath}"`, { cwd: this.config.projectRoot });
+          await execSafe('npx', ['tsc', '--noEmit', fullPath], { cwd: this.config.projectRoot });
         } catch (error) {
           console.warn(`WARNING tsc --noEmit failed for ${filePath}:`, error instanceof Error ? error.message : error);
           return { passed: false, timeSaved: 0 };
@@ -572,7 +569,7 @@ export class Phase17MultiFixExecution {
       if (isCorePath || blastRadius > 10) {
         console.log(`INFO File is Core Path or has high Blast Radius (${blastRadius}). Running full build...`);
         try {
-          await execAsync('npm run build', { cwd: this.config.projectRoot });
+          await execSafe('npm', ['run', 'build'], { cwd: this.config.projectRoot });
         } catch (error) {
           console.warn(`WARNING Full build failed:`, error instanceof Error ? error.message : error);
           return { passed: false, timeSaved: 0 };
@@ -628,7 +625,7 @@ export class Phase17MultiFixExecution {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         console.log(`INFO Linter-Fix Loop attempt ${attempt}/${maxAttempts} for ${filePath}`);
-        await execAsync(`npx eslint --fix "${fullPath}"`, { cwd: this.config.projectRoot });
+        await execSafe('npx', ['eslint', '--fix', fullPath], { cwd: this.config.projectRoot });
         
         // Check if linter succeeded (no output or no errors)
         // If eslint --fix succeeds, it returns exit code 0

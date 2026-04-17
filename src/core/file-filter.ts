@@ -9,6 +9,7 @@
  * - Filters by extension to skip binary files
  * - Configurable max file size (default: 500KB)
  * - Prevents memory explosion on large files
+ * - Flexible path detection (src/, lib/, app/, or root)
  *
  * @module core/file-filter
  * @since 2.0.0
@@ -270,5 +271,65 @@ export class FileFilter {
    */
   addBlockedPattern(pattern: string): void {
     this.blockedPatterns.push(new RegExp(pattern));
+  }
+
+  /**
+   * Detects the source directory for a project
+   *
+   * This function checks for common source directory patterns:
+   * - src/ (most common)
+   * - lib/ (common in older projects)
+   * - app/ (common in some frameworks)
+   * - root directory (fallback)
+   *
+   * @param projectRoot - Project root directory
+   * @returns string - Detected source directory path (relative to projectRoot)
+   *
+   * @example
+   * ```typescript
+   * const sourceDir = FileFilter.detectSourceDirectory('/path/to/project');
+   * // Returns 'src' if src/ exists, 'lib' if lib/ exists, etc.
+   * ```
+   */
+  static detectSourceDirectory(projectRoot: string): string {
+    const commonSourceDirs = ['src', 'lib', 'app', 'source', 'server'];
+
+    for (const dir of commonSourceDirs) {
+      const dirPath = path.join(projectRoot, dir);
+      if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
+        // Check if this directory has source files
+        const entries = fs.readdirSync(dirPath);
+        const hasSourceFiles = entries.some(entry => {
+          const ext = path.extname(entry).toLowerCase();
+          return ['.ts', '.tsx', '.js', '.jsx'].includes(ext);
+        });
+
+        if (hasSourceFiles) {
+          return dir;
+        }
+      }
+    }
+
+    // Fallback to root directory
+    return '.';
+  }
+
+  /**
+   * Gets source file patterns based on detected source directory
+   *
+   * @param projectRoot - Project root directory
+   * @returns string[] - Array of glob patterns for source files
+   */
+  static getSourceFilePatterns(projectRoot: string): string[] {
+    const sourceDir = FileFilter.detectSourceDirectory(projectRoot);
+    const extensions = ['ts', 'tsx', 'js', 'jsx'];
+
+    if (sourceDir === '.') {
+      // Use root directory
+      return extensions.map(ext => `**/*.${ext}`);
+    } else {
+      // Use detected source directory
+      return extensions.map(ext => `${sourceDir}/**/*.${ext}`);
+    }
   }
 }

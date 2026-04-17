@@ -4,6 +4,9 @@
   "description": "Aegis QA - Advanced quality assurance orchestrator with hardware protection and AI-powered analysis",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "aegis-qa": "./bin/aegis-qa.js"
+  },
   "scripts": {
     "test": "vitest",
     "build": "tsc",

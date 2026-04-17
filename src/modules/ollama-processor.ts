@@ -7,10 +7,8 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import { execSafe } from "../core/command-sanitizer.js";
+import { RetryHelper } from "../core/retry-helper.js";
 
 interface ProcessingStats {
   filesProcessed: number;
@@ -53,15 +51,25 @@ class OllamaProcessor {
    */
   private async checkHealth(): Promise<void> {
     console.log("=== HEALTH CHECK OLLAMA ===");
-    try {
-      const { stdout } = await execAsync("ollama list", { timeout: 10000 });
+
+    const retryHelper = new RetryHelper();
+    const result = await retryHelper.executeWithRetry(
+      async () => {
+        const { stdout } = await execSafe("ollama", ["list"]);
+        return stdout;
+      },
+      { maxRetries: 3, initialBackoffMs: 1000 }
+    );
+
+    if (result.success && result.result !== undefined) {
       console.log("✅ Ollama está corriendo");
-      console.log(`Modelos disponibles: ${stdout.split("\n").length - 2}`);
-    } catch (error) {
+      console.log(`Modelos disponibles: ${result.result.split("\n").length - 2}`);
+    } else {
       console.error("❌ ERROR: OLLAMA NO ESTÁ CORRIENDO");
       console.error("Por favor, iniciá Ollama con: ollama serve");
       throw new Error("OLLAMA NO ESTÁ CORRIENDO - Iniciá con: ollama serve");
     }
+
     console.log("=== FIN HEALTH CHECK ===");
   }
 

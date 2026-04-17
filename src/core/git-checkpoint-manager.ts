@@ -11,6 +11,11 @@
  * @since 1.1.0
  */
 
+import { execSafe } from './command-sanitizer.js';
+import { RetryHelper } from './retry-helper.js';
+import { FileIntegrityChecker } from './file-integrity-checker.js';
+import * as fs from 'fs';
+import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -30,6 +35,10 @@ interface GitCheckpoint {
   wasClean: boolean;
   /** Branch name at checkpoint time */
   branchName: string;
+  /** Stash name (level 3 fallback) */
+  stashName?: string;
+  /** Directory snapshot path (level 4 fallback) */
+  snapshotPath?: string;
 }
 
 /**
@@ -64,15 +73,23 @@ export class GitCheckpointManager {
    * @returns Promise<boolean> - True if repository is clean
    */
   async isRepositoryClean(): Promise<boolean> {
-    try {
-      const { stdout } = await execAsync('git status --porcelain', {
-        cwd: this.projectRoot,
-      });
-      return stdout.trim().length === 0;
-    } catch (error) {
-      console.warn('[GitCheckpointManager] Failed to check repository status:', error);
-      return false;
+    const retryHelper = new RetryHelper();
+    const result = await retryHelper.executeWithRetry(
+      async () => {
+        const { stdout } = await execSafe('git', ['status', '--porcelain'], {
+          cwd: this.projectRoot,
+        });
+        return stdout.trim().length === 0;
+      },
+      { maxRetries: 3, initialBackoffMs: 1000 }
+    );
+
+    if (result.success && result.result !== undefined) {
+      return result.result;
     }
+
+    console.warn('[GitCheckpointManager] Failed to check repository status after retries:', result.error);
+    return false;
   }
 
   /**
@@ -82,15 +99,23 @@ export class GitCheckpointManager {
    * @returns Promise<string> - Current branch name
    */
   private async getCurrentBranch(): Promise<string> {
-    try {
-      const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', {
-        cwd: this.projectRoot,
-      });
-      return stdout.trim();
-    } catch (error) {
-      console.warn('[GitCheckpointManager] Failed to get current branch:', error);
-      return 'unknown';
+    const retryHelper = new RetryHelper();
+    const result = await retryHelper.executeWithRetry(
+      async () => {
+        const { stdout } = await execSafe('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+          cwd: this.projectRoot,
+        });
+        return stdout.trim();
+      },
+      { maxRetries: 3, initialBackoffMs: 1000 }
+    );
+
+    if (result.success && result.result !== undefined) {
+      return result.result;
     }
+
+    console.warn('[GitCheckpointManager] Failed to get current branch after retries:', result.error);
+    return 'unknown';
   }
 
   /**
@@ -100,25 +125,34 @@ export class GitCheckpointManager {
    * @returns Promise<string> - Current commit hash
    */
   private async getCurrentCommit(): Promise<string> {
-    try {
-      const { stdout } = await execAsync('git rev-parse HEAD', {
-        cwd: this.projectRoot,
-      });
-      return stdout.trim();
-    } catch (error) {
-      console.warn('[GitCheckpointManager] Failed to get current commit:', error);
-      return 'unknown';
+    const retryHelper = new RetryHelper();
+    const result = await retryHelper.executeWithRetry(
+      async () => {
+        const { stdout } = await execSafe('git', ['rev-parse', 'HEAD'], {
+          cwd: this.projectRoot,
+        });
+        return stdout.trim();
+      },
+      { maxRetries: 3, initialBackoffMs: 1000 }
+    );
+
+    if (result.success && result.result !== undefined) {
+      return result.result;
     }
+
+    console.warn('[GitCheckpointManager] Failed to get current commit after retries:', result.error);
+    return 'unknown';
   }
 
   /**
    * Creates a git checkpoint before applying fixes
    *
    * @param tagName - Optional custom tag name (default: aegis-pre-fix)
+   * @param enableMultiLevel - Whether to enable multi-level rollback (default: true)
    * @returns Promise<GitCheckpoint> - Checkpoint information
    */
-  async createCheckpoint(tagName: string = 'aegis-pre-fix'): Promise<GitCheckpoint> {
-    console.log('[GitCheckpointManager] Creating git checkpoint...');
+  async createCheckpoint(tagName: string = 'aegis-pre-fix', enableMultiLevel: boolean = true): Promise<GitCheckpoint> {
+    console.log('[GitCheckpointManager] Creating git checkpoint (multi-level rollback enabled)...');
     
     // Check if repository is clean
     const isClean = await this.isRepositoryClean();
@@ -126,18 +160,31 @@ export class GitCheckpointManager {
     if (!isClean) {
       console.warn('[GitCheckpointManager] Repository has uncommitted changes');
       console.warn('[GitCheckpointManager] Committing changes before creating checkpoint...');
-      
+
+      const retryHelper = new RetryHelper();
+
       // Stage all changes
       try {
-        await execAsync('git add -A', { cwd: this.projectRoot });
-        
+        await retryHelper.executeWithRetry(
+          async () => {
+            await execSafe('git', ['add', '-A'], { cwd: this.projectRoot });
+          },
+          { maxRetries: 3, initialBackoffMs: 1000 }
+        );
+
         // Create commit
         const timestamp = new Date().toISOString();
-        await execAsync(
-          `git commit -m "aegis-checkpoint: ${timestamp}"`,
-          { cwd: this.projectRoot }
+        await retryHelper.executeWithRetry(
+          async () => {
+            await execSafe(
+              'git',
+              ['commit', '-m', `aegis-checkpoint: ${timestamp}`],
+              { cwd: this.projectRoot }
+            );
+          },
+          { maxRetries: 3, initialBackoffMs: 1000 }
         );
-        
+
         console.log('[GitCheckpointManager] Committed uncommitted changes');
       } catch (error) {
         console.error('[GitCheckpointManager] Failed to commit changes:', error);
@@ -151,14 +198,28 @@ export class GitCheckpointManager {
 
     // Create tag
     try {
+      const retryHelper = new RetryHelper();
+
       // Delete existing tag if it exists
-      await execAsync(`git tag -d ${tagName} 2>nul || exit 0`, {
-        cwd: this.projectRoot,
-      });
-      
+      try {
+        await retryHelper.executeWithRetry(
+          async () => {
+            await execSafe('git', ['tag', '-d', tagName], { cwd: this.projectRoot });
+          },
+          { maxRetries: 2, initialBackoffMs: 500 }
+        );
+      } catch {
+        // Tag doesn't exist, ignore error
+      }
+
       // Create new tag
-      await execAsync(`git tag ${tagName}`, { cwd: this.projectRoot });
-      
+      await retryHelper.executeWithRetry(
+        async () => {
+          await execSafe('git', ['tag', tagName], { cwd: this.projectRoot });
+        },
+        { maxRetries: 3, initialBackoffMs: 1000 }
+      );
+
       console.log(`[GitCheckpointManager] Created checkpoint: ${tagName} (${commitHash})`);
     } catch (error) {
       console.warn('[GitCheckpointManager] Failed to create tag, using commit hash instead:', error);
@@ -172,30 +233,194 @@ export class GitCheckpointManager {
       branchName,
     };
 
+    // Level 3: Create git stash as fallback
+    if (enableMultiLevel) {
+      try {
+        const stashName = await this.createStash();
+        checkpoint.stashName = stashName;
+        console.log(`[GitCheckpointManager] Level 3 fallback: Created stash ${stashName}`);
+      } catch (error) {
+        console.warn('[GitCheckpointManager] Failed to create stash (Level 3 fallback):', error);
+      }
+
+      // Level 4: Create directory snapshot as final fallback
+      try {
+        const snapshotPath = await this.createDirectorySnapshot();
+        checkpoint.snapshotPath = snapshotPath;
+        console.log(`[GitCheckpointManager] Level 4 fallback: Created directory snapshot ${snapshotPath}`);
+      } catch (error) {
+        console.warn('[GitCheckpointManager] Failed to create directory snapshot (Level 4 fallback):', error);
+      }
+    }
+
     this.currentCheckpoint = checkpoint;
     return checkpoint;
   }
 
   /**
-   * Rollbacks to a specific checkpoint
+   * Creates a git stash as fallback (Level 3)
+   *
+   * @private
+   * @returns Promise<string> - Stash name
+   */
+  private async createStash(): Promise<string> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const stashName = `aegis-rollback-${timestamp}`;
+    
+    const retryHelper = new RetryHelper();
+    await retryHelper.executeWithRetry(
+      async () => {
+        await execSafe('git', ['stash', 'push', '-m', stashName, '-u'], { cwd: this.projectRoot });
+      },
+      { maxRetries: 3, initialBackoffMs: 1000 }
+    );
+
+    return stashName;
+  }
+
+  /**
+   * Creates a directory snapshot as fallback (Level 4)
+   *
+   * @private
+   * @returns Promise<string> - Snapshot directory path
+   */
+  private async createDirectorySnapshot(): Promise<string> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const snapshotDir = path.join(this.projectRoot, '.aegis-cache', 'snapshots', timestamp);
+    
+    // Create snapshot directory
+    fs.mkdirSync(snapshotDir, { recursive: true });
+
+    // Create snapshot using FileIntegrityChecker
+    const snapshot = await FileIntegrityChecker.createSnapshot(this.projectRoot);
+    
+    // Store snapshot metadata
+    const metadataPath = path.join(snapshotDir, 'snapshot-metadata.json');
+    const metadata = {
+      timestamp: new Date().toISOString(),
+      snapshot: Object.fromEntries(snapshot),
+      projectRoot: this.projectRoot,
+    };
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+
+    return snapshotDir;
+  }
+
+  /**
+   * Rollbacks to a specific checkpoint with multi-level fallback
    *
    * @param checkpoint - Checkpoint to rollback to
+   * @returns Promise<{ success: boolean; level: string; error?: string }>
+   */
+  async rollback(checkpoint: GitCheckpoint): Promise<{ success: boolean; level: string; error?: string }> {
+    console.log(`[GitCheckpointManager] Starting multi-level rollback to checkpoint: ${checkpoint.tagName} (${checkpoint.commitHash})`);
+
+    // Level 1: Git reset to checkpoint commit
+    console.log('[GitCheckpointManager] Level 1: Attempting git reset to checkpoint commit...');
+    try {
+      const retryHelper = new RetryHelper();
+      const result = await retryHelper.executeWithRetry(
+        async () => {
+          await execSafe('git', ['reset', '--hard', checkpoint.commitHash], {
+            cwd: this.projectRoot,
+          });
+        },
+        { maxRetries: 3, initialBackoffMs: 1000 }
+      );
+
+      if (result.success) {
+        console.log(`[GitCheckpointManager] Level 1 SUCCESS: Rolled back to ${checkpoint.commitHash}`);
+        return { success: true, level: 'git-reset' };
+      } else {
+        throw new Error(String(result.error));
+      }
+    } catch (error) {
+      console.error('[GitCheckpointManager] Level 1 FAILED:', error);
+    }
+
+    // Level 2: Git stash pop (if stash exists)
+    if (checkpoint.stashName) {
+      console.log('[GitCheckpointManager] Level 2: Attempting git stash pop...');
+      try {
+        const retryHelper = new RetryHelper();
+        const result = await retryHelper.executeWithRetry(
+          async () => {
+            await execSafe('git', ['stash', 'pop'], { cwd: this.projectRoot });
+          },
+          { maxRetries: 3, initialBackoffMs: 1000 }
+        );
+
+        if (result.success) {
+          console.log('[GitCheckpointManager] Level 2 SUCCESS: Restored from stash');
+          return { success: true, level: 'git-stash' };
+        } else {
+          throw new Error(String(result.error));
+        }
+      } catch (error) {
+        console.error('[GitCheckpointManager] Level 2 FAILED:', error);
+      }
+    }
+
+    // Level 3: Directory snapshot restore (if snapshot exists)
+    if (checkpoint.snapshotPath) {
+      console.log('[GitCheckpointManager] Level 3: Attempting directory snapshot restore...');
+      try {
+        await this.restoreFromSnapshot(checkpoint.snapshotPath);
+        console.log('[GitCheckpointManager] Level 3 SUCCESS: Restored from directory snapshot');
+        return { success: true, level: 'directory-snapshot' };
+      } catch (error) {
+        console.error('[GitCheckpointManager] Level 3 FAILED:', error);
+      }
+    }
+
+    // All levels failed
+    const error = 'All rollback levels failed. Manual intervention required.';
+    console.error('[GitCheckpointManager]', error);
+    return { success: false, level: 'none', error };
+  }
+
+  /**
+   * Restores project from directory snapshot
+   *
+   * @private
+   * @param snapshotPath - Path to snapshot directory
    * @returns Promise<void>
    */
-  async rollback(checkpoint: GitCheckpoint): Promise<void> {
-    console.log(`[GitCheckpointManager] Rolling back to checkpoint: ${checkpoint.tagName} (${checkpoint.commitHash})`);
+  private async restoreFromSnapshot(snapshotPath: string): Promise<void> {
+    const metadataPath = path.join(snapshotPath, 'snapshot-metadata.json');
     
-    try {
-      // Hard reset to checkpoint commit
-      await execAsync(`git reset --hard ${checkpoint.commitHash}`, {
-        cwd: this.projectRoot,
-      });
-      
-      console.log(`[GitCheckpointManager] Successfully rolled back to ${checkpoint.commitHash}`);
-    } catch (error) {
-      console.error('[GitCheckpointManager] Failed to rollback:', error);
-      throw new Error(`Failed to rollback to checkpoint: ${checkpoint.commitHash}`);
+    if (!fs.existsSync(metadataPath)) {
+      throw new Error('Snapshot metadata not found');
     }
+
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+    
+    // Verify project root matches
+    if (metadata.projectRoot !== this.projectRoot) {
+      throw new Error('Snapshot project root mismatch');
+    }
+
+    // Restore files from snapshot
+    const snapshot = new Map<string, any>(Object.entries(metadata.snapshot));
+    
+    for (const [filePath, checksum] of snapshot.entries()) {
+      const fullPath = path.join(this.projectRoot, filePath);
+      
+      if (fs.existsSync(fullPath)) {
+        const currentChecksum = await FileIntegrityChecker.calculateChecksum(fullPath);
+        if (currentChecksum.checksum === checksum.checksum) {
+          continue; // File unchanged, skip
+        }
+      }
+      
+      // Restore file from snapshot
+      const snapshotFilePath = path.join(snapshotPath, filePath);
+      if (fs.existsSync(snapshotFilePath)) {
+        fs.copyFileSync(snapshotFilePath, fullPath);
+      }
+    }
+
+    console.log('[GitCheckpointManager] Restored files from snapshot');
   }
 
   /**
@@ -218,14 +443,22 @@ export class GitCheckpointManager {
    * @returns Promise<boolean> - True if checkpoint exists
    */
   async checkpointExists(tagName: string): Promise<boolean> {
-    try {
-      const { stdout } = await execAsync(`git tag -l ${tagName}`, {
-        cwd: this.projectRoot,
-      });
-      return stdout.trim() === tagName;
-    } catch (error) {
-      return false;
+    const retryHelper = new RetryHelper();
+    const result = await retryHelper.executeWithRetry(
+      async () => {
+        const { stdout } = await execSafe('git', ['tag', '-l', tagName], {
+          cwd: this.projectRoot,
+        });
+        return stdout.trim() === tagName;
+      },
+      { maxRetries: 3, initialBackoffMs: 1000 }
+    );
+
+    if (result.success && result.result !== undefined) {
+      return result.result;
     }
+
+    return false;
   }
 
   /**
@@ -252,7 +485,7 @@ export class GitCheckpointManager {
    */
   async deleteCheckpoint(tagName: string): Promise<void> {
     try {
-      await execAsync(`git tag -d ${tagName}`, { cwd: this.projectRoot });
+      await execSafe('git', ['tag', '-d', tagName], { cwd: this.projectRoot });
       console.log(`[GitCheckpointManager] Deleted checkpoint: ${tagName}`);
     } catch (error) {
       console.warn(`[GitCheckpointManager] Failed to delete checkpoint ${tagName}:`, error);
@@ -266,7 +499,7 @@ export class GitCheckpointManager {
    */
   async isInGitRepository(): Promise<boolean> {
     try {
-      await execAsync('git rev-parse --git-dir', { cwd: this.projectRoot });
+      await execSafe('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
       return true;
     } catch (error) {
       return false;

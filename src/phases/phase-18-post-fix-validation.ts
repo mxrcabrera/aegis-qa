@@ -15,12 +15,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { execSafe } from '../core/command-sanitizer.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
-
-const execAsync = promisify(exec);
 
 /**
  * Post-fix validation result
@@ -213,7 +210,7 @@ export class Phase18PostFixValidation {
     console.log('INFO Capturing pre-fix baseline...');
 
     try {
-      const { stderr } = await execAsync('npx tsc --noEmit', { cwd: this.config.projectRoot });
+      const { stderr } = await execSafe('npx', ['tsc', '--noEmit'], { cwd: this.config.projectRoot });
       const errors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
       
       console.log(`INFO Pre-fix baseline captured: ${errors.length} type errors`);
@@ -251,7 +248,7 @@ export class Phase18PostFixValidation {
 
     try {
       // Execute npx tsc --noEmit globally
-      const { stderr } = await execAsync('npx tsc --noEmit', { cwd: this.config.projectRoot });
+      const { stderr } = await execSafe('npx', ['tsc', '--noEmit'], { cwd: this.config.projectRoot });
       const postFixErrors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
       
       const postFixErrorCount = postFixErrors.length;

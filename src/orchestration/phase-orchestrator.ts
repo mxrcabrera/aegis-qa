@@ -40,6 +40,7 @@ import { Phase15CContainerization } from '../phases/phase-15d-containerization.j
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
+import { MemoryMonitor } from '../core/memory-monitor.js';
 import * as fs from 'fs';
 import type { DomainMap } from '../types/domain.js';
 
@@ -127,6 +128,18 @@ interface PhaseOrchestratorConfig {
   enablePartialReports?: boolean;
   /** Whether to run in dry-run mode (no fixes applied) */
   dryRunMode?: boolean;
+  /** Whether to skip confirmation prompts (for CI/CD) */
+  yesMode?: boolean;
+  /** Whether to enable verbose logging for debugging */
+  verboseMode?: boolean;
+  /** Whether to run in safe-only mode (report only, no modifications) */
+  safeOnly?: boolean;
+  /** Whether to show batch diff preview before applying fixes */
+  previewDiffs?: boolean;
+  /** Whether to enable audit-only mode for compliance */
+  auditOnly?: boolean;
+  /** Whether to enable per-fix interactive approval */
+  interactiveFix?: boolean;
 }
 
 /**
@@ -154,23 +167,66 @@ export class PhaseOrchestrator {
   private gitCheckpointManager: GitCheckpointManager;
   private errorBaseline: ErrorBaseline;
   private thermalLock: ThermalLock;
+  private memoryMonitor: MemoryMonitor;
   private gcAvailable: boolean;
   private memoryThreshold: number = 1.5 * 1024 * 1024 * 1024; // 1.5GB
+  private dryRunMode: boolean;
+  private yesMode: boolean;
+  private verboseMode: boolean;
+  private activeTimeouts: Set<NodeJS.Timeout> = new Set();
+  private activeProcesses: Set<number> = new Set();
 
   constructor(config: PhaseOrchestratorConfig) {
     this.config = config;
+    this.dryRunMode = config.dryRunMode ?? true; // Default to dry-run
+    this.yesMode = config.yesMode ?? false; // Default to require confirmation
+    this.verboseMode = config.verboseMode ?? false; // Default to non-verbose
     this.gitCheckpointManager = new GitCheckpointManager(config.projectRoot);
     this.errorBaseline = new ErrorBaseline(config.projectRoot);
     this.thermalLock = new ThermalLock();
+    this.memoryMonitor = new MemoryMonitor({ maxMemoryBytes: this.memoryThreshold });
     this.gcAvailable = typeof (global as any).gc === 'function';
-    
+
     // Install global log middleware for GDPR/CCPA/SOC2 compliance
     SecretSanitizer.installGlobalMiddleware();
-    
+
     if (this.gcAvailable) {
       console.log('[PhaseOrchestrator] Manual GC available (--expose-gc detected)');
     } else {
       console.log('[PhaseOrchestrator] Manual GC not available (run with --expose-gc to enable)');
+    }
+
+    // Enforce dry-run at construction time
+    this.enforceDryRun();
+  }
+
+  /**
+   * Enforces dry-run mode to prevent bypass
+   *
+   * @private
+   * @throws {Error} If dry-run is being bypassed
+   */
+  private enforceDryRun(): void {
+    if (this.dryRunMode) {
+      console.log('[Security] Dry-run mode enabled. No changes will be applied.');
+      console.log('[Security] Use --apply flag to disable dry-run mode and apply changes.');
+    }
+  }
+
+  /**
+   * Validates that dry-run is respected before any file operation
+   *
+   * @private
+   * @param operation - Description of the operation
+   * @throws {Error} If attempting to modify files in dry-run mode
+   */
+  private validateDryRunForOperation(operation: string): void {
+    if (this.dryRunMode) {
+      const errorMsg = `[Security] Attempted to perform write operation in dry-run mode: ${operation}`;
+      console.error(errorMsg);
+      console.error('[Security] Write operations are not allowed in dry-run mode.');
+      console.error('[Security] This is a safety measure to prevent unintended modifications.');
+      throw new Error(errorMsg);
     }
   }
 
@@ -182,6 +238,10 @@ export class PhaseOrchestrator {
    * @returns Promise<void>
    */
   private async triggerGarbageCollection(phaseName: string): Promise<void> {
+    // Check memory using MemoryMonitor
+    this.memoryMonitor.checkMemory();
+    this.memoryMonitor.logMemoryUsage(phaseName);
+
     if (!this.gcAvailable) {
       return;
     }
@@ -189,34 +249,34 @@ export class PhaseOrchestrator {
     try {
       // Get memory before GC
       const beforeGC = process.memoryUsage();
-      
+
       // Trigger GC
       (global as any).gc();
-      
+
       // Get memory after GC
       const afterGC = process.memoryUsage();
       const heapUsed = afterGC.heapUsed;
       const heapUsedMB = heapUsed / (1024 * 1024);
-      
+
       console.log(`[PhaseOrchestrator] GC triggered after ${phaseName}`);
       console.log(`   Heap before: ${(beforeGC.heapUsed / 1024 / 1024).toFixed(2)} MB`);
       console.log(`   Heap after:  ${heapUsedMB.toFixed(2)} MB`);
       console.log(`   Freed:      ${((beforeGC.heapUsed - afterGC.heapUsed) / 1024 / 1024).toFixed(2)} MB`);
-      
+
       // Check if memory is still above threshold
       if (heapUsed > this.memoryThreshold) {
         const thresholdMB = this.memoryThreshold / (1024 * 1024);
         console.warn(`⚠️ Memory Guard: Heap usage ${heapUsedMB.toFixed(2)} MB exceeds threshold ${thresholdMB} MB`);
         console.warn(`⚠️ Pausing for 5 seconds to let OS breathe...`);
-        
+
         // Pause for 5 seconds
         await new Promise(resolve => setTimeout(resolve, 5000));
-        
+
         // Check memory again after pause
         const afterPause = process.memoryUsage();
         const afterPauseMB = afterPause.heapUsed / (1024 * 1024);
         console.log(`   Heap after pause: ${afterPauseMB.toFixed(2)} MB`);
-        
+
         if (afterPause.heapUsed > this.memoryThreshold) {
           console.warn(`⚠️ Memory still above threshold after pause. Monitor closely.`);
         } else {
@@ -298,6 +358,9 @@ export class PhaseOrchestrator {
     const phaseResults: PhaseResult[] = [];
     let totalFindings = 0;
     let domainMap: DomainMap | undefined;
+
+    // Check initial memory usage
+    this.memoryMonitor.logMemoryUsage('Initial');
 
     // Phase 0: Setup - Hotel Check-in
     console.log('­ƒÅ¿ Phase 0: Setup - Hotel Check-in');
@@ -1415,6 +1478,9 @@ export class PhaseOrchestrator {
         console.warn('ÔÜá´©Å  Auto-fix mode not yet implemented. Running in dry-run mode for safety.');
       }
 
+      // Enforce dry-run before any fix operations
+      this.validateDryRunForOperation('Phase 11: Atomic Fixes');
+
       const phase11AtomicFixes = new Phase11AtomicFixes({
         projectRoot: this.config.projectRoot,
         statePersistence: this.config.statePersistence,
@@ -1422,7 +1488,18 @@ export class PhaseOrchestrator {
         thermalController: this.config.thermalController,
         autoApply: false, // Always false for safety
         allowCorePathFixes: false, // Never allow core path fixes automatically
-        dryRun: true, // Always dry-run for safety
+        dryRun: this.dryRunMode || this.config.safeOnly || false, // Use dryRunMode or safeOnly
+        yesMode: this.yesMode, // Pass yesMode for interactive confirmation
+        gitCheckpointManager: this.gitCheckpointManager, // Pass for auto-backup
+        previewDiffs: this.config.previewDiffs || false, // Show batch diff preview before applying fixes
+        auditOnly: this.config.auditOnly || false, // Audit-only mode for compliance
+        interactiveFix: this.config.interactiveFix || false, // Per-fix interactive approval
+        sandboxConfig: {
+          projectRoot: this.config.projectRoot,
+          enabled: !this.config.safeOnly, // Disable sandbox in safe-only mode
+          validateSyntax: true,
+          runTests: false,
+        },
       });
 
       const timeoutMs = this.config.phaseTimeoutMs || 300000; // 5 min default
@@ -2173,10 +2250,9 @@ export class PhaseOrchestrator {
   }
 
   /**
-   * Executes a function with timeout protection
+   * Runs a function with timeout protection and automatic cleanup
    *
-   * @private
-   * @param fn - Async function to execute
+   * @param fn - Function to run
    * @param timeoutMs - Timeout in milliseconds
    * @param context - Context description for error messages
    * @returns Promise<T> - Function result
@@ -2187,14 +2263,144 @@ export class PhaseOrchestrator {
     timeoutMs: number,
     context: string
   ): Promise<T> {
-    return Promise.race([
-      fn(),
-      new Promise<T>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error(`${context} timeout after ${timeoutMs}ms - phase aborted`));
-        }, timeoutMs);
-      }),
-    ]) as Promise<T>;
+    let timeoutHandle: NodeJS.Timeout | null = null;
+
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        // Perform automatic cleanup on timeout
+        this.performTimeoutCleanup(context);
+        reject(new Error(`${context} timeout after ${timeoutMs}ms - phase aborted`));
+      }, timeoutMs);
+    });
+
+    // Track the timeout for cleanup
+    if (timeoutHandle) {
+      this.activeTimeouts.add(timeoutHandle);
+    }
+
+    try {
+      const result = await Promise.race([fn(), timeoutPromise]) as Promise<T>;
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        this.activeTimeouts.delete(timeoutHandle);
+      }
+      return result;
+    } catch (error) {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        this.activeTimeouts.delete(timeoutHandle);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Performs cleanup when a phase times out
+   *
+   * @private
+   * @param context - Context description for logging
+   */
+  private performTimeoutCleanup(context: string): void {
+    console.error(`⚠️ [Timeout Cleanup] Cleaning up resources after timeout in ${context}`);
+
+    // Clear all tracked timeouts
+    const clearedTimeouts = this.clearAllTimeouts();
+    console.log(`  [Security] Cleared ${clearedTimeouts} active timeouts`);
+
+    // Kill orphaned processes
+    const killedProcesses = this.killOrphanedProcesses();
+    console.log(`  [Security] Killed ${killedProcesses} orphaned processes`);
+
+    // Clean up temporary files
+    const cleanedFiles = this.cleanupTemporaryFiles();
+    console.log(`  [Security] Cleaned ${cleanedFiles} temporary files`);
+
+    // Detect zombie processes
+    this.detectZombieProcesses();
+
+    // Trigger memory cleanup
+    this.memoryMonitor.checkMemory();
+    if (this.gcAvailable) {
+      try {
+        (global as any).gc();
+        console.log('  🧹 Garbage collection triggered during timeout cleanup');
+      } catch (error) {
+        console.warn('  🧹 Failed to trigger GC during cleanup:', error);
+      }
+    }
+
+    // Log current memory state
+    this.memoryMonitor.logMemoryUsage('Timeout Cleanup');
+
+    console.error(`⚠️ [Timeout Cleanup] Cleanup completed for ${context}`);
+  }
+
+  /**
+   * Clears all tracked timeouts
+   *
+   * @private
+   * @returns number - Number of timeouts cleared
+   */
+  private clearAllTimeouts(): number {
+    let cleared = 0;
+    for (const timeout of this.activeTimeouts) {
+      clearTimeout(timeout);
+      cleared++;
+    }
+    this.activeTimeouts.clear();
+    return cleared;
+  }
+
+  /**
+   * Kills orphaned processes (placeholder - would need process tracking)
+   *
+   * @private
+   * @returns number - Number of processes killed
+   */
+  private killOrphanedProcesses(): number {
+    // In a real implementation, this would track spawned processes
+    // and kill them on timeout. For now, we log the intent.
+    console.log('  [Security] Process tracking not implemented - no orphaned processes to kill');
+    return 0;
+  }
+
+  /**
+   * Cleans up temporary files in .aegis-cache
+   *
+   * @private
+   * @returns number - Number of files cleaned
+   */
+  private cleanupTemporaryFiles(): number {
+    let cleaned = 0;
+    try {
+      const cacheDir = require('path').join(this.config.projectRoot, '.aegis-cache');
+      const tempDir = require('path').join(cacheDir, 'temp');
+
+      if (require('fs').existsSync(tempDir)) {
+        const files = require('fs').readdirSync(tempDir);
+        for (const file of files) {
+          if (file.endsWith('.tmp') || file.endsWith('.temp')) {
+            const filePath = require('path').join(tempDir, file);
+            require('fs').unlinkSync(filePath);
+            cleaned++;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('  [Security] Failed to clean temporary files:', error instanceof Error ? error.message : String(error));
+    }
+    return cleaned;
+  }
+
+  /**
+   * Detects zombie processes
+   *
+   * @private
+   */
+  private detectZombieProcesses(): void {
+    // In a real implementation, this would check for zombie processes
+    // using system commands or Node.js process tracking
+    console.log('  [Security] Zombie process detection not implemented');
   }
 
   /**

@@ -6,11 +6,17 @@
  * It ensures that all violations are aggregated in one place for consistent
  * reporting and analysis.
  *
+ * Error Delta Reporting:
+ * - Integrates with ErrorBaseline to separate new vs inherited issues
+ * - Smart exit code: success if only inherited errors, failure if new errors
+ *
  * @module reporter
  * @since 1.0.0
  */
 
 import type { Violation } from '../types/audit.js';
+import { ErrorBaseline, type TSCError } from './error-baseline.js';
+import { SecretSanitizer } from './secret-sanitizer.js';
 
 /**
  * Aggregated report results
@@ -21,6 +27,12 @@ export interface AggregatedReport {
 
   /** All violations */
   violations: Violation[];
+
+  /** New violations (not in baseline) */
+  newViolations: Violation[];
+
+  /** Inherited violations (in baseline) */
+  inheritedViolations: Violation[];
 
   /** Breakdown by severity */
   severityBreakdown: Record<string, number>;
@@ -53,6 +65,8 @@ export interface ReporterConfig {
   autoEscalateCriticalPath: boolean;
   /** Severity escalation mapping */
   escalationMap: Map<string, Severity>;
+  /** Project root directory for ErrorBaseline */
+  projectRoot?: string;
 }
 
 /**
@@ -66,6 +80,9 @@ export class ReportAggregator {
   private config: Required<ReporterConfig>;
   private businessRiskFindings: any[] = [];
   private businessDomain: string = 'General';
+  private errorBaseline: ErrorBaseline | null = null;
+  private baselineEstablished: boolean = false;
+  private secretSanitizer: SecretSanitizer;
 
   /**
    * Creates a new ReportAggregator instance
@@ -82,7 +99,20 @@ export class ReportAggregator {
           ['medium', 'high'],
           ['high', 'critical'],
         ]),
+      projectRoot: config.projectRoot ?? '.',
     };
+    this.secretSanitizer = new SecretSanitizer();
+  }
+
+  /**
+   * Sanitizes report content to remove secrets
+   *
+   * @private
+   * @param content - Content to sanitize
+   * @returns string - Sanitized content
+   */
+  private sanitizeReport(content: string): string {
+    return this.secretSanitizer.sanitizeReport(content);
   }
 
   /**
@@ -283,6 +313,105 @@ export class ReportAggregator {
   }
 
   /**
+   * Establishes error baseline by running tsc --noEmit
+   *
+   * @returns Promise<void>
+   */
+  async establishBaseline(): Promise<void> {
+    if (!this.errorBaseline) {
+      console.warn('[ReportAggregator] No ErrorBaseline instance, skipping baseline establishment');
+      return;
+    }
+
+    await this.errorBaseline.establishBaseline();
+    this.baselineEstablished = true;
+  }
+
+  /**
+   * Separates violations into new and inherited based on baseline
+   *
+   * @returns { newViolations: Violation[], inheritedViolations: Violation[] }
+   */
+  separateViolations(): { newViolations: Violation[]; inheritedViolations: Violation[] } {
+    const allViolations = this.getAllViolationsFlattened();
+
+    if (!this.baselineEstablished || !this.errorBaseline) {
+      // If no baseline, all violations are considered new
+      return {
+        newViolations: allViolations,
+        inheritedViolations: [],
+      };
+    }
+
+    const baseline = this.errorBaseline.getBaseline();
+    if (!baseline || baseline.totalErrors === 0) {
+      // If no errors in baseline, all violations are new
+      return {
+        newViolations: allViolations,
+        inheritedViolations: [],
+      };
+    }
+
+    // Convert violations to TSCError format for comparison
+    const currentTSCErrors: TSCError[] = allViolations.map(v => ({
+      file: v.file.path,
+      line: v.location.line,
+      column: v.location.column || 0,
+      code: v.type || 'UNKNOWN',
+      message: v.message,
+    }));
+
+    const newTSCErrors = this.errorBaseline.compareWithBaseline(currentTSCErrors);
+    const newErrorSet = new Set(
+      newTSCErrors.map(e => `${e.file}:${e.line}:${e.column}:${e.code}`)
+    );
+
+    const newViolations: Violation[] = [];
+    const inheritedViolations: Violation[] = [];
+
+    for (const violation of allViolations) {
+      const errorKey = `${violation.file.path}:${violation.location.line}:${violation.location.column || 0}:${violation.type || 'UNKNOWN'}`;
+      if (newErrorSet.has(errorKey)) {
+        newViolations.push(violation);
+      } else {
+        inheritedViolations.push(violation);
+      }
+    }
+
+    return { newViolations, inheritedViolations };
+  }
+
+  /**
+   * Checks if there are any new violations (not in baseline)
+   *
+   * @returns boolean - True if there are new violations
+   */
+  hasNewViolations(): boolean {
+    const { newViolations } = this.separateViolations();
+    return newViolations.length > 0;
+  }
+
+  /**
+   * Gets count of new violations
+   *
+   * @returns number - Count of new violations
+   */
+  getNewViolationCount(): number {
+    const { newViolations } = this.separateViolations();
+    return newViolations.length;
+  }
+
+  /**
+   * Gets count of inherited violations
+   *
+   * @returns number - Count of inherited violations
+   */
+  getInheritedViolationCount(): number {
+    const { inheritedViolations } = this.separateViolations();
+    return inheritedViolations.length;
+  }
+
+  /**
    * Generates a summary of all violations
    *
    * @returns string - Markdown formatted summary
@@ -292,6 +421,7 @@ export class ReportAggregator {
     const severityCounts = this.getCountBySeverity();
     const categoryCounts = this.getCountByCategory();
     const criticalPathCount = all.filter((v) => v.file.inCriticalPath).length;
+    const { newViolations, inheritedViolations } = this.separateViolations();
 
     let summary = '# Aegis QA Report\n\n';
 
@@ -328,7 +458,39 @@ export class ReportAggregator {
       summary += '---\n\n';
     }
 
-    summary += `**Total Violations:** ${all.length}\n`;
+    // New Issues vs Inherited Issues section
+    summary += '## 📊 Error Delta (Baseline Comparison)\n\n';
+    summary += `**New Issues:** ${newViolations.length}\n`;
+    summary += `**Inherited Issues:** ${inheritedViolations.length}\n`;
+    summary += `**Total Violations:** ${all.length}\n\n`;
+
+    if (newViolations.length > 0) {
+      summary += '### New Issues (Not in Baseline)\n\n';
+      summary += 'These issues were introduced after the baseline was established:\n\n';
+      for (const violation of newViolations.slice(0, 10)) {
+        summary += `- **${violation.file.path}:${violation.location.line}** [${violation.severity}]: ${violation.message}\n`;
+      }
+      if (newViolations.length > 10) {
+        summary += `- ... and ${newViolations.length - 10} more\n`;
+      }
+      summary += '\n';
+    }
+
+    if (inheritedViolations.length > 0) {
+      summary += '### Inherited Issues (Known)\n\n';
+      summary += 'These issues existed in the baseline and are not attributed to recent changes:\n\n';
+      summary += `<details>\n<summary>Click to expand inherited issues (${inheritedViolations.length})</summary>\n\n`;
+      for (const violation of inheritedViolations.slice(0, 20)) {
+        summary += `- **${violation.file.path}:${violation.location.line}** [${violation.severity}]: ${violation.message}\n`;
+      }
+      if (inheritedViolations.length > 20) {
+        summary += `- ... and ${inheritedViolations.length - 20} more\n`;
+      }
+      summary += '\n</details>\n\n';
+    }
+
+    summary += '---\n\n';
+
     summary += `**Critical Path Violations:** ${criticalPathCount}\n\n`;
 
     summary += '## By Severity\n\n';
@@ -359,10 +521,13 @@ export class ReportAggregator {
   exportResults(): AggregatedReport {
     const all = this.getAllViolationsFlattened();
     const severityCounts = this.getCountBySeverity();
+    const { newViolations, inheritedViolations } = this.separateViolations();
 
     return {
       totalViolations: all.length,
       violations: all,
+      newViolations,
+      inheritedViolations,
       severityBreakdown: Object.fromEntries(severityCounts),
       timestamp: new Date(),
     };

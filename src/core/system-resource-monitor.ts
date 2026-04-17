@@ -13,11 +13,17 @@
  * - RAM WARNING: 85% - System will reduce batch size
  * - RAM CRITICAL: 90% - System will serialize state to disk
  *
+ * Docker Awareness:
+ * - Detects if running in a Docker container
+ * - Uses cgroup memory limits instead of host memory
+ * - Calculates RAM percentage relative to container limit
+ *
  * @module core/system-resource-monitor
  * @since 1.0.0
  */
 
 import { EventEmitter } from 'events';
+import * as fs from 'fs';
 
 /**
  * Resource reading snapshot
@@ -95,6 +101,8 @@ export class SystemResourceMonitor extends EventEmitter {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private history: ResourceReading[] = [];
   private aggregatedHistory: ResourceHistoryEntry[] = [];
+  private isDocker: boolean = false;
+  private dockerMemoryLimit: number | null = null;
 
   constructor(config?: Partial<ResourceMonitorConfig>) {
     super();
@@ -107,6 +115,13 @@ export class SystemResourceMonitor extends EventEmitter {
       monitoringIntervalMs: 5000, // 5 seconds
       ...config,
     };
+
+    // Detect Docker environment on initialization
+    this.isDocker = this.detectDocker();
+    if (this.isDocker) {
+      this.dockerMemoryLimit = this.getDockerMemoryLimit();
+      console.log('[SystemResourceMonitor] Docker container detected. Using cgroup memory limits.');
+    }
   }
 
   /**
@@ -327,6 +342,94 @@ export class SystemResourceMonitor extends EventEmitter {
   }
 
   /**
+   * Gets total RAM in GB
+   *
+   * @private
+   * @returns Promise<number> - Total RAM in GB
+   */
+  private async getRAMTotal(): Promise<number> {
+    try {
+      // Use Docker memory limit if in container
+      if (this.isDocker && this.dockerMemoryLimit !== null) {
+        return Math.round(this.dockerMemoryLimit / (1024 * 1024 * 1024));
+      }
+
+      const os = require('os');
+      const totalMemory = os.totalmem();
+      return Math.round(totalMemory / (1024 * 1024 * 1024));
+    } catch (error) {
+      console.warn('Failed to get total RAM:', error instanceof Error ? error.message : error);
+      return 8;
+    }
+  }
+
+  /**
+   * Detects if running in a Docker container
+   *
+   * Checks for:
+   * - /.dockerenv file (Docker-specific marker)
+   * - /proc/1/cgroup containing Docker or containerd references
+   *
+   * @private
+   * @returns boolean - True if running in Docker
+   */
+  private detectDocker(): boolean {
+    try {
+      // Check for /.dockerenv file
+      if (fs.existsSync('/.dockerenv')) {
+        return true;
+      }
+
+      // Check /proc/1/cgroup for Docker/containerd references
+      if (fs.existsSync('/proc/1/cgroup')) {
+        const cgroupContent = fs.readFileSync('/proc/1/cgroup', 'utf-8');
+        if (cgroupContent.includes('docker') || cgroupContent.includes('containerd') || cgroupContent.includes('kubepods')) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch {
+      // If we can't check, assume not in Docker
+      return false;
+    }
+  }
+
+  /**
+   * Gets Docker container memory limit from cgroups
+   *
+   * Reads from /sys/fs/cgroup/memory/memory.limit_in_bytes
+   *
+   * @private
+   * @returns number | null - Memory limit in bytes, or null if not available
+   */
+  private getDockerMemoryLimit(): number | null {
+    try {
+      // Try cgroup v2 path first
+      const cgroupV2Path = '/sys/fs/cgroup/memory.max';
+      if (fs.existsSync(cgroupV2Path)) {
+        const limit = fs.readFileSync(cgroupV2Path, 'utf-8').trim();
+        // 'max' means unlimited
+        if (limit === 'max') {
+          return null;
+        }
+        return parseInt(limit, 10);
+      }
+
+      // Try cgroup v1 path
+      const cgroupV1Path = '/sys/fs/cgroup/memory/memory.limit_in_bytes';
+      if (fs.existsSync(cgroupV1Path)) {
+        const limit = fs.readFileSync(cgroupV1Path, 'utf-8').trim();
+        return parseInt(limit, 10);
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Gets current RAM usage percentage
    *
    * @private
@@ -335,11 +438,34 @@ export class SystemResourceMonitor extends EventEmitter {
   private async getRAMUsage(): Promise<number> {
     try {
       const os = require('os');
-      const totalMemory = os.totalmem();
-      const freeMemory = os.freemem();
+      let totalMemory: number;
+      let freeMemory: number;
+
+      // Use Docker memory limit if in container
+      if (this.isDocker && this.dockerMemoryLimit !== null) {
+        totalMemory = this.dockerMemoryLimit;
+        // Get memory usage from cgroup
+        const memoryUsagePath = '/sys/fs/cgroup/memory/memory.usage_in_bytes';
+        const memoryUsageV2Path = '/sys/fs/cgroup/memory.current';
+
+        if (fs.existsSync(memoryUsageV2Path)) {
+          const usedMemory = parseInt(fs.readFileSync(memoryUsageV2Path, 'utf-8').trim(), 10);
+          freeMemory = totalMemory - usedMemory;
+        } else if (fs.existsSync(memoryUsagePath)) {
+          const usedMemory = parseInt(fs.readFileSync(memoryUsagePath, 'utf-8').trim(), 10);
+          freeMemory = totalMemory - usedMemory;
+        } else {
+          // Fallback to os.freemem()
+          freeMemory = os.freemem();
+        }
+      } else {
+        totalMemory = os.totalmem();
+        freeMemory = os.freemem();
+      }
+
       const usedMemory = totalMemory - freeMemory;
       const usagePercent = (usedMemory / totalMemory) * 100;
-      
+
       return Math.round(usagePercent);
     } catch (error) {
       console.warn('Failed to get RAM usage:', error instanceof Error ? error.message : error);
@@ -356,27 +482,30 @@ export class SystemResourceMonitor extends EventEmitter {
   private async getRAMAvailable(): Promise<number> {
     try {
       const os = require('os');
-      const freeMemory = os.freemem();
-      return Math.round(freeMemory / (1024 * 1024 * 1024));
+      let availableMemory: number;
+
+      // Use Docker memory limit if in container
+      if (this.isDocker && this.dockerMemoryLimit !== null) {
+        const memoryUsagePath = '/sys/fs/cgroup/memory/memory.usage_in_bytes';
+        const memoryUsageV2Path = '/sys/fs/cgroup/memory.current';
+
+        if (fs.existsSync(memoryUsageV2Path)) {
+          const usedMemory = parseInt(fs.readFileSync(memoryUsageV2Path, 'utf-8').trim(), 10);
+          availableMemory = this.dockerMemoryLimit - usedMemory;
+        } else if (fs.existsSync(memoryUsagePath)) {
+          const usedMemory = parseInt(fs.readFileSync(memoryUsagePath, 'utf-8').trim(), 10);
+          availableMemory = this.dockerMemoryLimit - usedMemory;
+        } else {
+          // Fallback to os.freemem()
+          availableMemory = os.freemem();
+        }
+      } else {
+        availableMemory = os.freemem();
+      }
+
+      return Math.round(availableMemory / (1024 * 1024 * 1024));
     } catch (error) {
       console.warn('Failed to get available RAM:', error instanceof Error ? error.message : error);
-      return 8;
-    }
-  }
-
-  /**
-   * Gets total RAM in GB
-   *
-   * @private
-   * @returns Promise<number> - Total RAM in GB
-   */
-  private async getRAMTotal(): Promise<number> {
-    try {
-      const os = require('os');
-      const totalMemory = os.totalmem();
-      return Math.round(totalMemory / (1024 * 1024 * 1024));
-    } catch (error) {
-      console.warn('Failed to get total RAM:', error instanceof Error ? error.message : error);
       return 8;
     }
   }

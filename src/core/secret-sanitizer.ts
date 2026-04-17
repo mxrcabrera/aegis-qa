@@ -272,6 +272,64 @@ export class SecretSanitizer {
   }
 
   /**
+   * Sanitizes an error message with audit logging
+   *
+   * @param error - Error to sanitize
+   * @param context - Additional context for audit
+   * @returns { message: string; originalLength: number; sanitizedLength: number; redactedCount: number } - Sanitization result
+   */
+  sanitizeError(error: Error | string, context?: string): {
+    message: string;
+    originalLength: number;
+    sanitizedLength: number;
+    redactedCount: number;
+  } {
+    const errorMessage = typeof error === 'string' ? error : error.message;
+    const originalLength = errorMessage.length;
+
+    this.clearReplacements(); // Clear previous replacements for fresh scan
+    const sanitized = this.sanitize(errorMessage);
+    const sanitizedLength = sanitized.length;
+    const redactedCount = this.getRedactedCount();
+
+    // Audit logging for secret detection
+    if (redactedCount > 0) {
+      console.log(`[Security Audit] ${redactedCount} potential secrets detected and redacted in error message`);
+      if (context) {
+        console.log(`[Security Audit] Context: ${context}`);
+      }
+      console.log(`[Security Audit] Original length: ${originalLength}, Sanitized length: ${sanitizedLength}`);
+    }
+
+    return {
+      message: sanitized,
+      originalLength,
+      sanitizedLength,
+      redactedCount,
+    };
+  }
+
+  /**
+   * Creates a safe error object with sanitized message
+   *
+   * @param error - Original error
+   * @param context - Additional context for audit
+   * @returns Error - Safe error with sanitized message
+   */
+  createSafeError(error: Error | string, context?: string): Error {
+    const sanitization = this.sanitizeError(error, context);
+
+    if (error instanceof Error) {
+      const safeError = new Error(sanitization.message);
+      safeError.name = error.name;
+      safeError.stack = error.stack ? this.sanitize(error.stack) : undefined;
+      return safeError;
+    }
+
+    return new Error(sanitization.message);
+  }
+
+  /**
    * Static middleware for global console.log sanitization
    *
    * @param message - Message to sanitize

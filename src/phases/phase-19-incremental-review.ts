@@ -16,13 +16,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { execSafe } from '../core/command-sanitizer.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { BatchProcessor } from '../processing/batch-processor.js';
-
-const execAsync = promisify(exec);
 
 /**
  * Incremental review result
@@ -252,12 +249,12 @@ export class Phase19IncrementalReview {
 
     try {
       // Get staged files
-      const { stdout: stagedOutput } = await execAsync('git diff --name-only --cached', { cwd: this.config.projectRoot });
+      const { stdout: stagedOutput } = await execSafe('git', ['diff', '--name-only', '--cached'], { cwd: this.config.projectRoot });
       const stagedFiles = stagedOutput ? stagedOutput.split('\n').filter((line: string) => line.trim()) : [];
       modifiedFiles.push(...stagedFiles);
 
       // Get working tree files
-      const { stdout: workingOutput } = await execAsync('git diff --name-only', { cwd: this.config.projectRoot });
+      const { stdout: workingOutput } = await execSafe('git', ['diff', '--name-only'], { cwd: this.config.projectRoot });
       const workingFiles = workingOutput ? workingOutput.split('\n').filter((line: string) => line.trim()) : [];
       modifiedFiles.push(...workingFiles);
 
@@ -658,21 +655,21 @@ export class Phase19IncrementalReview {
    * @returns Promise<string[]> - Untracked Core Path file paths
    */
   private async getUntrackedCorePathFiles(): Promise<string[]> {
-    const untrackedFiles: string[] = [];
+    const untrackedCorePathFiles: string[] = [];
 
     try {
-      // Get untracked files from git
-      const { stdout: untrackedOutput } = await execAsync('git ls-files --others --exclude-standard', { cwd: this.config.projectRoot });
-      const untracked = untrackedOutput ? untrackedOutput.split('\n').filter((line: string) => line.trim()) : [];
+      // Get untracked files
+      const { stdout: untrackedOutput } = await execSafe('git', ['ls-files', '--others', '--exclude-standard'], { cwd: this.config.projectRoot });
+      const untrackedFiles = untrackedOutput ? untrackedOutput.split('\n').filter((line: string) => line.trim()) : [];
 
       // Get Core Paths
       const corePaths = this.getCorePaths();
 
       // Filter untracked files that match Core Path patterns
-      for (const file of untracked) {
+      for (const file of untrackedFiles) {
         for (const corePath of corePaths) {
           if (file.startsWith(corePath)) {
-            untrackedFiles.push(file);
+            untrackedCorePathFiles.push(file);
             console.log(`INFO Untracked Core Path file detected: ${file}`);
             break;
           }
@@ -682,7 +679,7 @@ export class Phase19IncrementalReview {
       console.warn('WARNING Failed to get untracked Core Path files:', error instanceof Error ? error.message : error);
     }
 
-    return untrackedFiles;
+    return untrackedCorePathFiles;
   }
 
   /**
