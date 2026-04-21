@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 
 /**
@@ -293,7 +294,7 @@ export class Phase15SecuritySCA {
    * @returns string - Unique ID
    */
   private generateFindingId(identifier: string, type: string): string {
-    const crypto = require('crypto');
+    // crypto is imported at the top
     const hash = crypto.createHash('sha1').update(identifier + type).digest('hex');
     return `${hash.substring(0, 8)}-${type}`;
   }

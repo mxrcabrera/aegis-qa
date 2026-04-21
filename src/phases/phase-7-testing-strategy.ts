@@ -15,6 +15,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
@@ -580,7 +581,7 @@ export class Phase7TestingStrategy {
         } else {
           hasUnitTests = true;
         }
-      } catch (error) {
+      } catch {
         // Skip files that can't be read
       }
     }
@@ -612,7 +613,6 @@ export class Phase7TestingStrategy {
    * @returns string - SHA-1 hash
    */
   private computeHash(content: string): string {
-    const crypto = require('crypto');
     return crypto.createHash('sha1').update(content).digest('hex');
   }
 

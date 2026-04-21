@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { glob } from 'glob';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 
 /**
@@ -473,7 +474,7 @@ export class Phase10EnvCICD {
 
     for (const pattern of patterns) {
       try {
-        const { glob } = require('glob');
+        // glob is imported at the top
         const patternPath = path.join(dir, pattern);
         const matchedFiles = glob.sync(patternPath, {
           absolute: true,
@@ -507,7 +508,7 @@ export class Phase10EnvCICD {
 
     for (const pattern of patterns) {
       try {
-        const { glob } = require('glob');
+        // glob is imported at the top
         const files = glob.sync(pattern, {
           cwd: this.config.projectRoot,
           absolute: true,

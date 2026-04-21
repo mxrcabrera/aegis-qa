@@ -696,7 +696,7 @@ export class StackDetector {
    */
   private calculateConfidence(stack: TechStack): number {
     let score = 0;
-    let maxScore = 10;
+    const maxScore = 10;
 
     // TypeScript detection (+2)
     if (stack.isTypeScript) score += 2;

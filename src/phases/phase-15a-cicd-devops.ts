@@ -440,18 +440,18 @@ export class Phase15CICDDevOps {
       const patterns = {
         productionUrl: /https?:\/\/(www\.)?(prod|production|api\.prod|api\.production)\.[a-z0-9-]+\.[a-z]{2,}/gi,
         stagingUrl: /https?:\/\/(www\.)?(staging|stage|api\.staging|api\.stage)\.[a-z0-9-]+\.[a-z]{2,}/gi,
-        awsAccessKey: /AWS_ACCESS_KEY_ID\s*[:=]\s*['\"]?([A-Z0-9]{20})['\"]?/gi,
-        awsSecretKey: /AWS_SECRET_ACCESS_KEY\s*[:=]\s*['\"]?([a-zA-Z0-9+/]{40})['\"]?/gi,
+        awsAccessKey: /AWS_ACCESS_KEY_ID\s*[:=]\s*["']?([A-Z0-9]{20})["']?/gi,
+        awsSecretKey: /AWS_SECRET_ACCESS_KEY\s*[:=]\s*["']?([a-zA-Z0-9+/]{40})["']?/gi,
         awsKeyPattern: /AKIA[0-9A-Z]{16}/g,
-        vercelToken: /VERCEL_TOKEN\s*[:=]\s*['\"]?([a-zA-Z0-9_-]+)['\"]?/gi,
-        apiKey: /API_KEY\s*[:=]\s*['\"]?([a-zA-Z0-9_-]+)['\"]?/gi,
-        secretKey: /SECRET_KEY\s*[:=]\s*['\"]?([a-zA-Z0-9_-]+)['\"]?/gi,
-        privateKey: /PRIVATE_KEY\s*[:=]\s*['\"]?([a-zA-Z0-9_-]+)['\"]?/gi,
-        databaseUrl: /DATABASE_URL\s*[:=]\s*['\"]?([a-zA-Z0-9:\/@._-]+)['\"]?/gi,
-        mongodbUri: /MONGODB_URI\s*[:=]\s*['\"]?([a-zA-Z0-9:\/@._-]+)['\"]?/gi,
+        vercelToken: /VERCEL_TOKEN\s*[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/gi,
+        apiKey: /API_KEY\s*[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/gi,
+        secretKey: /SECRET_KEY\s*[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/gi,
+        privateKey: /PRIVATE_KEY\s*[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/gi,
+        databaseUrl: /DATABASE_URL\s*[:=]\s*["']?([a-zA-Z0-9:\/@._-]+)["']?/gi,
+        mongodbUri: /MONGODB_URI\s*[:=]\s*["']?([a-zA-Z0-9:\/@._-]+)["']?/gi,
         jwtToken: /eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g,
-        password: /PASSWORD\s*[:=]\s*['\"]?([a-zA-Z0-9_-]+)['\"]?/gi,
-        pass: /PASS\s*[:=]\s*['\"]?([a-zA-Z0-9_-]+)['\"]?/gi,
+        password: /PASSWORD\s*[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/gi,
+        pass: /PASS\s*[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/gi,
       };
 
       for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Phase 9: Internationalization & Accessibility (i18n & a11y)
  *
  * Purpose: Detect access barriers and localization problems before they affect real users.
@@ -15,6 +15,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
@@ -423,14 +424,14 @@ export class Phase9I18nA11y {
       });
     }
 
-    // Hardcoded currency symbols ($, Ôé¼, ┬ú, ┬Ñ) in Fintech
+    // Hardcoded currency symbols ($, €, £, ¥) in Fintech
     if (isFintech) {
-      const currencyPattern = /[\$\Ôé¼\┬ú\┬Ñ]\s*\d+|\d+\s*[\$\Ôé¼\┬ú\┬Ñ]/g;
+      const currencyPattern = /[$€£¥]\s*\d+|\d+\s*[$€£¥]/g;
       let currencyMatch: RegExpExecArray | null;
       while ((currencyMatch = currencyPattern.exec(content)) !== null) {
         const matchIndex = currencyMatch.index;
         const lineNumber = content.slice(0, matchIndex).split('\n').length;
-        
+
         findings.push({
           id: this.generateFindingId(fileHash, lineNumber, 'hardcoded-format'),
           type: 'hardcoded-format',
@@ -596,7 +597,6 @@ export class Phase9I18nA11y {
    * @returns string - SHA-1 hash
    */
   private computeHash(content: string): string {
-    const crypto = require('crypto');
     return crypto.createHash('sha1').update(content).digest('hex');
   }
 

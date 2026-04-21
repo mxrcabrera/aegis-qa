@@ -225,7 +225,7 @@ export class Phase7UXAccessibility {
             files.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };

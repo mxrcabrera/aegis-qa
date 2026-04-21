@@ -228,7 +228,7 @@ export class Phase9DeadCodeDependencies {
             files.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };

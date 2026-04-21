@@ -226,7 +226,7 @@ export class Phase6UIComponents {
             files.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };
@@ -568,7 +568,7 @@ export class Phase6UIComponents {
         if (/useState|useEffect|useCallback|useMemo/.test(content)) {
           componentsWithHooks++;
         }
-      } catch (error) {
+      } catch {
         // Skip files we can't read
       }
     }

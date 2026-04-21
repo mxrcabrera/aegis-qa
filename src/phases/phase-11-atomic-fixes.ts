@@ -18,6 +18,7 @@
  */
 
 import { ThermalController } from '../core/thermal-controller.js';
+import * as crypto from 'crypto';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileIntegrityChecker } from '../core/file-integrity-checker.js';
 import { DiffGenerator } from '../core/diff-generator.js';
@@ -1650,7 +1651,7 @@ export class Phase11AtomicFixes {
    * @returns string - Fix ID
    */
   private generateFixId(fixType: string, filePath: string): string {
-    const crypto = require('crypto');
+    // crypto is imported at the top
     const hash = crypto.createHash('sha1').update(fixType + filePath).digest('hex');
     return `${hash.substring(0, 8)}`;
   }
