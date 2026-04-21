@@ -47,6 +47,8 @@ interface AegisConfig {
     blockedExtensions?: string[];
     /** Additional glob patterns to block */
     blockedPatterns?: string[];
+    /** Timeout for individual file analysis in milliseconds (default: 60000) */
+    fileTimeoutMs?: number;
   };
   /** Source directory detection */
   paths?: {
@@ -96,6 +98,7 @@ interface LoadedConfig {
     allowedExtensions: string[];
     blockedExtensions: string[];
     blockedPatterns: string[];
+    fileTimeoutMs: number;
   };
   /** Source directory detection */
   paths: {
@@ -167,6 +170,7 @@ export class ConfigLoader {
         allowedExtensions: userConfig.files?.allowedExtensions ?? [],
         blockedExtensions: userConfig.files?.blockedExtensions ?? [],
         blockedPatterns: userConfig.files?.blockedPatterns ?? [],
+        fileTimeoutMs: userConfig.files?.fileTimeoutMs ?? 60000,
       },
       paths: {
         sourceDir: userConfig.paths?.sourceDir,

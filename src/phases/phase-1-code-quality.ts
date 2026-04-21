@@ -24,6 +24,7 @@ import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+import { runWithFileTimeout, type FileTimeoutConfig } from '../core/file-timeout.js';
 
 /**
  * Code quality finding
@@ -81,6 +82,8 @@ interface Phase1Config {
   maxFunctionLength?: number;
   /** Maximum nesting depth */
   maxNestingDepth?: number;
+  /** Timeout for individual file analysis in milliseconds */
+  fileTimeoutMs?: number;
 }
 
 /**
@@ -263,7 +266,7 @@ export class Phase1CodeQuality {
       'components/**/*.tsx',
     ];
 
-    let allFiles: string[] = [];
+    const allFiles: string[] = [];
 
     for (const pattern of patterns) {
       const files = await glob(pattern, {
@@ -312,13 +315,66 @@ export class Phase1CodeQuality {
   }
 
   /**
-   * Analyzes a single file for code quality with cache checking
+   * Analyzes a single file for code quality issues
    *
    * @private
    * @param filePath - File path
    * @returns Promise<FileQualityScore> - File quality score
    */
   private async analyzeFile(filePath: string): Promise<FileQualityScore> {
+    const timeoutMs = this.config.fileTimeoutMs ?? 60000;
+
+    const timeoutConfig: FileTimeoutConfig = { timeoutMs };
+
+    const result = await runWithFileTimeout(
+      async () => this.analyzeFileInternal(filePath),
+      filePath,
+      timeoutConfig
+    );
+
+    if (result.isTimeout) {
+      // Return a timeout result
+      return {
+        filePath,
+        score: 0,
+        findings: [{
+          id: 'timeout-' + Date.now(),
+          type: 'inconsistency',
+          severity: 'low',
+          filePath,
+          description: `File analysis timed out after ${timeoutMs}ms. File may be too large or complex to analyze.`,
+        }],
+        isCritical: true,
+      };
+    }
+
+    if (!result.success) {
+      // Return an error result
+      return {
+        filePath,
+        score: 0,
+        findings: [{
+          id: 'error-' + Date.now(),
+          type: 'inconsistency',
+          severity: 'high',
+          filePath,
+          description: `Failed to analyze file: ${result.error}`,
+        }],
+        isCritical: true,
+      };
+    }
+
+    return result.result!;
+  }
+
+  /**
+   * Internal file analysis without timeout wrapper
+   *
+   * @private
+   * @param filePath - File path
+   * @returns Promise<FileQualityScore> - File quality score
+   */
+  private async analyzeFileInternal(filePath: string): Promise<FileQualityScore> {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
       const fileHash = this.computeHash(content);
