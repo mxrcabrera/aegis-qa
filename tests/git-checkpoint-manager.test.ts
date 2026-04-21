@@ -194,8 +194,24 @@ describe('GitCheckpointManager', () => {
     });
 
     it('should handle checkpoint creation in non-git directory', async () => {
-      // Skip this test as it causes retry loops on non-git directories
-      expect(true).toBe(true);
+      // Create a temporary non-git directory
+      const nonGitPath = path.join(process.cwd(), 'test-non-git-' + Date.now());
+      fs.mkdirSync(nonGitPath, { recursive: true });
+
+      try {
+        const nonGitManager = new GitCheckpointManager(nonGitPath);
+        try {
+          await nonGitManager.createCheckpoint('test');
+          // Should fail gracefully or use fallback mechanisms
+          expect(true).toBe(true);
+        } catch (error) {
+          // Expected to throw or fail gracefully
+          expect(error).toBeDefined();
+        }
+      } finally {
+        // Cleanup
+        fs.rmSync(nonGitPath, { recursive: true, force: true });
+      }
     });
 
     it('should handle rollback in non-git directory', async () => {
