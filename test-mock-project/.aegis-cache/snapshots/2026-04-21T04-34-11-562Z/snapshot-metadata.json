@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-04-21T04:34:11.564Z",
+  "snapshot": {
+    "C:\\repos\\aegis-qa\\test-mock-project\\prisma\\schema.prisma": {
+      "filePath": "C:\\repos\\aegis-qa\\test-mock-project\\prisma\\schema.prisma",
+      "checksum": "950ad095033fec3c77acf03e56c8220e31339af4fdd4b74ca305ecc1678006ba",
+      "size": 745,
+      "lastModified": 1776737954363.202
+    },
+    "C:\\repos\\aegis-qa\\test-mock-project\\qa-report.partial.md": {
+      "filePath": "C:\\repos\\aegis-qa\\test-mock-project\\qa-report.partial.md",
+      "checksum": "2dde8473bcecb216eedb474b0d9543b61b0ec32f161a989fb671f636a5fabdfc",
+      "size": 236,
+      "lastModified": 1776737954364.2017
+    },
+    "C:\\repos\\aegis-qa\\test-mock-project\\SOVEREIGN_REPORT.md": {
+      "filePath": "C:\\repos\\aegis-qa\\test-mock-project\\SOVEREIGN_REPORT.md",
+      "checksum": "ef9a341505f8b384bbab3abac3d3d23a4be32db6e40c1c2c710d65b5576784ff",
+      "size": 835,
+      "lastModified": 1776737954362.2012
+    }
+  },
+  "projectRoot": "C:\\repos\\aegis-qa\\test-mock-project"
+}
