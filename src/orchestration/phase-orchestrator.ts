@@ -19,6 +19,7 @@ import { SecretSanitizer } from '../core/secret-sanitizer.js';
 import { GitCheckpointManager } from '../core/git-checkpoint-manager.js';
 import { ErrorBaseline } from '../core/error-baseline.js';
 import { ThermalLock } from '../core/thermal-lock.js';
+import { SandboxManager } from '../core/sandbox-manager.js';
 import { Phase0Setup } from '../phases/phase-0-setup.js';
 import { Phase1CodeQuality } from '../phases/phase-1-code-quality.js';
 import { Phase2BusinessLogic } from '../phases/phase-2-business-logic.js';
@@ -142,6 +143,8 @@ interface PhaseOrchestratorConfig {
   interactiveFix?: boolean;
   /** Whether to allow fixes without git repository (dangerous) */
   allowNoGit?: boolean;
+  /** Whether to enable sandbox mode for isolated execution */
+  sandboxMode?: boolean;
 }
 
 /**
@@ -170,24 +173,34 @@ export class PhaseOrchestrator {
   private errorBaseline: ErrorBaseline;
   private thermalLock: ThermalLock;
   private memoryMonitor: MemoryMonitor;
+  private sandboxManager: SandboxManager | null = null;
   private gcAvailable: boolean;
   private memoryThreshold: number = 1.5 * 1024 * 1024 * 1024; // 1.5GB
   private dryRunMode: boolean;
   private yesMode: boolean;
-  private verboseMode: boolean;
   private activeTimeouts: Set<NodeJS.Timeout> = new Set();
-  private activeProcesses: Set<number> = new Set();
 
   constructor(config: PhaseOrchestratorConfig) {
     this.config = config;
     this.dryRunMode = config.dryRunMode ?? true; // Default to dry-run
     this.yesMode = config.yesMode ?? false; // Default to require confirmation
-    this.verboseMode = config.verboseMode ?? false; // Default to non-verbose
     this.gitCheckpointManager = new GitCheckpointManager(config.projectRoot);
     this.errorBaseline = new ErrorBaseline(config.projectRoot);
     this.thermalLock = new ThermalLock();
     this.memoryMonitor = new MemoryMonitor({ maxMemoryBytes: this.memoryThreshold });
     this.gcAvailable = typeof (global as any).gc === 'function';
+
+    // Initialize sandbox manager if sandbox mode is enabled
+    if (config.sandboxMode) {
+      this.sandboxManager = new SandboxManager({
+        projectRoot: config.projectRoot,
+        enabled: true,
+        validateSyntax: false,
+        runTests: false,
+        generatePatch: true,
+        skipConfirmation: config.yesMode || false,
+      });
+    }
 
     // Install global log middleware for GDPR/CCPA/SOC2 compliance
     SecretSanitizer.installGlobalMiddleware();
@@ -2611,6 +2624,83 @@ Generated: ${timestamp}
 
     // TODO: Implement report comparison
     // For now, this is a skeleton
-    console.log('ÔÜá´©Å  Report comparison not yet implemented (skeleton)');
+  }
+
+  /**
+   * Creates sandbox environment before running phases
+   *
+   * @public
+   * @returns Promise<void>
+   */
+  async createSandbox(): Promise<void> {
+    if (!this.sandboxManager) {
+      return;
+    }
+
+    console.log('[PhaseOrchestrator] Creating sandbox environment...');
+    await this.sandboxManager.create();
+    console.log('[PhaseOrchestrator] Sandbox created successfully');
+  }
+
+  /**
+   * Gets the effective project root (sandbox directory if active, otherwise original)
+   *
+   * @public
+   * @returns string - Effective project root
+   */
+  getEffectiveProjectRoot(): string {
+    if (!this.sandboxManager) {
+      return this.config.projectRoot;
+    }
+
+    const status = this.sandboxManager.getStatus();
+    if (status.active) {
+      return status.sandboxDir;
+    }
+
+    return this.config.projectRoot;
+  }
+
+  /**
+   * Generates patch file after fixes are applied
+   *
+   * @public
+   * @returns Promise<string | null> - Path to patch file or null if sandbox not active
+   */
+  async generatePatch(): Promise<string | null> {
+    if (!this.sandboxManager) {
+      return null;
+    }
+
+    const status = this.sandboxManager.getStatus();
+    if (!status.active) {
+      return null;
+    }
+
+    console.log('[PhaseOrchestrator] Generating patch file...');
+    const patchPath = await this.sandboxManager.generatePatch();
+    console.log(`[PhaseOrchestrator] Patch generated: ${patchPath}`);
+    return patchPath;
+  }
+
+  /**
+   * Cleans up sandbox environment
+   *
+   * @public
+   * @returns Promise<void>
+   */
+  async cleanupSandbox(): Promise<void> {
+    if (!this.sandboxManager) {
+      return;
+    }
+
+    const status = this.sandboxManager.getStatus();
+    if (!status.active) {
+      return;
+    }
+
+    console.log('[PhaseOrchestrator] Cleaning up sandbox...');
+    await this.sandboxManager.cleanup();
+    console.log('[PhaseOrchestrator] Sandbox cleaned up');
   }
 }

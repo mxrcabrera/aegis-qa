@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as readline from 'readline';
 
 const execAsync = promisify(exec);
 
@@ -29,6 +30,12 @@ export interface SandboxConfig {
   runTests: boolean;
   /** Sandbox directory path (auto-generated if not provided) */
   sandboxDir?: string;
+  /** Whether to generate patch file after fixes */
+  generatePatch?: boolean;
+  /** Whether to skip size confirmation (CI mode) */
+  skipConfirmation?: boolean;
+  /** Maximum size in bytes before warning (default: 5GB) */
+  maxSizeBeforeWarning?: number;
 }
 
 /**
@@ -65,7 +72,10 @@ export class SandboxManager {
       enabled: config.enabled ?? true,
       validateSyntax: config.validateSyntax ?? true,
       runTests: config.runTests ?? false,
-      sandboxDir: config.sandboxDir ?? path.join(config.projectRoot, '.aegis-sandbox'),
+      sandboxDir: config.sandboxDir ?? path.join(config.projectRoot, '.aegis-tmp'),
+      generatePatch: config.generatePatch ?? false,
+      skipConfirmation: config.skipConfirmation ?? false,
+      maxSizeBeforeWarning: config.maxSizeBeforeWarning ?? (5 * 1024 * 1024 * 1024), // 5GB
     };
     this.sandboxDir = this.config.sandboxDir;
   }
@@ -84,6 +94,9 @@ export class SandboxManager {
     console.log(`[Sandbox] Creating sandbox at ${this.sandboxDir}`);
 
     try {
+      // Check repository size before proceeding
+      await this.checkRepositorySize();
+
       // Clean up existing sandbox if it exists
       if (fs.existsSync(this.sandboxDir)) {
         await this.cleanup();
@@ -92,7 +105,7 @@ export class SandboxManager {
       // Create sandbox directory
       fs.mkdirSync(this.sandboxDir, { recursive: true });
 
-      // Copy project files to sandbox
+      // Copy project files to sandbox using git archive (respects .gitignore)
       await this.copyProjectToSandbox();
 
       // Copy node_modules if exists (for syntax validation)
@@ -105,6 +118,9 @@ export class SandboxManager {
 
       this.isActive = true;
       console.log('[Sandbox] Sandbox created successfully');
+
+      // Setup SIGINT handler for cleanup
+      this.setupCleanupHandler();
     } catch (error) {
       console.error('[Sandbox] Failed to create sandbox:', error);
       throw new Error(`[Sandbox] Failed to create sandbox: ${error instanceof Error ? error.message : String(error)}`);
@@ -112,20 +128,202 @@ export class SandboxManager {
   }
 
   /**
-   * Copies project files to sandbox
+   * Checks repository size and warns if too large
+   *
+   * @private
+   * @returns Promise<void>
+   */
+  private async checkRepositorySize(): Promise<void> {
+    try {
+      const size = await this.getDirectorySize(this.config.projectRoot);
+      const sizeGB = size / (1024 * 1024 * 1024);
+
+      if (size > this.config.maxSizeBeforeWarning) {
+        console.log(`[Sandbox] Repository size: ${sizeGB.toFixed(2)}GB`);
+
+        if (!this.config.skipConfirmation) {
+          const confirmed = await this.requestConfirmation(
+            `Repository is large (${sizeGB.toFixed(2)}GB). Sandbox mode will create a full copy. Continue? (y/N): `
+          );
+
+          if (!confirmed) {
+            throw new Error('[Sandbox] Sandbox creation cancelled by user');
+          }
+        } else {
+          console.log('[Sandbox] CI mode: Skipping confirmation for large repository');
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('cancelled by user')) {
+        throw error;
+      }
+      console.warn('[Sandbox] Could not check repository size, proceeding anyway');
+    }
+  }
+
+  /**
+   * Gets directory size recursively
+   *
+   * @private
+   * @param dirPath - Directory path
+   * @returns Promise<number> - Size in bytes
+   */
+  private async getDirectorySize(dirPath: string): Promise<number> {
+    let totalSize = 0;
+
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+
+      if (entry.isDirectory()) {
+        // Skip certain directories
+        if (['node_modules', '.git', 'dist', 'build'].includes(entry.name)) {
+          continue;
+        }
+        totalSize += await this.getDirectorySize(fullPath);
+      } else {
+        try {
+          const stats = await fs.promises.stat(fullPath);
+          totalSize += stats.size;
+        } catch {
+          // Skip files we can't read
+        }
+      }
+    }
+
+    return totalSize;
+  }
+
+  /**
+   * Requests user confirmation via stdin
+   *
+   * @private
+   * @param prompt - Prompt message
+   * @returns Promise<boolean> - True if confirmed
+   */
+  private async requestConfirmation(prompt: string): Promise<boolean> {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    try {
+      const answer = await new Promise<string>((resolve) => {
+        rl.question(prompt, (ans) => {
+          resolve(ans.toLowerCase());
+        });
+      });
+
+      rl.close();
+      return answer === 'y' || answer === 'yes';
+    } catch {
+      rl.close();
+      return false;
+    }
+  }
+
+  /**
+   * Sets up SIGINT handler for cleanup
+   *
+   * @private
+   */
+  private setupCleanupHandler(): void {
+    const handler = async () => {
+      console.log('\n[Sandbox] Interrupted, cleaning up sandbox...');
+      try {
+        await this.cleanup();
+      } catch (error) {
+        console.error('[Sandbox] Cleanup failed:', error);
+      }
+      process.exit(130);
+    };
+
+    process.on('SIGINT', handler);
+
+    // Store handler reference for later removal
+    (this as any)._cleanupHandler = handler;
+  }
+
+  /**
+   * Removes SIGINT handler
+   *
+   * @private
+   */
+  private removeCleanupHandler(): void {
+    const handler = (this as any)._cleanupHandler;
+    if (handler) {
+      process.removeListener('SIGINT', handler);
+      delete (this as any)._cleanupHandler;
+    }
+  }
+
+  /**
+   * Copies project files to sandbox using git archive (respects .gitignore)
    *
    * @private
    * @returns Promise<void>
    */
   private async copyProjectToSandbox(): Promise<void> {
+    // Try using git archive first (respects .gitignore)
+    try {
+      console.log('[Sandbox] Using git archive to copy project (respects .gitignore)...');
+      await execAsync(`git archive HEAD | tar -x -C "${this.sandboxDir}"`, {
+        cwd: this.config.projectRoot,
+        timeout: 120000,
+      });
+      console.log('[Sandbox] Project copied via git archive');
+      return;
+    } catch (error) {
+      console.warn('[Sandbox] git archive failed, falling back to manual copy:', (error as Error).message);
+    }
+
+    // Fallback to manual copy with .gitignore respect
+    console.log('[Sandbox] Using manual copy with .gitignore filtering...');
+    const gitignorePatterns = await this.loadGitignorePatterns();
+    await this.copyWithGitignore(gitignorePatterns);
+  }
+
+  /**
+   * Loads .gitignore patterns
+   *
+   * @private
+   * @returns Promise<string[]> - Array of patterns
+   */
+  private async loadGitignorePatterns(): Promise<string[]> {
+    const gitignorePath = path.join(this.config.projectRoot, '.gitignore');
+    if (!fs.existsSync(gitignorePath)) {
+      return [];
+    }
+
+    const content = await fs.promises.readFile(gitignorePath, 'utf-8');
+    return content
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#'));
+  }
+
+  /**
+   * Copies directory with .gitignore filtering
+   *
+   * @private
+   * @param patterns - Gitignore patterns
+   * @returns Promise<void>
+   */
+  private async copyWithGitignore(patterns: string[]): Promise<void> {
     const entries = await fs.promises.readdir(this.config.projectRoot, { withFileTypes: true });
 
     for (const entry of entries) {
       const srcPath = path.join(this.config.projectRoot, entry.name);
       const destPath = path.join(this.sandboxDir, entry.name);
 
-      // Skip certain directories
-      if (['.git', '.aegis-cache', '.aegis-sandbox', 'node_modules', 'dist', 'build'].includes(entry.name)) {
+      // Skip if matches gitignore pattern
+      if (this.matchesGitignore(entry.name, patterns)) {
+        continue;
+      }
+
+      // Always skip certain directories
+      if (['.git', '.aegis-cache', '.aegis-tmp', 'node_modules', 'dist', 'build'].includes(entry.name)) {
         continue;
       }
 
@@ -136,6 +334,29 @@ export class SandboxManager {
         fs.copyFileSync(srcPath, destPath);
       }
     }
+  }
+
+  /**
+   * Checks if a path matches any gitignore pattern
+   *
+   * @private
+   * @param filePath - File path to check
+   * @param patterns - Gitignore patterns
+   * @returns boolean - True if matches
+   */
+  private matchesGitignore(filePath: string, patterns: string[]): boolean {
+    for (const pattern of patterns) {
+      // Simple pattern matching (not full gitignore spec)
+      if (pattern.endsWith('/')) {
+        if (filePath.startsWith(pattern)) return true;
+      } else if (pattern.startsWith('*')) {
+        const ext = pattern.slice(1);
+        if (filePath.endsWith(ext)) return true;
+      } else {
+        if (filePath === pattern || filePath.startsWith(pattern + '/')) return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -303,7 +524,7 @@ export class SandboxManager {
     console.log('[Sandbox] Running tests...');
 
     try {
-      const { stdout, stderr } = await execAsync('npm test', {
+      const { stderr } = await execAsync('npm test', {
         cwd: this.sandboxDir,
         timeout: 120000,
       });
@@ -368,10 +589,59 @@ export class SandboxManager {
     try {
       fs.rmSync(this.sandboxDir, { recursive: true, force: true });
       this.isActive = false;
+      this.removeCleanupHandler();
       console.log('[Sandbox] Sandbox cleaned up successfully');
     } catch (error) {
       console.error('[Sandbox] Failed to cleanup sandbox:', error);
       throw new Error(`[Sandbox] Failed to cleanup sandbox: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Generates unified diff patch against original project
+   *
+   * @returns Promise<string> - Path to generated patch file
+   */
+  async generatePatch(): Promise<string> {
+    if (!this.isActive) {
+      throw new Error('[Sandbox] Sandbox not active, cannot generate patch');
+    }
+
+    console.log('[Sandbox] Generating patch file...');
+
+    try {
+      // Create .sentinel/patches directory
+      const patchesDir = path.join(this.config.projectRoot, '.sentinel', 'patches');
+      fs.mkdirSync(patchesDir, { recursive: true });
+
+      // Generate timestamp for patch filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const patchFileName = `aegis-fixes-${timestamp}.patch`;
+      const patchFilePath = path.join(patchesDir, patchFileName);
+
+      // Generate diff using diff -ruN (unified format, recursive, new files)
+      const diffCommand = process.platform === 'win32'
+        ? `diff -ruN "${this.config.projectRoot}" "${this.sandboxDir}" > "${patchFilePath}"`
+        : `diff -ruN "${this.config.projectRoot}" "${this.sandboxDir}" > "${patchFilePath}"`;
+
+      try {
+        await execAsync(diffCommand, { timeout: 120000 });
+      } catch (error: any) {
+        // diff returns exit code 1 when files differ, which is expected
+        if (error.code === 1) {
+          // Expected - files differ
+        } else {
+          throw error;
+        }
+      }
+
+      console.log(`[Sandbox] Patch generated: ${patchFilePath}`);
+      console.log(`[Sandbox] To apply fixes: git apply ${patchFilePath}`);
+
+      return patchFilePath;
+    } catch (error) {
+      console.error('[Sandbox] Failed to generate patch:', error);
+      throw new Error(`[Sandbox] Failed to generate patch: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

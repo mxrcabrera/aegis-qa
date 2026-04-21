@@ -35,6 +35,7 @@ interface CLIConfig {
   previewDiffs?: boolean;
   auditOnly?: boolean;
   interactiveFix?: boolean;
+  sandboxMode?: boolean;
 }
 
 class AegisCLI {
@@ -213,6 +214,7 @@ class AegisCLI {
       previewDiffs: this.config.previewDiffs || false, // Show batch diff preview before applying fixes
       auditOnly: this.config.auditOnly || false, // Audit-only mode for compliance
       interactiveFix: this.config.interactiveFix || false, // Per-fix interactive approval
+      sandboxMode: this.config.sandboxMode || false, // Sandbox mode for isolated execution
     });
 
     // Execute command
@@ -399,12 +401,14 @@ OPTIONS:
   --yes, -y                     Skip confirmation prompts (use with --apply)
   --verbose, -v                 Enable verbose logging for debugging
   --ci                          CI mode (minimalist output, permissive thermal locks)
+  --sandbox                     Run in isolated sandbox mode (generates patch file)
   CI=true                       Set environment variable to enable CI mode
 
 SAFETY:
   By default, Aegis runs in dry-run mode. Use --apply to write changes.
   Auto-backup is created before applying any fixes.
   Interactive confirmation is required unless --yes is specified.
+  Sandbox mode creates an isolated copy and generates a patch file.
 
 For more information, visit: https://github.com/mxrcabrera/aegis-qa
 `);
@@ -425,6 +429,7 @@ async function main() {
   const previewDiffs = args.includes('--preview-diffs');
   const auditOnly = args.includes('--audit-only');
   const interactiveFix = args.includes('--interactive-fix');
+  const sandboxMode = args.includes('--sandbox');
 
   // Security: Validate all input before proceeding
   try {
@@ -446,6 +451,7 @@ async function main() {
     previewDiffs,
     auditOnly,
     interactiveFix,
+    sandboxMode,
   });
 
   try {
