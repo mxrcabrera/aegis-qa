@@ -36,6 +36,11 @@ describe('ImpactAnalyzer', () => {
       // Mock file exists
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
+      // Mock readdirSync to return the test file
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'isolated.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
+
       // Mock readFileSync to return a file with no imports
       vi.mocked(fs.readFileSync).mockReturnValue(`
 export function isolatedFunction() {
@@ -54,6 +59,9 @@ export function isolatedFunction() {
       const filePath = path.join(mockProjectRoot, 'index.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'index.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 export * from './module1';
 export * from './module2';
@@ -68,6 +76,9 @@ export * from './module2';
       const filePath = path.join(mockProjectRoot, 'entry.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'entry.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 import { external } from 'external-package';
 
@@ -85,6 +96,12 @@ export function main() {
       const filePath = path.join(mockProjectRoot, 'module.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'module.ts', isDirectory: () => false, isFile: () => true },
+        { name: 'consumer1.ts', isDirectory: () => false, isFile: () => true },
+        { name: 'consumer2.ts', isDirectory: () => false, isFile: () => true },
+        { name: 'consumer3.ts', isDirectory: () => false, isFile: () => true },
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 export function moduleFunction() {
   return 'module';
@@ -119,6 +136,9 @@ export function moduleFunction() {
       const filePath = path.join(mockProjectRoot, 'module.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'module.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 export function moduleFunction() {
   return 'module';
@@ -141,6 +161,9 @@ export function moduleFunction() {
       const filePath = path.join(mockProjectRoot, 'module.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'module.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 export function moduleFunction() {
   return 'module';
@@ -160,6 +183,9 @@ export function moduleFunction() {
       const filePath = path.join(mockProjectRoot, 'index.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'index.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 export * from './module1';
 export { default } from './module2';
@@ -174,6 +200,9 @@ export { default } from './module2';
       const filePath = path.join(mockProjectRoot, 'index.js');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'index.js', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 module.exports = require('./module1');
 `);
@@ -187,6 +216,9 @@ module.exports = require('./module1');
       const filePath = path.join(mockProjectRoot, 'regular.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'regular.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 export function regularFunction() {
   return 'regular';
@@ -204,6 +236,9 @@ export function regularFunction() {
       const filePath = path.join(mockProjectRoot, 'entry.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'entry.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 import { external } from 'external-package';
 
@@ -221,6 +256,9 @@ export function main() {
       const filePath = path.join(mockProjectRoot, 'module.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'module.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue(`
 import { helper } from './helper';
 
@@ -252,6 +290,9 @@ export function moduleFunction() {
       const filePath = path.join(mockProjectRoot, 'empty.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'empty.ts', isDirectory: () => false, isFile: () => true }
+      ] as any);
       vi.mocked(fs.readFileSync).mockReturnValue('');
 
       const impactScore: ImpactScore = await analyzer.analyzeImpact(filePath);
@@ -264,6 +305,10 @@ export function moduleFunction() {
       const filePath = path.join(mockProjectRoot, 'moduleA.ts');
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        { name: 'moduleA.ts', isDirectory: () => false, isFile: () => true },
+        { name: 'moduleB.ts', isDirectory: () => false, isFile: () => true },
+      ] as any);
 
       // Mock circular dependency scenario
       vi.mocked(fs.readFileSync).mockImplementation((filePath: fs.PathOrFileDescriptor) => {

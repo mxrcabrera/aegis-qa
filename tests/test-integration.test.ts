@@ -73,7 +73,12 @@ describe('AtomicFixer Test Integration', () => {
       vi.mocked(fs.mkdirSync).mockReturnValue('/test/path');
 
       const { exec } = await import('child_process');
-      vi.mocked(exec).mockReturnValue({} as any);
+      vi.mocked(exec).mockImplementation((command: string, options: any, callback?: any) => {
+        if (typeof callback === 'function') {
+          callback(null, '', '');
+        }
+        return {} as any;
+      });
 
       const violations: any[] = [];
       const results = await fixer.runFixes(violations);
@@ -142,7 +147,12 @@ describe('AtomicFixer Test Integration', () => {
       vi.mocked(fs.mkdirSync).mockReturnValue('/test/path');
 
       const { exec } = await import('child_process');
-      vi.mocked(exec).mockReturnValue({} as any);
+      vi.mocked(exec).mockImplementation((command: string, options: any, callback?: any) => {
+        if (typeof callback === 'function') {
+          callback(null, '', '');
+        }
+        return {} as any;
+      });
 
       const violations: any[] = [];
       const results = await fixer.runFixes(violations);
