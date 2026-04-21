@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { resolveAndValidatePath } from '../core/filesystem-safety.js';
+import { ImpactAnalyzer, type ImpactScore } from './impact-analyzer.js';
 
 export interface Fix {
   id: string;
@@ -30,6 +31,7 @@ export interface Fix {
   manualMergeRequired?: boolean; // Marked when collision detected
   confidence: number; // Confidence score (0-1), propagated from Violation
   riskLevel: 'safe' | 'moderate' | 'risky'; // Calculated risk level
+  impactScore?: ImpactScore; // Impact analysis: dependents count, barrel export status, entry point status
 }
 
 export interface FixResult {
@@ -53,6 +55,7 @@ export class AtomicFixer {
   private diffsPath: string;
   private maxRisk: 'safe' | 'moderate' | 'risky';
   private minConfidence: number;
+  private impactAnalyzer: ImpactAnalyzer;
 
   /**
    * Generates a deterministic hash for fix IDs based on content, file, and line
@@ -76,13 +79,15 @@ export class AtomicFixer {
    * @param originalContent - The original content
    * @param proposedContent - The proposed content
    * @param isCorePath - Whether the file is in a critical path
+   * @param impactScore - Optional impact analysis for the file
    * @returns 'safe' | 'moderate' | 'risky' - The calculated risk level
    */
   private calculateRiskLevel(
     fixType: 'i18n' | 'a11y' | 'environment' | 'clean-code',
     originalContent: string,
     proposedContent: string,
-    isCorePath: boolean
+    isCorePath: boolean,
+    impactScore?: ImpactScore
   ): 'safe' | 'moderate' | 'risky' {
     // Safe: adding attributes (alt text, aria-label), creating new files, or modifying only comments/whitespace
     if (fixType === 'a11y' && (originalContent.includes('alt=') || originalContent.includes('aria-'))) {
@@ -115,6 +120,17 @@ export class AtomicFixer {
 
     if (originalContent.includes('import ') || proposedContent.includes('import ')) {
       return 'risky';
+    }
+
+    // Impact-based risk adjustment: if dependentsCount > 10 → moderate minimum
+    // If dependentsCount > 30 → risky
+    if (impactScore) {
+      if (impactScore.dependentsCount > 30) {
+        return 'risky';
+      }
+      if (impactScore.dependentsCount > 10) {
+        return 'moderate';
+      }
     }
 
     // Moderate: modifies logic within a function without changing signature
@@ -159,6 +175,7 @@ export class AtomicFixer {
     this.diffsPath = path.join(projectRoot, '.sentinel', 'diffs');
     this.maxRisk = maxRisk;
     this.minConfidence = minConfidence;
+    this.impactAnalyzer = new ImpactAnalyzer(projectRoot);
   }
 
   /**
@@ -405,6 +422,14 @@ export class AtomicFixer {
     // Generate deterministic ID based on content, file, and line
     const fixId = `i18n-${this.generateDeterministicId(line, filePath, violation.location?.line)}`;
 
+    // Analyze impact of modifying this file
+    const impactScore = await this.impactAnalyzer.analyzeImpact(filePath);
+
+    // Log high-impact files
+    if (impactScore.dependentsCount > 5) {
+      console.log(`[ImpactAnalysis] File ${filePath} is imported by ${impactScore.dependentsCount} modules`);
+    }
+
     let proposedContent = line;
     let description = '';
 
@@ -429,7 +454,8 @@ export class AtomicFixer {
       violation.rule === 'missing-alt' ? 'i18n' : 'a11y',
       line,
       proposedContent,
-      this.isCorePath(filePath)
+      this.isCorePath(filePath),
+      impactScore
     );
 
     return {
@@ -446,7 +472,8 @@ export class AtomicFixer {
       requiresConfirmation: false,
       isCorePath: this.isCorePath(filePath),
       confidence: violation.confidence || 0.8,
-      riskLevel
+      riskLevel,
+      impactScore
     };
   }
 
@@ -463,7 +490,15 @@ export class AtomicFixer {
 
     // If .env.example doesn't exist, create it
     if (!fs.existsSync(envExamplePath)) {
-      const riskLevel = this.calculateRiskLevel('environment', '', envContent, false);
+      // Analyze impact of modifying this file
+      const impactScore = await this.impactAnalyzer.analyzeImpact(envExamplePath);
+
+      // Log high-impact files
+      if (impactScore.dependentsCount > 5) {
+        console.log(`[ImpactAnalysis] File ${envExamplePath} is imported by ${impactScore.dependentsCount} modules`);
+      }
+
+      const riskLevel = this.calculateRiskLevel('environment', '', envContent, false, impactScore);
 
       const fix: Fix = {
         id: fixId,
@@ -478,7 +513,8 @@ export class AtomicFixer {
         requiresConfirmation: false,
         isCorePath: false,
         confidence: violation.confidence || 0.9,
-        riskLevel
+        riskLevel,
+        impactScore
       };
       return fix;
     }
@@ -509,7 +545,15 @@ export class AtomicFixer {
 
     // Generate deterministic ID based on content, file, and line
     const fixId = `clean-code-${this.generateDeterministicId(line, filePath, violation.location?.line)}`;
-    
+
+    // Analyze impact of modifying this file
+    const impactScore = await this.impactAnalyzer.analyzeImpact(filePath);
+
+    // Log high-impact files
+    if (impactScore.dependentsCount > 5) {
+      console.log(`[ImpactAnalysis] File ${filePath} is imported by ${impactScore.dependentsCount} modules`);
+    }
+
     // Extract function signature
     const funcMatch = line.match(/function\s+(\w+)\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*=>/);
     if (!funcMatch) {
@@ -529,7 +573,7 @@ export class AtomicFixer {
     const proposedFunc = `function ${funcName}(options: ${funcName.charAt(0).toUpperCase() + funcName.slice(1)}Options) {`;
     const proposedContent = `${optionsInterface}\n\n${proposedFunc}`;
 
-    const riskLevel = this.calculateRiskLevel('clean-code', line, proposedContent, this.isCorePath(filePath));
+    const riskLevel = this.calculateRiskLevel('clean-code', line, proposedContent, this.isCorePath(filePath), impactScore);
 
     return {
       id: fixId,
@@ -545,7 +589,8 @@ export class AtomicFixer {
       requiresConfirmation: true,
       isCorePath: this.isCorePath(filePath),
       confidence: violation.confidence || 0.7,
-      riskLevel
+      riskLevel,
+      impactScore
     };
   }
 
