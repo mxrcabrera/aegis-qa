@@ -63,7 +63,8 @@ export class CommandSanitizer {
       maxCommandLength: 8192,
       allowShellMetacharacters: false,
       // Allow alphanumeric, common path characters, and safe punctuation
-      allowedCharacters: 'a-zA-Z0-9._-/\\:@=~',
+      // Note: hyphen must be at the end to avoid being interpreted as range
+      allowedCharacters: 'a-zA-Z0-9._/\\:@=~-',
       // Blacklist dangerous patterns that could lead to injection
       blacklistedPatterns: [
         /;\s*rm\s+-rf/i,           // Remove all files
