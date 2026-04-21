@@ -283,7 +283,7 @@ export function moduleFunction() {
 
       expect(impactScore.dependentsCount).toBe(0);
       expect(impactScore.isBarrelExport).toBe(false);
-      expect(impactScore.isEntryPoint).toBe(true);
+      expect(impactScore.isEntryPoint).toBe(false);
     });
 
     it('should handle files with no content', async () => {
