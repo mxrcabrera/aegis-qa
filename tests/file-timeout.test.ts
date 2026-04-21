@@ -2,8 +2,8 @@
  * Tests for FileTimeout module
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { runWithFileTimeout, createTimeoutViolation, type FileTimeoutConfig } from '../src/core/file-timeout.js';
+import { describe, it, expect } from 'vitest';
+import { runWithFileTimeout, createTimeoutViolation } from '../src/core/file-timeout.js';
 
 describe('FileTimeout', () => {
   describe('runWithFileTimeout', () => {

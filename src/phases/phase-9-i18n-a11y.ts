@@ -18,6 +18,7 @@ import * as path from 'path';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+import { runWithFileTimeout, createTimeoutViolation } from '../core/file-timeout.js';
 
 /**
  * i18n & a11y finding
@@ -158,8 +159,27 @@ export class Phase9I18nA11y {
           filesWithoutI18n.push(file);
         }
 
-        const fileFindings = await this.analyzeFile(file, criticalModules, isFintech);
-        findings.push(...fileFindings);
+        // Apply per-file timeout to prevent hangs on large files
+        const timeoutResult = await runWithFileTimeout(
+          () => this.analyzeFile(file, criticalModules, isFintech),
+          file,
+          { timeoutMs: 60000 }
+        );
+
+        if (timeoutResult.success && timeoutResult.result) {
+          findings.push(...timeoutResult.result);
+        } else if (timeoutResult.isTimeout) {
+          // Add timeout violation
+          const timeoutViolation = createTimeoutViolation(file, 60000);
+          findings.push({
+            id: timeoutViolation.id,
+            type: 'i18n-a11y-issue',
+            severity: 'low',
+            filePath: file,
+            description: timeoutViolation.message,
+            suggestion: 'File may be too large or complex to analyze. Consider splitting it into smaller files.',
+          });
+        }
       }
 
       // Language Consistency: If 80%+ use i18n, mark files without i18n as inconsistent
