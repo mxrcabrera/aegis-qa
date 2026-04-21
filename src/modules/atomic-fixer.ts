@@ -28,6 +28,8 @@ export interface Fix {
   isCorePath: boolean;
   collisionDetected?: boolean; // For collision avoidance
   manualMergeRequired?: boolean; // Marked when collision detected
+  confidence: number; // Confidence score (0-1), propagated from Violation
+  riskLevel: 'safe' | 'moderate' | 'risky'; // Calculated risk level
 }
 
 export interface FixResult {
@@ -46,9 +48,11 @@ export interface RemediationResults {
 
 export class AtomicFixer {
   private projectRoot: string;
-  private diffsPath: string;
   private interactiveMode: boolean;
   private dryRun: boolean;
+  private diffsPath: string;
+  private maxRisk: 'safe' | 'moderate' | 'risky';
+  private minConfidence: number;
 
   /**
    * Generates a deterministic hash for fix IDs based on content, file, and line
@@ -64,11 +68,97 @@ export class AtomicFixer {
     return crypto.createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
   }
 
-  constructor(projectRoot: string, interactiveMode: boolean = true, dryRun: boolean = false) {
+  /**
+   * Calculates the risk level for a fix based on the nature of the change
+   *
+   * @private
+   * @param fixType - The type of fix
+   * @param originalContent - The original content
+   * @param proposedContent - The proposed content
+   * @param isCorePath - Whether the file is in a critical path
+   * @returns 'safe' | 'moderate' | 'risky' - The calculated risk level
+   */
+  private calculateRiskLevel(
+    fixType: 'i18n' | 'a11y' | 'environment' | 'clean-code',
+    originalContent: string,
+    proposedContent: string,
+    isCorePath: boolean
+  ): 'safe' | 'moderate' | 'risky' {
+    // Safe: adding attributes (alt text, aria-label), creating new files, or modifying only comments/whitespace
+    if (fixType === 'a11y' && (originalContent.includes('alt=') || originalContent.includes('aria-'))) {
+      return 'safe';
+    }
+    
+    if (fixType === 'environment' && proposedContent.includes('.env.example')) {
+      return 'safe';
+    }
+
+    // Check if only comments or whitespace are modified
+    const originalTrimmed = originalContent.trim().replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/\s+/g, '');
+    const proposedTrimmed = proposedContent.trim().replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/\s+/g, '');
+    if (originalTrimmed === proposedTrimmed) {
+      return 'safe';
+    }
+
+    // Risky: changes function signatures, modifies imports, touches critical paths
+    if (isCorePath) {
+      return 'risky';
+    }
+
+    if (originalContent.includes('function ') && proposedContent.includes('function ')) {
+      const originalSig = originalContent.match(/function\s+\w+\s*\(/)?.[0];
+      const proposedSig = proposedContent.match(/function\s+\w+\s*\(/)?.[0];
+      if (originalSig !== proposedSig) {
+        return 'risky';
+      }
+    }
+
+    if (originalContent.includes('import ') || proposedContent.includes('import ')) {
+      return 'risky';
+    }
+
+    // Moderate: modifies logic within a function without changing signature
+    return 'moderate';
+  }
+
+  /**
+   * Checks if a fix passes the confidence and risk gates
+   *
+   * @private
+   * @param fix - The fix to check
+   * @returns { passes: boolean, reason?: string } - Whether the fix passes and why it doesn't
+   */
+  private checkFixGates(fix: Fix): { passes: boolean; reason?: string } {
+    // Check confidence threshold
+    if (fix.confidence < this.minConfidence) {
+      return { passes: false, reason: 'low confidence' };
+    }
+
+    // Check risk level threshold
+    const riskOrder = { safe: 0, moderate: 1, risky: 2 };
+    const fixRiskLevel = riskOrder[fix.riskLevel];
+    const maxRiskLevel = riskOrder[this.maxRisk];
+
+    if (fixRiskLevel > maxRiskLevel) {
+      return { passes: false, reason: 'risk too high' };
+    }
+
+    return { passes: true };
+  }
+
+  constructor(
+    projectRoot: string,
+    interactiveMode: boolean = true,
+    dryRun: boolean = false,
+    maxRisk: 'safe' | 'moderate' | 'risky' = 'safe',
+    minConfidence: number = 0.8
+  ) {
     this.projectRoot = projectRoot;
     this.interactiveMode = interactiveMode;
     this.dryRun = dryRun;
     this.diffsPath = path.join(projectRoot, '.sentinel', 'diffs');
+    this.maxRisk = maxRisk;
+    this.minConfidence = minConfidence;
   }
 
   /**
@@ -101,6 +191,21 @@ export class AtomicFixer {
     });
 
     for (const fix of fixes) {
+      // Check confidence and risk gates before applying
+      const gateCheck = this.checkFixGates(fix);
+      
+      if (!gateCheck.passes) {
+        // Fix is skipped due to gating - add to suggested fixes with skip reason
+        const skippedResult: FixResult = {
+          fix,
+          applied: false,
+          error: `Skipped (${gateCheck.reason})`
+        };
+        results.suggestedFixes.push(skippedResult);
+        console.log(`[ConfidenceGating] Skipped fix ${fix.id}: ${gateCheck.reason}`);
+        continue;
+      }
+
       const result = await this.applyFix(fix);
       
       if (result.applied) {
@@ -206,6 +311,13 @@ export class AtomicFixer {
       description = `Add aria-label "${buttonText}" to button`;
     }
 
+    const riskLevel = this.calculateRiskLevel(
+      violation.rule === 'missing-alt' ? 'i18n' : 'a11y',
+      line,
+      proposedContent,
+      this.isCorePath(filePath)
+    );
+
     return {
       id: fixId,
       violationId, // Link to original violation for traceability
@@ -218,7 +330,9 @@ export class AtomicFixer {
       proposedContent,
       autoApply: true,
       requiresConfirmation: false,
-      isCorePath: this.isCorePath(filePath)
+      isCorePath: this.isCorePath(filePath),
+      confidence: violation.confidence || 0.8,
+      riskLevel
     };
   }
 
@@ -235,6 +349,8 @@ export class AtomicFixer {
 
     // If .env.example doesn't exist, create it
     if (!fs.existsSync(envExamplePath)) {
+      const riskLevel = this.calculateRiskLevel('environment', '', envContent, false);
+
       const fix: Fix = {
         id: fixId,
         violationId, // Link to original violation for traceability
@@ -246,7 +362,9 @@ export class AtomicFixer {
         proposedContent: envContent,
         autoApply: true,
         requiresConfirmation: false,
-        isCorePath: false
+        isCorePath: false,
+        confidence: violation.confidence || 0.9,
+        riskLevel
       };
       return fix;
     }
@@ -297,6 +415,8 @@ export class AtomicFixer {
     const proposedFunc = `function ${funcName}(options: ${funcName.charAt(0).toUpperCase() + funcName.slice(1)}Options) {`;
     const proposedContent = `${optionsInterface}\n\n${proposedFunc}`;
 
+    const riskLevel = this.calculateRiskLevel('clean-code', line, proposedContent, this.isCorePath(filePath));
+
     return {
       id: fixId,
       violationId, // Link to original violation for traceability
@@ -309,7 +429,9 @@ export class AtomicFixer {
       proposedContent,
       autoApply: false, // Manual review required
       requiresConfirmation: true,
-      isCorePath: this.isCorePath(filePath)
+      isCorePath: this.isCorePath(filePath),
+      confidence: violation.confidence || 0.7,
+      riskLevel
     };
   }
 
@@ -348,6 +470,8 @@ export class AtomicFixer {
       // Check if fix requires confirmation (Core Path or manual fix)
       if (fix.requiresConfirmation && this.interactiveMode) {
         console.log(`Apply fix: ${fix.description}? (y/n)`);
+        console.log(`  Confidence: ${(fix.confidence * 100).toFixed(0)}%`);
+        console.log(`  Risk Level: ${fix.riskLevel}`);
         // In non-interactive mode, skip confirmation
       }
 

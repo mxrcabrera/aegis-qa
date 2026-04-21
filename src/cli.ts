@@ -69,6 +69,8 @@ interface CLIConfig {
   sandboxMode?: boolean;
   noWriteMode?: boolean;
   maxRuntime?: string; // Human format: 30m, 1h, 2h
+  maxRisk?: 'safe' | 'moderate' | 'risky'; // Maximum risk level for fixes
+  minConfidence?: number; // Minimum confidence threshold for fixes (0-1)
 }
 
 class AegisCLI {
@@ -491,6 +493,31 @@ async function main() {
     maxRuntime = args[maxRuntimeIndex + 1];
   }
 
+  // Parse --max-risk flag
+  const maxRiskIndex = args.indexOf('--max-risk');
+  let maxRisk: 'safe' | 'moderate' | 'risky' | undefined;
+  if (maxRiskIndex !== -1 && args[maxRiskIndex + 1]) {
+    const riskValue = args[maxRiskIndex + 1];
+    if (riskValue === 'safe' || riskValue === 'moderate' || riskValue === 'risky') {
+      maxRisk = riskValue;
+    } else {
+      console.error('Invalid --max-risk value. Must be: safe, moderate, or risky');
+      process.exit(1);
+    }
+  }
+
+  // Parse --min-confidence flag
+  const minConfidenceIndex = args.indexOf('--min-confidence');
+  let minConfidence: number | undefined;
+  if (minConfidenceIndex !== -1 && args[minConfidenceIndex + 1]) {
+    const confidenceValue = parseFloat(args[minConfidenceIndex + 1]);
+    if (isNaN(confidenceValue) || confidenceValue < 0 || confidenceValue > 1) {
+      console.error('Invalid --min-confidence value. Must be a number between 0 and 1');
+      process.exit(1);
+    }
+    minConfidence = confidenceValue;
+  }
+
   // Security: Validate all input before proceeding
   try {
     AegisCLI.validateInput(command, targetDir, applyMode, yesMode);
@@ -514,6 +541,8 @@ async function main() {
     sandboxMode,
     noWriteMode,
     maxRuntime,
+    maxRisk,
+    minConfidence,
   });
 
   try {
