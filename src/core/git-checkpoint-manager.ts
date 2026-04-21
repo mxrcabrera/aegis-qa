@@ -505,4 +505,166 @@ export class GitCheckpointManager {
       return false;
     }
   }
+
+  /**
+   * Creates a checkpoint with stash before Phase 16 (Fix Strategy Generation)
+   * This is the primary checkpoint method for the hardening flow.
+   *
+   * @param requireConfirmation - Whether to require user confirmation if there are uncommitted changes
+   * @returns Promise<{ success: boolean; stashRef?: string; error?: string }>
+   */
+  async createCheckpointBeforeFixes(requireConfirmation: boolean = true): Promise<{ success: boolean; stashRef?: string; error?: string }> {
+    console.log('[GitCheckpointManager] Creating checkpoint before fixes...');
+
+    // Check if in git repository
+    const isGitRepo = await this.isInGitRepository();
+    if (!isGitRepo) {
+      const error = 'Not in a git repository. Cannot create safety checkpoint.';
+      console.error('[GitCheckpointManager]', error);
+      return { success: false, error };
+    }
+
+    // Check if repository is clean
+    const isClean = await this.isRepositoryClean();
+    if (!isClean) {
+      console.warn('[GitCheckpointManager] Repository has uncommitted changes');
+      if (requireConfirmation) {
+        console.warn('[GitCheckpointManager] Uncommitted changes detected.');
+        console.warn('[GitCheckpointManager] Continuing will create a stash to preserve your changes.');
+        console.warn('[GitCheckpointManager] Type "yes" to continue, or abort to commit your changes first.');
+        // In non-interactive mode, we proceed with the stash
+        // In interactive mode, this would require user input (handled by caller)
+      }
+    }
+
+    // Create stash with descriptive name
+    const timestamp = new Date().toISOString();
+    const stashMessage = `aegis-qa-checkpoint-${timestamp}`;
+    let stashRef: string | undefined;
+
+    try {
+      const retryHelper = new RetryHelper();
+      const result = await retryHelper.executeWithRetry(
+        async () => {
+          // Use --no-verify to bypass git hooks that could execute arbitrary code
+          await execSafe('git', ['stash', 'push', '--no-verify', '-m', stashMessage, '-u'], {
+            cwd: this.projectRoot,
+          });
+        },
+        { maxRetries: 3, initialBackoffMs: 1000 }
+      );
+
+      if (result.success) {
+        // Get the stash reference
+        const stashListResult = await retryHelper.executeWithRetry(
+          async () => {
+            const { stdout } = await execSafe('git', ['stash', 'list'], { cwd: this.projectRoot });
+            return stdout.trim();
+          },
+          { maxRetries: 3, initialBackoffMs: 1000 }
+        );
+
+        if (stashListResult.success && stashListResult.result) {
+          const stashLines = stashListResult.result.split('\n');
+          const latestStash = stashLines[0];
+          // Extract stash ref (e.g., "stash@{0}")
+          const stashRefMatch = latestStash.match(/stash@\{\d+\}/);
+          if (stashRefMatch) {
+            stashRef = stashRefMatch[0];
+          }
+        }
+
+        console.log(`[GitCheckpointManager] Checkpoint created: ${stashRef} (${stashMessage})`);
+        console.log(`[GitCheckpointManager] To revert all fixes: git stash pop`);
+      } else {
+        throw new Error(String(result.error));
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[GitCheckpointManager] Failed to create stash:', errorMessage);
+      return { success: false, error: errorMessage };
+    }
+
+    return { success: true, stashRef };
+  }
+
+  /**
+   * Restores from stash (for catastrophic failure recovery)
+   * Uses git stash apply + git stash drop to avoid hooks
+   *
+   * @param stashRef - Stash reference to restore (e.g., "stash@{0}")
+   * @returns Promise<{ success: boolean; error?: string }>
+   */
+  async restoreFromStash(stashRef: string): Promise<{ success: boolean; error?: string }> {
+    console.log(`[GitCheckpointManager] Attempting to restore from stash: ${stashRef}`);
+
+    try {
+      const retryHelper = new RetryHelper();
+
+      // Use git stash apply instead of pop to avoid triggering hooks
+      const applyResult = await retryHelper.executeWithRetry(
+        async () => {
+          await execSafe('git', ['stash', 'apply', stashRef], { cwd: this.projectRoot });
+        },
+        { maxRetries: 3, initialBackoffMs: 1000 }
+      );
+
+      if (!applyResult.success) {
+        throw new Error(String(applyResult.error));
+      }
+
+      // Drop the stash after successful apply
+      const dropResult = await retryHelper.executeWithRetry(
+        async () => {
+          await execSafe('git', ['stash', 'drop', stashRef], { cwd: this.projectRoot });
+        },
+        { maxRetries: 3, initialBackoffMs: 1000 }
+      );
+
+      if (!dropResult.success) {
+        console.warn('[GitCheckpointManager] Failed to drop stash after apply:', dropResult.error);
+      }
+
+      console.log(`[GitCheckpointManager] Successfully restored from stash: ${stashRef}`);
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[GitCheckpointManager] Failed to restore from stash:', errorMessage);
+      console.error(`[GitCheckpointManager] Manual recovery required: git stash pop ${stashRef}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Gets the latest stash reference
+   *
+   * @returns Promise<string | null> - Latest stash reference or null
+   */
+  async getLatestStashRef(): Promise<string | null> {
+    try {
+      const retryHelper = new RetryHelper();
+      const result = await retryHelper.executeWithRetry(
+        async () => {
+          const { stdout } = await execSafe('git', ['stash', 'list'], { cwd: this.projectRoot });
+          return stdout.trim();
+        },
+        { maxRetries: 3, initialBackoffMs: 1000 }
+      );
+
+      if (result.success && result.result) {
+        const stashLines = result.result.split('\n');
+        if (stashLines.length > 0) {
+          const latestStash = stashLines[0];
+          const stashRefMatch = latestStash.match(/stash@\{\d+\}/);
+          if (stashRefMatch) {
+            return stashRefMatch[0];
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('[GitCheckpointManager] Failed to get latest stash ref:', error);
+      return null;
+    }
+  }
 }

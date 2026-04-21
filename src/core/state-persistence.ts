@@ -103,6 +103,8 @@ export interface ExecutionState {
   contextStore?: Record<string, any>;
   /** Ready for audit flag - if true, report is ready for audit */
   readyForAudit?: boolean;
+  /** Git stash reference for checkpoint (e.g., "stash@{0}") */
+  gitCheckpointStashRef?: string;
   /** SHA-256 checksum for integrity validation */
   _checksum?: string;
 }

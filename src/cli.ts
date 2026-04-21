@@ -18,6 +18,7 @@ import { ReportAggregator } from './core/reporter.js';
 import { DomainAnalyzer } from './inference/domain-analyzer.js';
 import { PhaseOrchestrator } from './orchestration/phase-orchestrator.js';
 import { StatePersistence, type ExecutionState } from './core/state-persistence.js';
+import { GitCheckpointManager } from './core/git-checkpoint-manager.js';
 import { ErrorMessages } from './core/error-messages.js';
 import { resolve, normalize } from 'path';
 import * as fs from 'fs';
@@ -41,6 +42,7 @@ class AegisCLI {
   private statePersistence: StatePersistence | null = null;
   private currentState: ExecutionState | null = null;
   private sigintHandler: (() => void) | null = null;
+  private gitCheckpointManager: GitCheckpointManager | null = null;
 
   constructor(config: CLIConfig) {
     this.config = config;
@@ -126,6 +128,7 @@ class AegisCLI {
     // Create report aggregator (will be updated with business risk findings after Phase 2)
     const reportAggregator = new ReportAggregator({ projectRoot: resolve(targetDir) });
     this.statePersistence = new StatePersistence(resolve(targetDir));
+    this.gitCheckpointManager = new GitCheckpointManager(resolve(targetDir));
 
     // Initialize execution state
     this.currentState = this.statePersistence.createInitialState(20);
@@ -242,12 +245,23 @@ class AegisCLI {
   private setupSigintHandler(): void {
     this.sigintHandler = async () => {
       console.log('\n\n[SIGINT] Interrupt signal received. Saving state gracefully...');
-      
+
+      // Attempt to restore from git checkpoint if it exists
+      if (this.gitCheckpointManager && this.currentState?.gitCheckpointStashRef) {
+        console.log(`[SIGINT] Attempting to restore from git checkpoint: ${this.currentState.gitCheckpointStashRef}`);
+        const restoreResult = await this.gitCheckpointManager.restoreFromStash(this.currentState.gitCheckpointStashRef);
+        if (restoreResult.success) {
+          console.log('[SIGINT] Successfully restored from git checkpoint.');
+        } else {
+          console.error(`[SIGINT] Failed to restore from git checkpoint: ${restoreResult.error}`);
+        }
+      }
+
       if (this.statePersistence && this.currentState) {
         await this.statePersistence.markInterrupted('SIGINT (Ctrl+C)', this.currentState);
         console.log('[SIGINT] State saved. Use "aegis-qa resume" to continue.');
       }
-      
+
       process.exit(130); // Standard exit code for SIGINT
     };
 

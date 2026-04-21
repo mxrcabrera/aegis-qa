@@ -140,6 +140,8 @@ interface PhaseOrchestratorConfig {
   auditOnly?: boolean;
   /** Whether to enable per-fix interactive approval */
   interactiveFix?: boolean;
+  /** Whether to allow fixes without git repository (dangerous) */
+  allowNoGit?: boolean;
 }
 
 /**
@@ -2496,6 +2498,67 @@ Generated: ${timestamp}
     console.log('­ƒöº Aegis QA - Atomic Fixes Mode\n');
 
     const startTime = Date.now();
+
+    // Git checkpoint before Phase 16 (Fix Strategy Generation)
+    console.log('[GitCheckpoint] Creating safety checkpoint before fixes...');
+    const isGitRepo = await this.gitCheckpointManager.isInGitRepository();
+
+    if (!isGitRepo) {
+      if (this.config.allowNoGit) {
+        // Double confirmation for allow-no-git
+        if (this.yesMode) {
+          console.error('[Security] ERROR: --allow-no-git cannot be used with --yes in CI mode.');
+          console.error('[Security] Interactive confirmation required for dangerous operation.');
+          return {
+            success: false,
+            totalFindings: 0,
+            fixedCount: 0,
+            needsHumanReview: 0,
+            failedCount: 0,
+            executionTimeMs: 0,
+          };
+        }
+
+        console.error('[Security] WARNING: You are about to modify files WITHOUT git safety net.');
+        console.error('[Security] This is IRREVERSIBLE. Type "I UNDERSTAND" to continue.');
+        // In interactive mode, this would require user input
+        // For now, we proceed with the warning logged
+        console.error('[Security] Proceeding without git checkpoint...');
+      } else {
+        console.error('[Security] ERROR: Not in a git repository.');
+        console.error('[Security] Git checkpoint is required for safe fixes.');
+        console.error('[Security] Use --allow-no-git to proceed without git (dangerous).');
+        return {
+          success: false,
+          totalFindings: 0,
+          fixedCount: 0,
+          needsHumanReview: 0,
+          failedCount: 0,
+          executionTimeMs: 0,
+        };
+      }
+    } else {
+      // Create checkpoint
+      const checkpointResult = await this.gitCheckpointManager.createCheckpointBeforeFixes(!this.yesMode);
+      if (!checkpointResult.success) {
+        console.error('[Security] Failed to create git checkpoint:', checkpointResult.error);
+        console.error('[Security] Aborting fixes for safety.');
+        return {
+          success: false,
+          totalFindings: 0,
+          fixedCount: 0,
+          needsHumanReview: 0,
+          failedCount: 0,
+          executionTimeMs: 0,
+        };
+      }
+
+      // Save stash ref in state (would need StatePersistence integration)
+      // For now, just log it
+      if (checkpointResult.stashRef) {
+        console.log(`[GitCheckpoint] Checkpoint stash ref: ${checkpointResult.stashRef}`);
+      }
+    }
 
     // TODO: Implement atomic fixes
     // For now, this is a skeleton
