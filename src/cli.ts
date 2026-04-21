@@ -328,6 +328,11 @@ class AegisCLI {
       console.log('´┐¢ Running Full Review (Phases 0-15)\n');
     }
 
+    // Create sandbox if sandbox mode is enabled
+    if (this.config.sandboxMode) {
+      await phaseOrchestrator.createSandbox();
+    }
+
     const result = await phaseOrchestrator.runFullReview();
 
     if (result.success) {
@@ -338,6 +343,17 @@ class AegisCLI {
         console.log('\nÔ£à Review Complete');
         console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
         console.log(`ÔÅ▒´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+
+      // Generate patch if sandbox mode is enabled
+      if (this.config.sandboxMode) {
+        const patchPath = await phaseOrchestrator.generatePatch();
+        if (patchPath) {
+          console.log(`\n[Sandbox] Review completed in sandbox. To apply: git apply ${patchPath}`);
+        }
+        // Cleanup sandbox
+        await phaseOrchestrator.cleanupSandbox();
+      }
+
         console.log(`­ƒå New Issues: ${newViolationCount}`);
         console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
       } else {
@@ -364,6 +380,11 @@ class AegisCLI {
       console.log('­ƒöº Running Atomic Fixes (Phases 16-18)\n');
     }
 
+    // Create sandbox if sandbox mode is enabled
+    if (this.config.sandboxMode) {
+      await phaseOrchestrator.createSandbox();
+    }
+
     const result = await phaseOrchestrator.runFixes();
 
     if (result.success) {
@@ -378,9 +399,29 @@ class AegisCLI {
         console.log(`ÔØî Failed: ${result.failedCount}`);
         console.log(`­ƒå New Issues: ${newViolationCount}`);
         console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Fixes generated in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
       } else {
         console.log(`Fixes Complete: ${result.fixedCount} fixed, ${result.needsHumanReview} needs review, ${result.failedCount} failed`);
         console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Fixes generated in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
       }
 
       // Smart exit code: success if only inherited errors, failure if new errors
@@ -402,6 +443,11 @@ class AegisCLI {
       console.log('­ƒöä Running Incremental Review (Phase 19)\n');
     }
 
+    // Create sandbox if sandbox mode is enabled
+    if (this.config.sandboxMode) {
+      await phaseOrchestrator.createSandbox();
+    }
+
     const result = await phaseOrchestrator.runIncrementalReview();
 
     if (result.success) {
@@ -414,9 +460,29 @@ class AegisCLI {
         console.log(`ÔÅ▒´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
         console.log(`­ƒå New Issues: ${newViolationCount}`);
         console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Incremental review completed in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
       } else {
         console.log(`Incremental Review Complete: ${result.totalFindings} findings, ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
         console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
+
+        // Generate patch if sandbox mode is enabled
+        if (this.config.sandboxMode) {
+          const patchPath = await phaseOrchestrator.generatePatch();
+          if (patchPath) {
+            console.log(`\n[Sandbox] Incremental review completed in sandbox. To apply: git apply ${patchPath}`);
+          }
+          // Cleanup sandbox
+          await phaseOrchestrator.cleanupSandbox();
+        }
       }
 
       // Smart exit code: success if only inherited errors, failure if new errors

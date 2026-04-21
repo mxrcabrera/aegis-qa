@@ -506,10 +506,10 @@ export class PhaseOrchestrator {
     
     try {
       const fileFilter = new FileFilter();
-      const ignoreHandler = new IgnoreHandler({ projectRoot: this.config.projectRoot });
+      const ignoreHandler = new IgnoreHandler({ projectRoot: this.getEffectiveProjectRoot() });
       
       const phase0Setup = new Phase0Setup({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
@@ -614,10 +614,10 @@ export class PhaseOrchestrator {
     
     try {
       const fileFilter = new FileFilter();
-      const ignoreHandler = new IgnoreHandler({ projectRoot: this.config.projectRoot });
+      const ignoreHandler = new IgnoreHandler({ projectRoot: this.getEffectiveProjectRoot() });
       
       const phase1CodeQuality = new Phase1CodeQuality({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         fileFilter,
@@ -720,7 +720,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase2BusinessLogic = new Phase2BusinessLogic({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
@@ -831,7 +831,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase3Security = new Phase3Security({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
@@ -938,7 +938,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase4Database = new Phase4Database({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
         thermalController: this.config.thermalController,
@@ -1040,7 +1040,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase5CleanCode = new Phase5CleanCode({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
         thermalController: this.config.thermalController,
@@ -1141,7 +1141,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase6APIContracts = new Phase6APIContracts({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
@@ -1241,7 +1241,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase7TestingStrategy = new Phase7TestingStrategy({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
@@ -1341,7 +1341,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase8Performance = new Phase8Performance({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
@@ -1440,7 +1440,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase9I18nA11y = new Phase9I18nA11y({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
@@ -1539,7 +1539,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase10EnvCICD = new Phase10EnvCICD({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
@@ -1675,7 +1675,7 @@ export class PhaseOrchestrator {
       this.validateDryRunForOperation('Phase 11: Atomic Fixes');
 
       const phase11AtomicFixes = new Phase11AtomicFixes({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
         thermalController: this.config.thermalController,
@@ -1688,7 +1688,7 @@ export class PhaseOrchestrator {
         auditOnly: this.config.auditOnly || false, // Audit-only mode for compliance
         interactiveFix: this.config.interactiveFix || false, // Per-fix interactive approval
         sandboxConfig: {
-          projectRoot: this.config.projectRoot,
+          projectRoot: this.getEffectiveProjectRoot(),
           enabled: !this.config.safeOnly, // Disable sandbox in safe-only mode
           validateSyntax: true,
           runTests: false,
@@ -1738,7 +1738,7 @@ export class PhaseOrchestrator {
         
         try {
           const { stderr } = await execAsync('npx tsc --noEmit', {
-            cwd: this.config.projectRoot,
+            cwd: this.getEffectiveProjectRoot(),
             env: { ...process.env },
           });
           
@@ -1850,10 +1850,10 @@ export class PhaseOrchestrator {
     
     try {
       const fileFilter = new FileFilter();
-      const ignoreHandler = new IgnoreHandler({ projectRoot: this.config.projectRoot });
+      const ignoreHandler = new IgnoreHandler({ projectRoot: this.getEffectiveProjectRoot() });
       
       const phase12ErrorHandling = new Phase12ErrorHandling({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         fileFilter,
@@ -1955,10 +1955,10 @@ export class PhaseOrchestrator {
     
     try {
       const fileFilter = new FileFilter();
-      const ignoreHandler = new IgnoreHandler({ projectRoot: this.config.projectRoot });
+      const ignoreHandler = new IgnoreHandler({ projectRoot: this.getEffectiveProjectRoot() });
       
       const phase13I18nL10n = new Phase13I18nL10n({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         fileFilter,
@@ -2061,7 +2061,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase14GitHygiene = new Phase14GitHygiene({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
@@ -2162,7 +2162,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase15CICDDevOps = new Phase15CICDDevOps({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
@@ -2258,7 +2258,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase15BCloudInfra = new Phase15BCloudInfra({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
@@ -2354,7 +2354,7 @@ export class PhaseOrchestrator {
     
     try {
       const phase15CContainerization = new Phase15CContainerization({
-        projectRoot: this.config.projectRoot,
+        projectRoot: this.getEffectiveProjectRoot(),
         thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
