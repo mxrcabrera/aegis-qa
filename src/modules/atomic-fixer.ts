@@ -10,6 +10,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveAndValidatePath } from '../core/filesystem-safety.js';
 
 export interface Fix {
   id: string;
@@ -378,6 +379,12 @@ export class AtomicFixer {
    * Write fix to file
    */
   private async writeFix(fix: Fix): Promise<void> {
+    // Symlink Protection: Validate path before writing
+    const pathValidation = resolveAndValidatePath(fix.file, this.projectRoot);
+    if (!pathValidation.isValid) {
+      throw new Error(`Path validation failed: ${pathValidation.error}`);
+    }
+
     if (!fs.existsSync(fix.file)) {
       // Create new file
       const dir = path.dirname(fix.file);
@@ -468,6 +475,12 @@ export class AtomicFixer {
    */
   private async rollbackFix(fix: Fix, backupPath: string): Promise<void> {
     try {
+      // Symlink Protection: Validate path before restoring backup
+      const pathValidation = resolveAndValidatePath(fix.file, this.projectRoot);
+      if (!pathValidation.isValid) {
+        throw new Error(`Path validation failed during rollback: ${pathValidation.error}`);
+      }
+
       if (fs.existsSync(backupPath)) {
         const backupContent = fs.readFileSync(backupPath, 'utf-8');
         fs.writeFileSync(fix.file, backupContent, 'utf-8');

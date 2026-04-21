@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { resolve } from 'path';
 import * as crypto from 'crypto';
+import { resolveAndValidatePath } from './filesystem-safety.js';
 
 /**
  * Phase execution state
@@ -132,6 +133,12 @@ export class StatePersistence {
     this.projectRoot = resolve(projectRoot);
     this.stateFilePath = path.join(this.projectRoot, '.aegis-state.json');
     this.backupDir = path.join(this.projectRoot, '.aegis-backups');
+
+    // Symlink Protection: Validate state file path
+    const pathValidation = resolveAndValidatePath(this.stateFilePath, this.projectRoot);
+    if (!pathValidation.isValid) {
+      throw new Error(`State file path validation failed: ${pathValidation.error}`);
+    }
   }
 
   /**
