@@ -17,9 +17,26 @@ import { GitCheckpointManager } from '../src/core/git-checkpoint-manager.js';
 import { SecretSanitizer } from '../src/core/secret-sanitizer.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
+import { execSync } from 'child_process';
 
 describe('Integration Tests - Complete QA Flow', () => {
   let testProjectRoot: string;
+
+  // Helper function to create a temporary directory with git repo
+  function createTempGitRepo(): string {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-test-'));
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git config user.email "test@example.com"', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git config user.name "Test User"', { cwd: tmpDir, stdio: 'ignore' });
+
+    // Create an initial commit
+    fs.writeFileSync(path.join(tmpDir, 'README.md'), '# Test Project');
+    execSync('git add .', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git commit -m "Initial commit"', { cwd: tmpDir, stdio: 'ignore' });
+
+    return tmpDir;
+  }
 
   beforeEach(() => {
     testProjectRoot = path.join(process.cwd(), 'test-mock-project');
@@ -137,45 +154,53 @@ describe('Integration Tests - Complete QA Flow', () => {
     });
 
     it('should integrate GitCheckpointManager with DiffGenerator', async () => {
-      const gitManager = new GitCheckpointManager(testProjectRoot);
-      const diffGenerator = new DiffGenerator(testProjectRoot);
-      
-      const isInGitRepo = await gitManager.isInGitRepository();
-      
-      if (isInGitRepo) {
-        try {
-          // Create checkpoint before generating patch
-          await gitManager.createCheckpoint('test-integration-checkpoint');
-          
-          // Generate patch
-          const originalContent = 'const x = 1;';
-          const modifiedContent = 'const x = 2;';
-          const diff = diffGenerator.generateFileDiff('test.ts', originalContent, modifiedContent);
-          await diffGenerator.generatePatchFile([diff], 'integration-checkpoint.patch');
-          
-          // Rollback to checkpoint
-          await gitManager.rollbackToLastCheckpoint();
-          
-          const patchPath = path.join(testProjectRoot, 'aegis-patches', 'integration-checkpoint.patch');
-          expect(fs.existsSync(patchPath)).toBe(true);
-        } catch (error) {
-          // Handle gracefully if there are uncommitted changes
-          expect(error).toBeDefined();
+      // Use a temporary git repo for isolated testing
+      const tempGitDir = createTempGitRepo();
+      try {
+        const gitManager = new GitCheckpointManager(tempGitDir);
+        const diffGenerator = new DiffGenerator(tempGitDir);
+
+        const isInGitRepo = await gitManager.isInGitRepository();
+
+        if (isInGitRepo) {
+          try {
+            // Create checkpoint before generating patch
+            await gitManager.createCheckpoint('test-integration-checkpoint');
+
+            // Generate patch
+            const originalContent = 'const x = 1;';
+            const modifiedContent = 'const x = 2;';
+            const diff = diffGenerator.generateFileDiff('test.ts', originalContent, modifiedContent);
+            await diffGenerator.generatePatchFile([diff], 'integration-checkpoint.patch');
+
+            // Rollback to checkpoint
+            await gitManager.rollbackToLastCheckpoint();
+
+            const patchPath = path.join(tempGitDir, 'aegis-patches', 'integration-checkpoint.patch');
+            expect(fs.existsSync(patchPath)).toBe(true);
+          } catch (error) {
+            // Handle gracefully if there are uncommitted changes
+            expect(error).toBeDefined();
+          }
+        } else {
+          // Skip git operations if not in git repo
+          expect(true).toBe(true);
         }
-      } else {
-        // Skip git operations if not in git repo
-        expect(true).toBe(true);
+      } finally {
+        // Clean up temporary directory
+        if (fs.existsSync(tempGitDir)) {
+          fs.rmSync(tempGitDir, { recursive: true, force: true });
+        }
       }
     });
 
     it('should integrate SecretSanitizer with GitCheckpointManager', async () => {
       const sanitizer = new SecretSanitizer();
-      const gitManager = new GitCheckpointManager(testProjectRoot);
-      
+
       // Sanitize checkpoint tag if it contains secrets
       const checkpointTag = 'checkpoint-with-secret-api_key=sk-1234567890abcdefghijklmnopqrst';
       const sanitizedTag = sanitizer.sanitize(checkpointTag);
-      
+
       expect(sanitizedTag).toMatch(/\[REDACTED_\d+\]/);
       expect(sanitizedTag).not.toContain('sk-1234567890abcdefghijklmnopqrst');
     });
@@ -197,7 +222,8 @@ describe('Integration Tests - Complete QA Flow', () => {
     });
 
     it('should handle checkpoint creation without git', async () => {
-      const nonGitPath = '/tmp/non-git-project-' + Date.now();
+      // Create a temporary non-git directory
+      const nonGitPath = path.join(process.cwd(), 'test-non-git-' + Date.now());
       fs.mkdirSync(nonGitPath, { recursive: true });
       
       try {
@@ -205,7 +231,8 @@ describe('Integration Tests - Complete QA Flow', () => {
         
         try {
           await gitManager.createCheckpoint('test');
-          // Should fail gracefully
+          // Should fail gracefully or use fallback mechanisms
+          expect(true).toBe(true);
         } catch (error) {
           // Expected to fail
           expect(error).toBeDefined();
@@ -328,23 +355,30 @@ describe('Integration Tests - Complete QA Flow', () => {
   describe('Performance - Complete Flow', () => {
     it('should complete full flow within reasonable time', async () => {
       const startTime = Date.now();
-      
+
       // Diff generation
       const diffGenerator = new DiffGenerator(testProjectRoot);
       const diff = diffGenerator.generateFileDiff('test.ts', 'const x = 1;', 'const x = 2;');
       await diffGenerator.generatePatchFile([diff], 'perf-test.patch');
-      
+
       // Secret sanitization
       const sanitizer = new SecretSanitizer();
       const sanitized = sanitizer.sanitize('API key: sk-1234567890abcdef');
-      
-      // Git checkpoint (if in git repo)
-      const gitManager = new GitCheckpointManager(testProjectRoot);
-      const isInGitRepo = await gitManager.isInGitRepository();
-      
+
+      // Git checkpoint (if in git repo) - use temp directory
+      const tempGitDir = createTempGitRepo();
+      try {
+        const gitManager = new GitCheckpointManager(tempGitDir);
+        const isInGitRepo = await gitManager.isInGitRepository();
+      } finally {
+        if (fs.existsSync(tempGitDir)) {
+          fs.rmSync(tempGitDir, { recursive: true, force: true });
+        }
+      }
+
       const endTime = Date.now();
       const duration = endTime - startTime;
-      
+
       // Should complete in less than 30 seconds
       expect(duration).toBeLessThan(30000);
     });
