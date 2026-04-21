@@ -138,25 +138,32 @@ export class ImpactAnalyzer {
     const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 
     const scanDirectory = (dir: string) => {
-      if (!fs.existsSync(dir)) return;
+      try {
+        if (!fs.existsSync(dir)) return;
 
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
+        if (!entries || !Array.isArray(entries)) return;
 
-        if (entry.isDirectory()) {
-          // Skip node_modules and .git
-          if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.sentinel') {
-            continue;
-          }
-          scanDirectory(fullPath);
-        } else if (entry.isFile()) {
-          const ext = path.extname(entry.name);
-          if (extensions.includes(ext)) {
-            sourceFiles.push(fullPath);
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+
+          if (entry.isDirectory()) {
+            // Skip node_modules and .git
+            if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.sentinel') {
+              continue;
+            }
+            scanDirectory(fullPath);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name);
+            if (extensions.includes(ext)) {
+              sourceFiles.push(fullPath);
+            }
           }
         }
+      } catch (error) {
+        // Skip directories that can't be read (permission issues, etc.)
+        return;
       }
     };
 

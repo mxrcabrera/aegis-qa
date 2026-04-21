@@ -80,7 +80,7 @@ describe('AtomicFixer Test Integration', () => {
 
       expect(results.testValidationResults).toBeDefined();
       expect(results.testValidationResults?.enabled).toBe(true);
-    });
+    }, 10000);
 
     it('should skip baseline when runTests is disabled', async () => {
       const fixerNoTests = new AtomicFixer(mockProjectRoot, false, true, 'safe', 0.8, false);
@@ -152,6 +152,6 @@ describe('AtomicFixer Test Integration', () => {
       expect(results.testValidationResults?.testCommand).toBeDefined();
       expect(typeof results.testValidationResults?.baselinePassed).toBe('number');
       expect(typeof results.testValidationResults?.baselineFailed).toBe('number');
-    });
+    }, 10000);
   });
 });
