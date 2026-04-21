@@ -219,6 +219,138 @@ export class AtomicFixer {
   }
 
   /**
+   * Group fixes by file for micro-pass application
+   *
+   * @private
+   * @param fixes - All fixes to group
+   * @returns Map of file path to array of fixes
+   */
+  private groupFixesByFile(fixes: Fix[]): Map<string, Fix[]> {
+    const fileGroups = new Map<string, Fix[]>();
+    
+    for (const fix of fixes) {
+      if (!fileGroups.has(fix.file)) {
+        fileGroups.set(fix.file, []);
+      }
+      fileGroups.get(fix.file)!.push(fix);
+    }
+
+    // Sort fixes within each file by severity (highest first), then by line (descending)
+    for (const [_file, fileFixes] of fileGroups.entries()) {
+      fileFixes.sort((a, b) => {
+        // Sort by severity: critical > high > medium > low
+        const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        const severityDiff = severityOrder[a.severity] - severityOrder[b.severity];
+        if (severityDiff !== 0) return severityDiff;
+        
+        // Then by line (descending) to avoid offset displacement
+        return (b.line || 0) - (a.line || 0);
+      });
+    }
+
+    return fileGroups;
+  }
+
+  /**
+   * Apply fixes with micro-pass strategy
+   * Groups fixes by file and applies them one at a time with offset recalculation
+   *
+   * @private
+   * @param fileGroups - Map of file path to array of fixes
+   * @returns Array of fixes ready for application
+   */
+  private applyFixesWithMicroPasses(fileGroups: Map<string, Fix[]>): Fix[] {
+    const allFixes: Fix[] = [];
+
+    for (const [file, fileFixes] of fileGroups.entries()) {
+      // Apply fixes one at a time with offset tracking
+      const processedFixes = this.processFixesForFile(file, fileFixes);
+      allFixes.push(...processedFixes);
+    }
+
+    // Sort final fixes by file → line (descending) for deterministic execution
+    allFixes.sort((a, b) => {
+      const fileCompare = a.file.localeCompare(b.file);
+      if (fileCompare !== 0) return fileCompare;
+      return (b.line || 0) - (a.line || 0);
+    });
+
+    return allFixes;
+  }
+
+  /**
+   * Process fixes for a single file with offset recalculation
+   *
+   * @private
+   * @param _file - File path
+   * @param fixes - Fixes for this file
+   * @returns Processed fixes with updated line numbers and status
+   */
+  private processFixesForFile(_file: string, fixes: Fix[]): Fix[] {
+    const processedFixes: Fix[] = [];
+    let lineOffset = 0;
+
+    for (const fix of fixes) {
+      // Update line number based on accumulated offset
+      if (fix.line !== undefined) {
+        fix.line += lineOffset;
+      }
+
+      // Calculate the offset this fix would introduce
+      const originalLines = fix.originalContent.split('\n').length;
+      const proposedLines = fix.proposedContent.split('\n').length;
+      const fixOffset = proposedLines - originalLines;
+
+      // If there are remaining fixes, mark for review if offset would affect them
+      const remainingFixes = fixes.filter(f => f !== fix);
+      if (remainingFixes.length > 0 && fixOffset !== 0) {
+        // Check if this fix would affect the context of remaining fixes
+        const wouldAffectContext = this.wouldAffectRemainingFixes(fix, remainingFixes, fixOffset);
+        
+        if (wouldAffectContext) {
+          fix.manualMergeRequired = true;
+          fix.requiresConfirmation = true;
+          // Don't apply automatically in first pass, but keep in list for potential micro-pass
+        }
+      }
+
+      processedFixes.push(fix);
+      lineOffset += fixOffset;
+    }
+
+    return processedFixes;
+  }
+
+  /**
+   * Check if a fix would affect the context of remaining fixes
+   *
+   * @private
+   * @param appliedFix - The fix being applied
+   * @param remainingFixes - Remaining fixes for the file
+   * @param _offset - Line offset introduced by the applied fix
+   * @returns Whether the fix would affect remaining fixes
+   */
+  private wouldAffectRemainingFixes(appliedFix: Fix, remainingFixes: Fix[], _offset: number): boolean {
+    const appliedLine = appliedFix.line || 0;
+
+    for (const remainingFix of remainingFixes) {
+      const remainingLine = remainingFix.line || 0;
+      
+      // If the remaining fix is on a line below the applied fix, it would be affected by offset
+      if (remainingLine > appliedLine) {
+        return true;
+      }
+
+      // If the remaining fix is close (within 5 lines), it might be affected by context changes
+      if (Math.abs(remainingLine - appliedLine) <= 5) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Generate fixes based on violations
    */
   private async generateFixes(violations: any[], _domainModel?: any): Promise<Fix[]> {
@@ -247,29 +379,11 @@ export class AtomicFixer {
       if (fix) fixes.push(fix);
     }
 
-    // Collision Avoidance: Detect if multiple fixes target the same line
-    const lineMap = new Map<string, Fix[]>();
-    for (const fix of fixes) {
-      const key = `${fix.file}:${fix.line || 0}`;
-      if (!lineMap.has(key)) {
-        lineMap.set(key, []);
-      }
-      lineMap.get(key)!.push(fix);
-    }
+    // Collision Handling: Group fixes by file for micro-pass application
+    // This avoids offset displacement when multiple fixes touch nearby lines
+    const fileGroups = this.groupFixesByFile(fixes);
 
-    // Mark fixes with collisions
-    for (const [_key, conflictingFixes] of lineMap.entries()) {
-      if (conflictingFixes.length > 1) {
-        for (const fix of conflictingFixes) {
-          fix.collisionDetected = true;
-          fix.manualMergeRequired = true;
-          fix.autoApply = false; // Disable auto-apply for colliding fixes
-          fix.requiresConfirmation = true;
-        }
-      }
-    }
-
-    return fixes;
+    return this.applyFixesWithMicroPasses(fileGroups);
   }
 
   /**
