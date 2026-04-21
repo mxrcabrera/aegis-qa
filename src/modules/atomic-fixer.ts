@@ -579,6 +579,7 @@ export class AtomicFixer {
 
   /**
    * Syntax Pre-flight: Validate syntax before applying Clean Code fixes
+   * Uses real tsc validation with baseline comparison instead of bracket counting
    */
   private async validateSyntax(fix: Fix): Promise<boolean> {
     if (!fix.file.endsWith('.ts') && !fix.file.endsWith('.tsx')) {
@@ -586,24 +587,173 @@ export class AtomicFixer {
     }
 
     try {
-      // Simulate syntax validation by checking if the proposed content is valid
-      // In a real implementation, this would use tsc --noEmit or a TypeScript parser
-      const proposedContent = fix.proposedContent;
-      
-      // Basic syntax check: ensure no unmatched braces or parentheses
-      const openBraces = (proposedContent.match(/{/g) || []).length;
-      const closeBraces = (proposedContent.match(/}/g) || []).length;
-      const openParens = (proposedContent.match(/\(/g) || []).length;
-      const closeParens = (proposedContent.match(/\)/g) || []).length;
+      // Check if tsc is available and project has TypeScript
+      const tscAvailable = await this.isTscAvailable();
+      const hasTsConfig = fs.existsSync(path.join(this.projectRoot, 'tsconfig.json'));
 
-      if (openBraces !== closeBraces || openParens !== closeParens) {
-        return false;
+      if (tscAvailable && hasTsConfig) {
+        return await this.validateWithTsc(fix);
       }
 
-      return true;
+      // Fallback to bracket counting if tsc unavailable or no TypeScript project
+      return this.validateWithBrackets(fix.proposedContent);
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Check if tsc is available in the project
+   */
+  private async isTscAvailable(): Promise<boolean> {
+    try {
+      const { spawn } = await import('child_process');
+      return new Promise((resolve) => {
+        const tsc = spawn('tsc', ['--version'], { stdio: 'ignore' });
+        tsc.on('error', () => resolve(false));
+        tsc.on('exit', (code) => resolve(code === 0));
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Validate syntax using real tsc with baseline comparison
+   */
+  private async validateWithTsc(fix: Fix): Promise<boolean> {
+    // Get baseline errors before applying fix
+    const baselineErrors = await this.getTscErrors(fix.file);
+
+    // Create temporary file with proposed content
+    const tempDir = path.join(this.projectRoot, '.sentinel', 'temp-validation');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    const tempFilePath = path.join(tempDir, path.basename(fix.file));
+    fs.writeFileSync(tempFilePath, fix.proposedContent, 'utf-8');
+
+    try {
+      // Check if tsconfig.json has incremental enabled for optimization
+      const useIncremental = this.hasIncrementalTsConfig();
+      
+      // Run tsc on the modified file with optimization flags
+      const tscArgs = ['--noEmit', '--pretty', 'false'];
+      if (useIncremental) {
+        tscArgs.push('--incremental');
+      }
+      
+      const newErrors = await this.getTscErrors(tempFilePath, tscArgs);
+
+      // Compare: only fail if NEW errors are introduced
+      const newErrorCount = this.countNewErrors(baselineErrors, newErrors);
+      
+      return newErrorCount === 0;
+    } finally {
+      // Clean up temp file
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+    }
+  }
+
+  /**
+   * Check if tsconfig.json has incremental compilation enabled
+   */
+  private hasIncrementalTsConfig(): boolean {
+    try {
+      const tsConfigPath = path.join(this.projectRoot, 'tsconfig.json');
+      if (!fs.existsSync(tsConfigPath)) {
+        return false;
+      }
+      
+      const tsConfigContent = fs.readFileSync(tsConfigPath, 'utf-8');
+      const tsConfig = JSON.parse(tsConfigContent);
+      
+      return tsConfig.compilerOptions?.incremental === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get tsc errors for a specific file
+   */
+  private async getTscErrors(filePath: string, tscArgs: string[] = ['--noEmit', '--pretty', 'false']): Promise<string[]> {
+    const { spawn } = await import('child_process');
+    
+    return new Promise((resolve) => {
+      const tsc = spawn(
+        'tsc',
+        tscArgs,
+        {
+          cwd: this.projectRoot,
+          stdio: ['ignore', 'pipe', 'pipe']
+        }
+      );
+
+      let stderr = '';
+      let stdout = '';
+
+      tsc.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      tsc.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      tsc.on('error', () => {
+        resolve([]);
+      });
+
+      tsc.on('exit', () => {
+        // Parse tsc output to extract errors for the specific file
+        const output = stdout + stderr;
+        const errors = output
+          .split('\n')
+          .filter(line => line.includes(filePath) && (line.includes('error TS') || line.includes('error:')))
+          .map(line => line.trim());
+        
+        resolve(errors);
+      });
+    });
+  }
+
+  /**
+   * Count new errors introduced by the fix
+   */
+  private countNewErrors(baselineErrors: string[], newErrors: string[]): number {
+    // Normalize error messages for comparison (remove line numbers as they may shift)
+    const normalizeError = (error: string) => {
+      return error.replace(/:\d+:\d+/g, ':L:C');
+    };
+
+    const normalizedBaseline = new Set(baselineErrors.map(normalizeError));
+    const normalizedNew = new Set(newErrors.map(normalizeError));
+
+    // Count errors in new that weren't in baseline
+    let newErrorCount = 0;
+    for (const error of normalizedNew) {
+      if (!normalizedBaseline.has(error)) {
+        newErrorCount++;
+      }
+    }
+
+    return newErrorCount;
+  }
+
+  /**
+   * Fallback syntax validation using bracket counting
+   */
+  private validateWithBrackets(content: string): boolean {
+    // Basic syntax check: ensure no unmatched braces or parentheses
+    const openBraces = (content.match(/{/g) || []).length;
+    const closeBraces = (content.match(/}/g) || []).length;
+    const openParens = (content.match(/\(/g) || []).length;
+    const closeParens = (content.match(/\)/g) || []).length;
+
+    return openBraces === closeBraces && openParens === closeParens;
   }
 
   /**
