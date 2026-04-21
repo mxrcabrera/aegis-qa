@@ -1,12 +1,14 @@
 /**
- * FileFilter - Large file and extension guard
+ * FileFilter - Large file and extension guard with .aegisignore support
  *
- * Purpose: Filters files based on size and extension to prevent memory explosion
- * and avoid analyzing binary files or large generated files.
+ * Purpose: Filters files based on size, extension, and .aegisignore patterns
+ * to prevent memory explosion and avoid analyzing binary files or large generated files.
  *
  * Architecture:
  * - Filters by file size (default: 500KB max)
  * - Filters by extension to skip binary files
+ * - Loads .aegisignore from project root (same format as .gitignore)
+ * - Supports .aegisrc.json exclude key for additional patterns
  * - Configurable max file size (default: 500KB)
  * - Prevents memory explosion on large files
  * - Flexible path detection (src/, lib/, app/, or root)
@@ -30,6 +32,12 @@ interface FileFilterConfig {
   blockedExtensions?: string[];
   /** Blocked file patterns (glob patterns) */
   blockedPatterns?: string[];
+  /** Project root directory (for loading .aegisignore) */
+  projectRoot?: string;
+  /** Additional exclusion patterns from .aegisrc.json */
+  additionalExcludes?: string[];
+  /** Whether to load .aegisignore file (default: true) */
+  loadAegisignore?: boolean;
 }
 
 /**
@@ -90,10 +98,44 @@ export class FileFilter {
     /out/,
   ];
 
+  // Default .aegisignore patterns (gitignore-style)
+  private static DEFAULT_AEGISIGNORE_PATTERNS = [
+    'node_modules/',
+    'dist/',
+    'build/',
+    '.next/',
+    '.nuxt/',
+    'coverage/',
+    '.aegis-state.json',
+    '.sentinel/',
+    '*.min.js',
+    '*.min.css',
+    '*.map',
+    'vendor/',
+    '__generated__/',
+    'generated/',
+    '*.generated.ts',
+    '*.generated.tsx',
+    'prisma/generated/',
+    '.git/',
+  ];
+
+  private aegisignorePatterns: string[] = [];
+  private projectRoot: string;
+
   constructor(config: FileFilterConfig = {}) {
     this.config = config;
     this.maxFileSizeBytes = config.maxFileSizeBytes || 512000; // 500KB default
-    
+    this.projectRoot = config.projectRoot || process.cwd();
+
+    // Load .aegisignore patterns
+    this.loadAegisignorePatterns(config.loadAegisignore !== false);
+
+    // Merge with additional excludes from .aegisrc.json
+    if (config.additionalExcludes && config.additionalExcludes.length > 0) {
+      this.aegisignorePatterns = [...this.aegisignorePatterns, ...config.additionalExcludes];
+    }
+
     // Merge default blocked extensions with custom ones
     this.blockedExtensions = new Set([
       ...FileFilter.DEFAULT_BLOCKED_EXTENSIONS,
@@ -105,6 +147,132 @@ export class FileFilter {
       ...FileFilter.DEFAULT_BLOCKED_PATTERNS,
       ...(config.blockedPatterns?.map(p => new RegExp(p)) || []),
     ];
+
+    // Convert .aegisignore patterns to regex and add to blocked patterns
+    for (const pattern of this.aegisignorePatterns) {
+      const regex = this.gitignorePatternToRegex(pattern);
+      if (regex) {
+        this.blockedPatterns.push(regex);
+      }
+    }
+
+    // Log excluded files info
+    this.logExclusionInfo();
+  }
+
+  /**
+   * Loads .aegisignore patterns from file or uses defaults
+   *
+   * @private
+   * @param loadFromFile - Whether to load from file (default: true)
+   */
+  private loadAegisignorePatterns(loadFromFile: boolean): void {
+    if (loadFromFile) {
+      const aegisignorePath = path.join(this.projectRoot, '.aegisignore');
+      if (fs.existsSync(aegisignorePath)) {
+        try {
+          const content = fs.readFileSync(aegisignorePath, 'utf-8');
+          this.aegisignorePatterns = this.parseGitignore(content);
+          console.log(`[FileFilter] Loaded .aegisignore with ${this.aegisignorePatterns.length} patterns`);
+          return;
+        } catch (error) {
+          console.warn(`[FileFilter] Failed to load .aegisignore: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    }
+
+    // Use default patterns if file doesn't exist or loading failed
+    this.aegisignorePatterns = [...FileFilter.DEFAULT_AEGISIGNORE_PATTERNS];
+    console.log(`[FileFilter] Using default .aegisignore patterns (${this.aegisignorePatterns.length} patterns)`);
+  }
+
+  /**
+   * Parses gitignore-style content into patterns
+   *
+   * @private
+   * @param content - Gitignore file content
+   * @returns Array of patterns
+   */
+  private parseGitignore(content: string): string[] {
+    const patterns: string[] = [];
+    const lines = content.split('\n');
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip empty lines and comments
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      patterns.push(trimmed);
+    }
+
+    return patterns;
+  }
+
+  /**
+   * Converts gitignore pattern to regex
+   *
+   * @private
+   * @param pattern - Gitignore pattern
+   * @returns RegExp or null if pattern is invalid
+   */
+  private gitignorePatternToRegex(pattern: string): RegExp | null {
+    try {
+      // Handle negation patterns (prefixed with !)
+      const isNegation = pattern.startsWith('!');
+      const actualPattern = isNegation ? pattern.slice(1) : pattern;
+
+      // Handle directory patterns (ending with /)
+      const isDirectory = actualPattern.endsWith('/');
+      const basePattern = isDirectory ? actualPattern.slice(0, -1) : actualPattern;
+
+      // Escape special regex characters except for glob wildcards
+      let regexStr = basePattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '[^/]*')
+        .replace(/\?/g, '[^/]');
+
+      // Match pattern anywhere in path
+      // For directory patterns, match the directory name anywhere
+      // For file patterns, match at the end or at a path boundary
+      if (isDirectory) {
+        regexStr = `.*${regexStr}.*`;
+      } else if (actualPattern.includes('*')) {
+        // Wildcard pattern like *.min.js - match at end or after slash
+        regexStr = `.*${regexStr}$`;
+      } else {
+        // Exact file pattern - match at end or after slash
+        regexStr = `(?:^|/)${regexStr}(?:/|$)`;
+      }
+
+      return new RegExp(regexStr);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Logs exclusion information at startup
+   *
+   * @private
+   */
+  private logExclusionInfo(): void {
+    const patternCount = this.aegisignorePatterns.length;
+    const extensionCount = this.blockedExtensions.size;
+    const patternRegexCount = this.blockedPatterns.length;
+
+    console.log(`[FileFilter] Exclusion configuration:`);
+    console.log(`  - .aegisignore patterns: ${patternCount}`);
+    console.log(`  - Blocked extensions: ${extensionCount}`);
+    console.log(`  - Blocked path patterns: ${patternRegexCount}`);
+
+    if (this.aegisignorePatterns.length > 0) {
+      console.log(`[FileFilter] .aegisignore patterns:`);
+      this.aegisignorePatterns.slice(0, 10).forEach(p => console.log(`  - ${p}`));
+      if (this.aegisignorePatterns.length > 10) {
+        console.log(`  ... and ${this.aegisignorePatterns.length - 10} more`);
+      }
+    }
   }
 
   /**
@@ -195,6 +363,25 @@ export class FileFilter {
         fileSize: 0,
       };
     }
+  }
+
+  /**
+   * Checks if a file should be included (alias for shouldAnalyzeFile)
+   *
+   * This method provides a simpler API for file inclusion checks.
+   *
+   * @param filePath - Path to the file
+   * @returns boolean - Whether the file should be included
+   *
+   * @example
+   * ```typescript
+   * const shouldInclude = filter.shouldInclude('/path/to/file.ts');
+   * // true or false
+   * ```
+   */
+  shouldInclude(filePath: string): boolean {
+    const result = this.shouldAnalyzeFile(filePath);
+    return result.shouldAnalyze;
   }
 
   /**
