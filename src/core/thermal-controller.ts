@@ -205,13 +205,9 @@ export class ThermalController {
   async checkTemperature(): Promise<TemperatureReading> {
     this.lastCheckTime = Date.now();
 
-    // If GPU is known to be unavailable, return safe CPU-only reading
+    // If GPU is known to be unavailable, monitor CPU/RAM instead
     if (this.gpuAvailable === false) {
-      return {
-        current: 0,
-        isSafe: true,
-        category: 'safe',
-      };
+      return this.checkTemperatureFallback();
     }
 
     try {
@@ -266,19 +262,66 @@ export class ThermalController {
 
         // GPU is not available - log once and switch to CPU-only mode
         if (this.gpuAvailable === null && !this.gpuAvailabilityLogged) {
-          console.log('[ThermalController] GPU not available (nvidia-smi failed). Switching to CPU-Only mode.');
+          console.log('[ThermalController] GPU monitoring not available, using CPU/RAM only');
           this.gpuAvailable = false;
           this.gpuAvailabilityLogged = true;
         }
 
-        // Return safe reading in CPU-only mode
-        return {
-          current: 0,
-          isSafe: true,
-          category: 'safe',
-        };
+        // Monitor CPU/RAM instead
+        return this.checkTemperatureFallback();
       }
-      // Return safe reading for unknown errors
+      // Monitor CPU/RAM for unknown errors
+      return this.checkTemperatureFallback();
+    }
+  }
+
+  /**
+   * Fallback temperature check using CPU/RAM monitoring when GPU is unavailable
+   *
+   * This method monitors CPU load and RAM usage via systeminformation to protect
+   * hardware when nvidia-smi is not available. It uses CPU/RAM thresholds to
+   * determine safety status.
+   *
+   * @private
+   * @returns Promise<TemperatureReading> - Temperature reading (simulated from CPU/RAM)
+   */
+  private async checkTemperatureFallback(): Promise<TemperatureReading> {
+    try {
+      const resources = await this.checkSystemResources();
+
+      // Simulate temperature based on CPU/RAM usage
+      // Higher CPU/RAM usage = higher simulated temperature
+      const simulatedTemp = Math.min(
+        Math.round((resources.cpuUsage + resources.ramUsage) / 2),
+        this.config.criticalThreshold - 1 // Never exceed critical in fallback
+      );
+
+      const reading: TemperatureReading = {
+        current: simulatedTemp,
+        isSafe: resources.isSafe,
+        category: resources.category,
+      };
+
+      // Check critical thresholds for CPU/RAM
+      if (!resources.isSafe && this.config.autoHalt) {
+        throw new Error(
+          `CRITICAL: System resources critical (CPU: ${resources.cpuUsage}%, RAM: ${resources.ramUsage}%). ` +
+          `Execution halted to prevent system instability.`
+        );
+      } else if (!resources.isSafe) {
+        console.warn(
+          `WARNING: System resources elevated (CPU: ${resources.cpuUsage}%, RAM: ${resources.ramUsage}%). ` +
+          `Consider applying cooldown.`
+        );
+      }
+
+      return reading;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('CRITICAL:')) {
+        throw error;
+      }
+
+      // If systeminformation also fails, return safe reading
       return {
         current: 0,
         isSafe: true,
@@ -603,11 +646,17 @@ export class ThermalController {
         // No NVIDIA GPU or nvidia-smi not available
         hasGPU = false;
         if (this.gpuAvailable === null && !this.gpuAvailabilityLogged) {
-          console.log('[ThermalController] GPU not available (nvidia-smi failed). Switching to CPU-Only mode.');
+          console.log('[ThermalController] GPU monitoring not available, using CPU/RAM only');
           this.gpuAvailable = false;
           this.gpuAvailabilityLogged = true;
         }
       }
+    }
+
+    // If GPU is not available, report "none detected"
+    if (!hasGPU) {
+      gpuModel = 'none detected';
+      gpuVRAM = undefined;
     }
 
     // Get CPU and RAM info
