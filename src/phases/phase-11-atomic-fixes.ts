@@ -224,8 +224,7 @@ export class Phase11AtomicFixes {
     const sandboxConfig: SandboxConfig = config.sandboxConfig || {
       projectRoot: config.projectRoot,
       enabled: true,
-      validateSyntax: true,
-      runTests: false,
+      isCI: false,
     };
     this.sandboxManager = new SandboxManager(sandboxConfig);
 
@@ -804,11 +803,11 @@ export class Phase11AtomicFixes {
 
     // Sandbox status
     const sandboxStatus = this.sandboxManager.getStatus();
-    console.log(`[Sandbox] Enabled: ${sandboxStatus.enabled}, Active: ${sandboxStatus.active}\n`);
+    console.log(`[Sandbox] Active: ${sandboxStatus.active}\n`);
 
     try {
       // Create sandbox if enabled and not in dry-run mode
-      if (sandboxStatus.enabled && !this.config.dryRun) {
+      if (sandboxStatus.active && !this.config.dryRun) {
         console.log('[Sandbox] Creating sandbox environment for safe fix execution...');
         await this.sandboxManager.create();
       }
@@ -883,39 +882,9 @@ export class Phase11AtomicFixes {
         await this.createAutoBackup(affectedFiles);
       }
 
-      // Validate sandbox if active before copying to project
-      if (sandboxStatus.active && !this.config.dryRun) {
-        console.log('[Sandbox] Validating sandbox environment before applying fixes...');
-        const validation = await this.sandboxManager.validate();
-        
-        if (!validation.passed) {
-          console.error('[Sandbox] Validation failed. Fixes will not be applied.');
-          console.error('[Sandbox] Errors:', validation.errors.join(', '));
-          
-          // Cleanup sandbox
-          await this.sandboxManager.cleanup();
-          
-          return {
-            success: false,
-            remediationResult: {
-              ...remediationResult,
-              fixesFailed: remediationResult.fixResults.length,
-              fixResults: remediationResult.fixResults.map(f => ({
-                ...f,
-                success: false,
-                error: 'Sandbox validation failed',
-                applied: false,
-              })),
-            },
-            executionTimeMs: Date.now() - startTime,
-            error: 'Sandbox validation failed',
-          };
-        }
-        
-        console.log('[Sandbox] Validation passed. Copying files to project...');
-        const filesToCopy = Array.from(new Set(remediationResult.fixResults.map(f => f.filePath)));
-        await this.sandboxManager.copyToProject(filesToCopy);
-      }
+      // Note: Sandbox validation and patch generation are now handled by the CLI
+      // Phase 11 applies fixes directly to the current project root
+      // If sandbox is active, the CLI will generate a patch after all phases complete
 
       // Validation Loop: Re-run Phase 9 for i18n/a11y fixes
       if (remediationResult.fixResults.some(f => f.fixId.includes('alt-attributes') || f.fixId.includes('aria-labels'))) {

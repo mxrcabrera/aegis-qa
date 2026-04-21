@@ -1501,8 +1501,7 @@ export class PhaseOrchestrator {
         sandboxConfig: {
           projectRoot: this.config.projectRoot,
           enabled: !this.config.safeOnly, // Disable sandbox in safe-only mode
-          validateSyntax: true,
-          runTests: false,
+          isCI: false,
         },
       });
 

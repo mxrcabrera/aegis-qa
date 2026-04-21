@@ -517,7 +517,7 @@ class AutoFixer {
 
       if (tailwindClasses.length > 0) {
         // Remove style attribute and add classes
-        let newLine = line.replace(styleMatch[0], "");
+        const newLine = line.replace(styleMatch[0], "");
         return this.mergeTailwindClasses(newLine, tailwindClasses);
       }
     }

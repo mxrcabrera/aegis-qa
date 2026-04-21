@@ -19,6 +19,7 @@ import { DomainAnalyzer } from './inference/domain-analyzer.js';
 import { PhaseOrchestrator } from './orchestration/phase-orchestrator.js';
 import { StatePersistence, type ExecutionState } from './core/state-persistence.js';
 import { GitCheckpointManager } from './core/git-checkpoint-manager.js';
+import { SandboxManager } from './core/sandbox-manager.js';
 import { ErrorMessages } from './core/error-messages.js';
 import { resolve, normalize } from 'path';
 import * as fs from 'fs';
@@ -35,6 +36,7 @@ interface CLIConfig {
   previewDiffs?: boolean;
   auditOnly?: boolean;
   interactiveFix?: boolean;
+  sandboxMode?: boolean;
 }
 
 class AegisCLI {
@@ -43,6 +45,7 @@ class AegisCLI {
   private currentState: ExecutionState | null = null;
   private sigintHandler: (() => void) | null = null;
   private gitCheckpointManager: GitCheckpointManager | null = null;
+  private sandboxManager: SandboxManager | null = null;
 
   constructor(config: CLIConfig) {
     this.config = config;
@@ -122,13 +125,29 @@ class AegisCLI {
       console.log(`­ƒôé Target Directory: ${resolve(targetDir)}\n`);
     }
 
+    // Initialize sandbox if enabled
+    let effectiveProjectRoot = resolve(targetDir);
+    if (this.config.sandboxMode) {
+      console.log('[Sandbox] Sandbox mode enabled');
+      this.sandboxManager = new SandboxManager({
+        projectRoot: resolve(targetDir),
+        enabled: true,
+        isCI: this.config.ciMode || false,
+      });
+      const sandboxResult = await this.sandboxManager.create();
+      if (sandboxResult.active) {
+        effectiveProjectRoot = sandboxResult.sandboxDir;
+        console.log(`[Sandbox] Using sandbox: ${effectiveProjectRoot}`);
+      }
+    }
+
     // Initialize core components
-    const thermalController = new ThermalController({}, resolve(targetDir));
+    const thermalController = new ThermalController({}, effectiveProjectRoot);
     const secretManager = new SecretManager({ mockMode: true });
     // Create report aggregator (will be updated with business risk findings after Phase 2)
-    const reportAggregator = new ReportAggregator({ projectRoot: resolve(targetDir) });
-    this.statePersistence = new StatePersistence(resolve(targetDir));
-    this.gitCheckpointManager = new GitCheckpointManager(resolve(targetDir));
+    const reportAggregator = new ReportAggregator({ projectRoot: effectiveProjectRoot });
+    this.statePersistence = new StatePersistence(effectiveProjectRoot);
+    this.gitCheckpointManager = new GitCheckpointManager(effectiveProjectRoot);
 
     // Initialize execution state
     this.currentState = this.statePersistence.createInitialState(20);
@@ -231,6 +250,22 @@ class AegisCLI {
         break;
     }
 
+    // Generate patch if sandbox is active
+    if (this.sandboxManager && this.config.sandboxMode) {
+      console.log('[Sandbox] Generating patch...');
+      const patchPath = await this.sandboxManager.generatePatch();
+      if (patchPath) {
+        console.log(`[Sandbox] Patch generated: ${patchPath}`);
+        console.log('[Sandbox] To apply: git apply .sentinel/patches/aegis-fixes-{timestamp}.patch');
+      }
+    }
+
+    // Cleanup sandbox
+    if (this.sandboxManager && this.config.sandboxMode) {
+      console.log('[Sandbox] Cleaning up...');
+      await this.sandboxManager.cleanup();
+    }
+
     // Clear state on successful completion
     if (this.statePersistence && this.currentState) {
       await this.statePersistence.clearState();
@@ -255,6 +290,12 @@ class AegisCLI {
         } else {
           console.error(`[SIGINT] Failed to restore from git checkpoint: ${restoreResult.error}`);
         }
+      }
+
+      // Cleanup sandbox if active
+      if (this.sandboxManager) {
+        console.log('[SIGINT] Cleaning up sandbox...');
+        await this.sandboxManager.cleanup();
       }
 
       if (this.statePersistence && this.currentState) {
@@ -399,12 +440,14 @@ OPTIONS:
   --yes, -y                     Skip confirmation prompts (use with --apply)
   --verbose, -v                 Enable verbose logging for debugging
   --ci                          CI mode (minimalist output, permissive thermal locks)
+  --sandbox                      Run in sandbox mode (isolated execution with patch generation)
   CI=true                       Set environment variable to enable CI mode
 
 SAFETY:
   By default, Aegis runs in dry-run mode. Use --apply to write changes.
   Auto-backup is created before applying any fixes.
   Interactive confirmation is required unless --yes is specified.
+  Sandbox mode creates a temporary copy and generates a patch for review.
 
 For more information, visit: https://github.com/mxrcabrera/aegis-qa
 `);
@@ -425,6 +468,7 @@ async function main() {
   const previewDiffs = args.includes('--preview-diffs');
   const auditOnly = args.includes('--audit-only');
   const interactiveFix = args.includes('--interactive-fix');
+  const sandboxMode = args.includes('--sandbox');
 
   // Security: Validate all input before proceeding
   try {
@@ -446,6 +490,7 @@ async function main() {
     previewDiffs,
     auditOnly,
     interactiveFix,
+    sandboxMode,
   });
 
   try {
