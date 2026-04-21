@@ -248,7 +248,8 @@ describe('GitCheckpointManager', () => {
     it('should handle very long checkpoint tags', async () => {
       const isInGitRepo = await manager.isInGitRepository();
       if (isInGitRepo) {
-        const longTag = 'a'.repeat(1000);
+        // Use a tag that's long but within Windows filename limits (max 255 chars)
+        const longTag = 'a'.repeat(200);
         try {
           await manager.createCheckpoint(longTag);
           // Should handle gracefully (either truncate or reject)
