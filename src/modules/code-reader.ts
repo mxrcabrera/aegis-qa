@@ -18,6 +18,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { glob } from 'glob';
+import { filterValidPaths } from '../core/filesystem-safety.js';
 import type {
   RouteAnalysisResult,
   FileMetadata,
@@ -267,12 +268,15 @@ export class CodeReader {
       allFiles.push(...files);
     }
 
+    // Symlink Protection: Filter out invalid paths
+    const safeFiles = filterValidPaths(allFiles, this.config.projectRoot);
+
     // Split into batches using currentBatchSize (for Smart Throttling)
     const batches: string[][] = [];
     const batchSize = this.currentBatchSize;
 
-    for (let i = 0; i < allFiles.length; i += batchSize) {
-      batches.push(allFiles.slice(i, i + batchSize));
+    for (let i = 0; i < safeFiles.length; i += batchSize) {
+      batches.push(safeFiles.slice(i, i + batchSize));
     }
 
     return batches;
