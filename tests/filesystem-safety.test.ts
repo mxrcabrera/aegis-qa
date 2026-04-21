@@ -39,7 +39,8 @@ describe('Filesystem Safety - Symlink Protection', () => {
       
       const result = resolveAndValidatePath('./src/index.ts', testProjectRoot);
       expect(result.isValid).toBe(true);
-      expect(result.resolvedPath).toContain('src/index.ts');
+      // Use path.sep for cross-platform compatibility
+      expect(result.resolvedPath).toContain(path.join('src', 'index.ts'));
       
       // Cleanup
       fs.unlinkSync(testFile);
