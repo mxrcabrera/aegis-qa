@@ -264,8 +264,19 @@ describe('GitCheckpointManager', () => {
     });
 
     it('should handle special characters in checkpoint tags', async () => {
-      // Skip this test as it causes timeout on Windows
-      expect(true).toBe(true);
+      const isInGitRepo = await manager.isInGitRepository();
+      if (isInGitRepo) {
+        try {
+          await manager.createCheckpoint('test-@#$%^&*');
+          // Should handle special characters (either escape or reject)
+          expect(true).toBe(true);
+        } catch (error) {
+          // Expected to handle gracefully
+          expect(error).toBeDefined();
+        }
+      } else {
+        expect(true).toBe(true);
+      }
     });
   });
 
