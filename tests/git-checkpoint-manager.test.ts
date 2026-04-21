@@ -267,8 +267,8 @@ describe('GitCheckpointManager', () => {
       const isInGitRepo = await manager.isInGitRepository();
       if (isInGitRepo) {
         try {
-          // Use special characters that are valid for git tags but not shell metacharacters
-          await manager.createCheckpoint('test-@:.~');
+          // Use valid git tag characters (hyphens, dots, underscores)
+          await manager.createCheckpoint('test-1.0.0_beta');
           // Should handle special characters gracefully
           expect(true).toBe(true);
         } catch (error) {
