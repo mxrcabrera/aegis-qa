@@ -773,143 +773,139 @@ export class ThermalController {
   }
 
   /**
-   * Runs self-diagnostic stress test to calibrate thresholds
+   * Runs a passive self-diagnostic baseline reading
    *
-   * This method performs a 5-second stress test to measure how fast
-   * temperature rises and automatically adjusts thresholds based on
-   * the observed thermal behavior.
+   * This method performs a passive baseline measurement by taking initial
+   * temperature/CPU/RAM readings, waiting without artificial load, then taking
+   * final readings. If the initial baseline is already in warning/critical zone,
+   * it adjusts thresholds conservatively without heating the machine further.
+   * This is informative and non-destructive.
    *
-   * @param durationMs - Stress test duration in milliseconds (default: 5000)
-   * @returns Promise<{pass: boolean, temperatureRiseRate: number, adjustedThresholds: boolean}>
+   * @param durationMs - Passive baseline duration in milliseconds (default: 2000)
+   * @returns Promise<{pass: boolean, temperatureRiseRate: number, adjustedThresholds: boolean, baseline}>
    *
    * @example
    * ```typescript
    * const result = await controller.runSelfDiagnostic();
    * console.log(`Diagnostic passed: ${result.pass}`);
-   * console.log(`Temperature rise rate: ${result.temperatureRiseRate}┬░C/s`);
+   * console.log(`Temperature change rate: ${result.temperatureRiseRate}┬░C/s`);
+   * console.log(`Baseline: ${JSON.stringify(result.baseline)}`);
    * ```
    */
-  async runSelfDiagnostic(durationMs: number = 5000): Promise<{
+  async runSelfDiagnostic(durationMs: number = 2000): Promise<{
     pass: boolean;
     temperatureRiseRate: number;
     adjustedThresholds: boolean;
+    baseline: {
+      initialTemp: number;
+      finalTemp: number;
+      initialCpuUsage: number;
+      initialRamUsage: number;
+      finalCpuUsage: number;
+      finalRamUsage: number;
+    };
   }> {
-    console.log(`[ThermalController] Running self-diagnostic stress test (${durationMs}ms)...`);
+    console.log(`[ThermalController] Running passive self-diagnostic (baseline reading over ${durationMs}ms)...`);
 
     let temperatureRiseRate = 0;
     let adjustedThresholds = false;
 
     try {
-      // Get initial temperature
+      // Get initial temperature and system resources
       const initialReading = await this.checkTemperature();
       const initialTemp = initialReading.current;
-      console.log(`[ThermalController] Initial temperature: ${initialTemp}┬░C`);
+      const initialResources = await this.checkSystemResources();
+      const initialCpuUsage = initialResources.cpuUsage;
+      const initialRamUsage = initialResources.ramUsage;
 
-      // Simulate stress (CPU-intensive operation)
-      const startTime = Date.now();
-      
-      while (Date.now() - startTime < durationMs) {
-        // CPU-intensive calculation
-        let sum = 0;
-        for (let i = 0; i < 1000; i++) {
-          sum += Math.sqrt(i) * Math.random();
-        }
+      console.log(`[ThermalController] Initial baseline - Temp: ${initialTemp}┬░C, CPU: ${initialCpuUsage}%, RAM: ${initialRamUsage}%`);
+
+      // Check if initial reading is already in warning zone
+      if (initialReading.category === 'warning' || initialResources.category === 'warning') {
+        console.warn('[ThermalController] Initial baseline already in warning zone, adjusting thresholds conservatively');
+        this.config.criticalThreshold = Math.max(60, this.config.criticalThreshold - 5);
+        this.config.warningThreshold = Math.max(50, this.config.warningThreshold - 5);
+        this.config.cpuCriticalThreshold = Math.max(80, this.config.cpuCriticalThreshold - 5);
+        this.config.cpuWarningThreshold = Math.max(70, this.config.cpuWarningThreshold - 5);
+        this.config.ramCriticalThreshold = Math.max(85, this.config.ramCriticalThreshold - 5);
+        this.config.ramWarningThreshold = Math.max(75, this.config.ramWarningThreshold - 5);
+        adjustedThresholds = true;
+      } else if (initialReading.category === 'critical' || initialResources.category === 'critical') {
+        console.warn('[ThermalController] Initial baseline in critical zone, using maximum conservative settings');
+        this.config.criticalThreshold = 60;
+        this.config.warningThreshold = 50;
+        this.config.cpuCriticalThreshold = 75;
+        this.config.cpuWarningThreshold = 65;
+        this.config.ramCriticalThreshold = 80;
+        this.config.ramWarningThreshold = 70;
+        adjustedThresholds = true;
       }
 
-      // Get final temperature
+      // Wait passively (no artificial load)
+      console.log(`[ThermalController] Waiting ${durationMs}ms for passive baseline measurement...`);
+      await new Promise<void>((resolve) => setTimeout(resolve, durationMs));
+
+      // Get final temperature and system resources
       const finalReading = await this.checkTemperature();
       const finalTemp = finalReading.current;
-      console.log(`[ThermalController] Final temperature: ${finalTemp}┬░C`);
+      const finalResources = await this.checkSystemResources();
+      const finalCpuUsage = finalResources.cpuUsage;
+      const finalRamUsage = finalResources.ramUsage;
+
+      console.log(`[ThermalController] Final baseline - Temp: ${finalTemp}┬░C, CPU: ${finalCpuUsage}%, RAM: ${finalRamUsage}%`);
 
       // Calculate temperature rise rate
       const tempRise = finalTemp - initialTemp;
       temperatureRiseRate = (tempRise / (durationMs / 1000));
-      console.log(`[ThermalController] Temperature rise rate: ${temperatureRiseRate.toFixed(2)}┬░C/s`);
+      console.log(`[ThermalController] Temperature change rate: ${temperatureRiseRate.toFixed(2)}┬░C/s`);
 
-      // Adjust thresholds based on observed behavior
-      if (temperatureRiseRate > 2.0) {
-        // Fast temperature rise - reduce thresholds
-        console.warn('[ThermalController] Fast temperature rise detected, adjusting thresholds conservatively');
+      // Adjust thresholds based on observed passive behavior
+      if (!adjustedThresholds && temperatureRiseRate > 1.0) {
+        // Fast temperature rise even without load - reduce thresholds
+        console.warn('[ThermalController] Fast temperature rise detected without load, adjusting thresholds conservatively');
         this.config.criticalThreshold = Math.max(60, this.config.criticalThreshold - 5);
         this.config.warningThreshold = Math.max(50, this.config.warningThreshold - 5);
         adjustedThresholds = true;
-      } else if (temperatureRiseRate < 0.5) {
-        // Slow temperature rise - can use higher thresholds
-        console.log('[ThermalController] Slow temperature rise detected, thresholds are appropriate');
+      } else if (!adjustedThresholds && temperatureRiseRate < 0.1) {
+        // Very slow temperature rise - system is stable
+        console.log('[ThermalController] System thermal behavior is stable, thresholds are appropriate');
       }
 
-      // Apply cooldown after stress test
-      await this.applyCooldown(10000);
+      const baseline = {
+        initialTemp,
+        finalTemp,
+        initialCpuUsage,
+        initialRamUsage,
+        finalCpuUsage,
+        finalRamUsage,
+      };
 
-      // Verify cleanup after stress test
-      const cleanupVerified = await this.verifyStressTestCleanup();
-      console.log(`[Security] Stress test cleanup verification: ${cleanupVerified ? 'PASSED' : 'FAILED'}`);
-
-      // Trigger memory cleanup
-      if (typeof (global as any).gc === 'function') {
-        console.log('[Security] Triggering garbage collection after stress test');
-        (global as any).gc();
-      }
-
-      // Log cleanup audit
-      console.log('[Security Audit] Stress test completed and cleaned up successfully');
+      console.log('[ThermalController] Passive self-diagnostic completed successfully');
 
       return {
-        pass: finalTemp < this.config.criticalThreshold,
+        pass: finalTemp < this.config.criticalThreshold && finalResources.isSafe,
         temperatureRiseRate,
         adjustedThresholds,
+        baseline,
       };
     } catch (error) {
       console.error('[ThermalController] Self-diagnostic failed:', error instanceof Error ? error.message : error);
-
-      // Attempt cleanup even on failure
-      try {
-        await this.verifyStressTestCleanup();
-        if (typeof (global as any).gc === 'function') {
-          (global as any).gc();
-        }
-      } catch (cleanupError) {
-        console.error('[Security] Cleanup failed after diagnostic error:', cleanupError);
-      }
 
       // If diagnostic fails, use conservative defaults
       return {
         pass: true, // Don't halt execution on diagnostic failure
         temperatureRiseRate: 0,
         adjustedThresholds: false,
+        baseline: {
+          initialTemp: 0,
+          finalTemp: 0,
+          initialCpuUsage: 0,
+          initialRamUsage: 0,
+          finalCpuUsage: 0,
+          finalRamUsage: 0,
+        },
       };
     }
   }
 
-  /**
-   * Verifies cleanup after stress test
-   *
-   * @private
-   * @returns Promise<boolean> - True if cleanup verified
-   */
-  private async verifyStressTestCleanup(): Promise<boolean> {
-    try {
-      // Check memory usage
-      const memoryUsage = process.memoryUsage();
-      const heapUsedMB = memoryUsage.heapUsed / (1024 * 1024);
-
-      // Check for orphaned resources (placeholder - would need actual resource tracking)
-      const hasOrphanedResources = false; // In a real implementation, this would check for orphaned resources
-
-      // Verify temperature has cooled down
-      const tempReading = await this.checkTemperature();
-      const tempCooled = tempReading.current < this.config.warningThreshold;
-
-      const cleanupValid = tempCooled && !hasOrphanedResources;
-
-      if (!cleanupValid) {
-        console.warn(`[Security] Cleanup verification failed - Heap: ${heapUsedMB.toFixed(2)}MB, Temp: ${tempReading.current}°C`);
-      }
-
-      return cleanupValid;
-    } catch (error) {
-      console.error('[Security] Cleanup verification error:', error);
-      return false;
-    }
-  }
 }
