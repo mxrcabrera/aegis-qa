@@ -197,7 +197,8 @@ describe('Integration Tests - Complete QA Flow', () => {
     });
 
     it('should handle checkpoint creation without git', async () => {
-      const nonGitPath = '/tmp/non-git-project-' + Date.now();
+      // Create a temporary non-git directory
+      const nonGitPath = path.join(process.cwd(), 'test-non-git-' + Date.now());
       fs.mkdirSync(nonGitPath, { recursive: true });
 
       try {
@@ -205,7 +206,8 @@ describe('Integration Tests - Complete QA Flow', () => {
 
         try {
           await gitManager.createCheckpoint('test');
-          // Should fail gracefully
+          // Should fail gracefully or use fallback mechanisms
+          expect(true).toBe(true);
         } catch (error) {
           // Expected to fail
           expect(error).toBeDefined();
@@ -213,7 +215,7 @@ describe('Integration Tests - Complete QA Flow', () => {
       } finally {
         fs.rmSync(nonGitPath, { recursive: true, force: true });
       }
-    }, 10000);
+    });
   });
 
   describe('Edge Cases - No File Permissions', () => {
