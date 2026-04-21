@@ -22,6 +22,7 @@ import { GitCheckpointManager } from './core/git-checkpoint-manager.js';
 import { ErrorMessages } from './core/error-messages.js';
 import { resolve, normalize } from 'path';
 import * as fs from 'fs';
+import { FileSystem, setFileSystem, type WriteGuardMode } from './core/write-guard.js';
 
 interface CLIConfig {
   command: 'review' | 'fix' | 'incremental' | 'help';
@@ -36,6 +37,7 @@ interface CLIConfig {
   auditOnly?: boolean;
   interactiveFix?: boolean;
   sandboxMode?: boolean;
+  noWriteMode?: boolean;
 }
 
 class AegisCLI {
@@ -110,6 +112,15 @@ class AegisCLI {
 
   async run(): Promise<void> {
     const { command, targetDir } = this.config;
+
+    // Initialize FileSystem with write guard
+    const fsMode: WriteGuardMode = this.config.noWriteMode ? 'readOnly' : 'readWrite';
+    const fileSystem = new FileSystem(fsMode);
+    setFileSystem(fileSystem);
+
+    if (this.config.noWriteMode) {
+      console.log('[WriteGuard] Read-only mode enabled - all filesystem writes are blocked at infrastructure level');
+    }
 
     // Security: Enforce dry-run mode by default
     const isApplyMode = this.config.applyMode === true;
@@ -402,6 +413,7 @@ OPTIONS:
   --verbose, -v                 Enable verbose logging for debugging
   --ci                          CI mode (minimalist output, permissive thermal locks)
   --sandbox                     Run in isolated sandbox mode (generates patch file)
+  --no-write                    Enable read-only mode (blocks all filesystem writes at infrastructure level)
   CI=true                       Set environment variable to enable CI mode
 
 SAFETY:
@@ -430,6 +442,7 @@ async function main() {
   const auditOnly = args.includes('--audit-only');
   const interactiveFix = args.includes('--interactive-fix');
   const sandboxMode = args.includes('--sandbox');
+  const noWriteMode = args.includes('--no-write');
 
   // Security: Validate all input before proceeding
   try {
@@ -452,6 +465,7 @@ async function main() {
     auditOnly,
     interactiveFix,
     sandboxMode,
+    noWriteMode,
   });
 
   try {

@@ -15,8 +15,8 @@
  * @since 1.0.0
  */
 
-import * as fs from 'fs';
 import * as path from 'path';
+import { getFileSystem } from '../core/write-guard.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { validatePath, sanitizeError } from '../core/security-utils.js';
@@ -274,16 +274,28 @@ export class Phase20IntelligentROIReport {
    */
   private generateReport(roi: any): string {
     const reportPath = path.join(this.config.projectRoot, 'qa-report.md');
-    
+
     // Generate report content
     let report = this.generateReportContent(roi);
-    
+
     // Apply Self-Destruct Secure Mode (censor secrets)
     report = this.censorSecrets(report);
-    
+
+    // Check if file system is in read-only mode (no-write mode)
+    const fileSystem = getFileSystem();
+    if (!fileSystem.isWriteAllowed()) {
+      // Output to stdout instead of writing to file
+      console.log('\n' + '='.repeat(60));
+      console.log('QA REPORT (Read-Only Mode)');
+      console.log('='.repeat(60));
+      console.log(report);
+      console.log('='.repeat(60) + '\n');
+      return '<stdout>';
+    }
+
     // Write report
-    fs.writeFileSync(reportPath, report, 'utf-8');
-    
+    fileSystem.writeFileSync(reportPath, report, 'utf-8');
+
     return reportPath;
   }
 

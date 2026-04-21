@@ -1,4 +1,4 @@
-﻿/**
+/**
  * StatePersistence - Black Box for Progress Tracking
  *
  * Purpose: Save and restore execution state to enable resume capability after
@@ -20,6 +20,7 @@ import * as path from 'path';
 import { resolve } from 'path';
 import * as crypto from 'crypto';
 import { resolveAndValidatePath } from './filesystem-safety.js';
+import { getFileSystem } from './write-guard.js';
 
 /**
  * Phase execution state
@@ -180,7 +181,7 @@ export class StatePersistence {
     try {
       // Ensure backup directory exists
       if (!fs.existsSync(this.backupDir)) {
-        fs.mkdirSync(this.backupDir, { recursive: true });
+        getFileSystem().mkdirSync(this.backupDir, { recursive: true });
       }
 
       if (!fs.existsSync(this.stateFilePath)) {
@@ -193,7 +194,7 @@ export class StatePersistence {
       const backupFilePath = path.join(this.backupDir, backupFileName);
 
       // Copy current state to backup
-      fs.copyFileSync(this.stateFilePath, backupFilePath);
+      getFileSystem().copyFileSync(this.stateFilePath, backupFilePath);
 
       // Clean up old backups (keep only maxBackups)
       const backups = fs.readdirSync(this.backupDir)
@@ -204,7 +205,7 @@ export class StatePersistence {
         const oldBackup = backups.shift();
         if (oldBackup) {
           const oldBackupPath = path.join(this.backupDir, oldBackup);
-          fs.unlinkSync(oldBackupPath);
+          getFileSystem().unlinkSync(oldBackupPath);
         }
       }
 
@@ -334,7 +335,7 @@ export class StatePersistence {
       }
 
       // Write to temp file
-      fs.writeFileSync(tmpFilePath, stateJsonWithChecksum, 'utf-8');
+      getFileSystem().writeFileSync(tmpFilePath, stateJsonWithChecksum, 'utf-8');
       
       // Validate the temp file is valid JSON
       if (!this.isValidJSON(stateJsonWithChecksum)) {
@@ -349,7 +350,7 @@ export class StatePersistence {
       }
 
       // Atomic rename (this is the actual commit point)
-      fs.renameSync(tmpFilePath, this.stateFilePath);
+      getFileSystem().renameSync(tmpFilePath, this.stateFilePath);
       
       console.log(`[StatePersistence] State saved to ${this.stateFilePath} (checksum: ${checksum.substring(0, 16)}...)`);
     } catch (error) {
@@ -359,7 +360,7 @@ export class StatePersistence {
       const tmpFilePath = this.stateFilePath + '.tmp';
       if (fs.existsSync(tmpFilePath)) {
         try {
-          fs.unlinkSync(tmpFilePath);
+          getFileSystem().unlinkSync(tmpFilePath);
         } catch {
           // Ignore cleanup error
         }
@@ -478,7 +479,7 @@ export class StatePersistence {
   async clearState(): Promise<void> {
     try {
       if (fs.existsSync(this.stateFilePath)) {
-        fs.unlinkSync(this.stateFilePath);
+        getFileSystem().unlinkSync(this.stateFilePath);
         console.log(`[StatePersistence] State cleared from ${this.stateFilePath}`);
       }
     } catch (error) {

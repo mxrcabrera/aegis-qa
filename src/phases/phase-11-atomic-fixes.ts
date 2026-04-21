@@ -26,6 +26,7 @@ import { OperationGuard, type OperationGuardConfig } from '../core/operation-gua
 import { FileWhitelist, type FileWhitelistConfig } from '../core/file-whitelist.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getFileSystem } from '../core/write-guard.js';
 import * as readline from 'readline';
 
 /**
@@ -702,7 +703,7 @@ export class Phase11AtomicFixes {
 
     try {
       if (!fs.existsSync(auditDir)) {
-        fs.mkdirSync(auditDir, { recursive: true });
+        getFileSystem().mkdirSync(auditDir, { recursive: true });
       }
 
       const auditData = {
@@ -712,7 +713,7 @@ export class Phase11AtomicFixes {
         events: this.auditLog,
       };
 
-      fs.writeFileSync(auditFilePath, JSON.stringify(auditData, null, 2), 'utf-8');
+      getFileSystem().writeFileSync(auditFilePath, JSON.stringify(auditData, null, 2), 'utf-8');
       console.log(`[AUDIT] Audit log written to: ${auditFilePath}`);
     } catch (error) {
       console.error(`[AUDIT] Failed to write audit log: ${error}`);
@@ -760,10 +761,10 @@ export class Phase11AtomicFixes {
 
     try {
       if (!fs.existsSync(backupDir)) {
-        fs.mkdirSync(backupDir, { recursive: true });
+        getFileSystem().mkdirSync(backupDir, { recursive: true });
       }
 
-      fs.mkdirSync(backupPath, { recursive: true });
+      getFileSystem().mkdirSync(backupPath, { recursive: true });
 
       for (const filePath of filePaths) {
         const relativePath = path.relative(this.config.projectRoot, filePath);
@@ -771,11 +772,11 @@ export class Phase11AtomicFixes {
         const backupFileDir = path.dirname(backupFilePath);
 
         if (!fs.existsSync(backupFileDir)) {
-          fs.mkdirSync(backupFileDir, { recursive: true });
+          getFileSystem().mkdirSync(backupFileDir, { recursive: true });
         }
 
         if (fs.existsSync(filePath)) {
-          fs.copyFileSync(filePath, backupFilePath);
+          getFileSystem().copyFileSync(filePath, backupFilePath);
         }
       }
 
@@ -1211,7 +1212,7 @@ export class Phase11AtomicFixes {
       
       // Apply fix with traceability comment
       const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
-      fs.writeFileSync(filePath, contentWithTraceability, 'utf-8');
+      getFileSystem().writeFileSync(filePath, contentWithTraceability, 'utf-8');
       result.applied = true;
       
       console.log(`  ✅ Applied fix ${fixId} to ${filePath}`);
@@ -1336,7 +1337,7 @@ export class Phase11AtomicFixes {
       
       // Apply fix with traceability comment
       const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
-      fs.writeFileSync(filePath, contentWithTraceability, 'utf-8');
+      getFileSystem().writeFileSync(filePath, contentWithTraceability, 'utf-8');
       result.applied = true;
       
       console.log(`  ✅ Applied fix ${fixId} to ${filePath}`);
@@ -1557,7 +1558,7 @@ export class Phase11AtomicFixes {
       
       // Apply fix with traceability comment
       const contentWithTraceability = this.addTraceabilityComment(newContent, fixId, originalViolationId);
-      fs.writeFileSync(filePath, contentWithTraceability, 'utf-8');
+      getFileSystem().writeFileSync(filePath, contentWithTraceability, 'utf-8');
       result.applied = true;
       
       console.log(`  ✅ Applied fix ${fixId} to ${filePath}`);
@@ -1592,7 +1593,7 @@ export class Phase11AtomicFixes {
     const sentinelDir = path.join(this.config.projectRoot, '.sentinel', 'diffs');
     
     if (!fs.existsSync(sentinelDir)) {
-      fs.mkdirSync(sentinelDir, { recursive: true });
+      getFileSystem().mkdirSync(sentinelDir, { recursive: true });
     }
 
     const patchFilePath = path.join(sentinelDir, `fix-${fixId}.patch`);
@@ -1600,7 +1601,7 @@ export class Phase11AtomicFixes {
     // Generate unified diff format
     const patchContent = this.generateUnifiedDiff(filePath, originalContent, newContent);
     
-    fs.writeFileSync(patchFilePath, patchContent, 'utf-8');
+    getFileSystem().writeFileSync(patchFilePath, patchContent, 'utf-8');
     
     return patchFilePath;
   }
@@ -1801,7 +1802,7 @@ export class Phase11AtomicFixes {
   private async createBackup(filePath: string, content: string): Promise<string> {
     const backupDir = path.join(this.config.projectRoot, '.aegis-cache', 'backups');
     if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
+      getFileSystem().mkdirSync(backupDir, { recursive: true });
     }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -1811,7 +1812,7 @@ export class Phase11AtomicFixes {
     const originalChecksumInfo = await FileIntegrityChecker.calculateChecksum(filePath);
 
     // Write backup
-    fs.writeFileSync(backupPath, content, 'utf-8');
+    getFileSystem().writeFileSync(backupPath, content, 'utf-8');
 
     // Verify backup was created successfully
     if (!fs.existsSync(backupPath)) {
