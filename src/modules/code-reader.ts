@@ -268,6 +268,9 @@ export class CodeReader {
       allFiles.push(...files);
     }
 
+    // Sort for deterministic execution
+    allFiles.sort();
+
     // Symlink Protection: Filter out invalid paths
     const safeFiles = filterValidPaths(allFiles, this.config.projectRoot);
 

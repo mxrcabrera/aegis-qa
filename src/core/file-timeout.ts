@@ -3,12 +3,14 @@
  *
  * Purpose: Prevent hangs on large or problematic files by enforcing
  * a timeout on individual file analysis operations. If a file takes
- * longer than the configured timeout, it is skipped and a timeout
+ * longer than the configured timeout, it is aborted and a timeout
  * violation is added to the report.
  *
  * @module core/file-timeout
  * @since 2.0.0
  */
+
+import * as crypto from 'crypto';
 
 /**
  * Result of a file analysis with timeout
@@ -103,6 +105,18 @@ export async function runWithFileTimeout<T>(
 }
 
 /**
+ * Generates a deterministic hash for violation IDs based on file path and timeout
+ *
+ * @param filePath - The file path
+ * @param timeoutMs - The timeout duration
+ * @returns string - Deterministic hash
+ */
+function generateDeterministicId(filePath: string, timeoutMs: number): string {
+  const hashInput = `${filePath}:${timeoutMs}`;
+  return crypto.createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
+}
+
+/**
  * Creates a timeout violation for the report
  *
  * @param filePath - Path of the file that timed out
@@ -111,7 +125,7 @@ export async function runWithFileTimeout<T>(
  */
 export function createTimeoutViolation(filePath: string, timeoutMs: number) {
   return {
-    id: `TIMEOUT-${Date.now()}`,
+    id: `TIMEOUT-${generateDeterministicId(filePath, timeoutMs)}`,
     type: 'timeout' as const,
     severity: 'warning' as const,
     file: {

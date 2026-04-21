@@ -10,6 +10,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { resolveAndValidatePath } from '../core/filesystem-safety.js';
 
 export interface Fix {
@@ -49,6 +50,20 @@ export class AtomicFixer {
   private interactiveMode: boolean;
   private dryRun: boolean;
 
+  /**
+   * Generates a deterministic hash for fix IDs based on content, file, and line
+   *
+   * @private
+   * @param content - The content being fixed
+   * @param file - The file path
+   * @param line - The line number
+   * @returns string - Deterministic hash
+   */
+  private generateDeterministicId(content: string, file: string, line?: number): string {
+    const hashInput = `${file}:${line || 0}:${content}`;
+    return crypto.createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
+  }
+
   constructor(projectRoot: string, interactiveMode: boolean = true, dryRun: boolean = false) {
     this.projectRoot = projectRoot;
     this.interactiveMode = interactiveMode;
@@ -74,6 +89,16 @@ export class AtomicFixer {
     // Generate fixes based on violations
     const fixes = await this.generateFixes(violations, domainModel);
     results.totalFixes = fixes.length;
+
+    // Sort fixes by file → line (descending) for deterministic execution
+    // Fixes on higher lines must be applied first to avoid offset displacement
+    fixes.sort((a, b) => {
+      const fileCompare = a.file.localeCompare(b.file);
+      if (fileCompare !== 0) return fileCompare;
+      
+      // Descending order for line numbers
+      return (b.line || 0) - (a.line || 0);
+    });
 
     for (const fix of fixes) {
       const result = await this.applyFix(fix);
@@ -146,7 +171,6 @@ export class AtomicFixer {
    * Generate i18n/a11y fix
    */
   private async generateI18nFix(violation: any): Promise<Fix | null> {
-    const fixId = `i18n-${Date.now()}`;
     const filePath = violation.file?.path || '';
     const violationId = violation.id || '';
 
@@ -156,13 +180,12 @@ export class AtomicFixer {
 
     const content = fs.readFileSync(filePath, 'utf-8');
     const lines = content.split('\n');
-    const lineIndex = violation.location?.line ? violation.location.line - 1 : -1;
+    const lineIndex = violation.location?.line ? violation.location.line - 1 : 0;
+    const line = lines[lineIndex] || '';
 
-    if (lineIndex < 0 || lineIndex >= lines.length) {
-      return null;
-    }
+    // Generate deterministic ID based on content, file, and line
+    const fixId = `i18n-${this.generateDeterministicId(line, filePath, violation.location?.line)}`;
 
-    const line = lines[lineIndex];
     let proposedContent = line;
     let description = '';
 
@@ -203,9 +226,12 @@ export class AtomicFixer {
    * Generate environment fix
    */
   private async generateEnvironmentFix(violation: any): Promise<Fix | null> {
-    const fixId = `env-${Date.now()}`;
     const violationId = violation.id || '';
     const envExamplePath = path.join(this.projectRoot, '.env.example');
+    const envContent = this.generateEnvExampleContent();
+
+    // Generate deterministic ID based on content and file
+    const fixId = `env-${this.generateDeterministicId(envContent, envExamplePath)}`;
 
     // If .env.example doesn't exist, create it
     if (!fs.existsSync(envExamplePath)) {
@@ -217,7 +243,7 @@ export class AtomicFixer {
         file: envExamplePath,
         description: 'Create .env.example with detected environment variables',
         originalContent: '',
-        proposedContent: this.generateEnvExampleContent(),
+        proposedContent: envContent,
         autoApply: true,
         requiresConfirmation: false,
         isCorePath: false
@@ -232,7 +258,6 @@ export class AtomicFixer {
    * Generate clean code fix
    */
   private async generateCleanCodeFix(violation: any): Promise<Fix | null> {
-    const fixId = `clean-code-${Date.now()}`;
     const filePath = violation.file?.path || '';
     const violationId = violation.id || '';
 
@@ -249,6 +274,9 @@ export class AtomicFixer {
     }
 
     const line = lines[lineIndex];
+
+    // Generate deterministic ID based on content, file, and line
+    const fixId = `clean-code-${this.generateDeterministicId(line, filePath, violation.location?.line)}`;
     
     // Extract function signature
     const funcMatch = line.match(/function\s+(\w+)\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*=>/);

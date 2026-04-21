@@ -613,7 +613,8 @@ export class StyleAuditor {
       allFiles.push(...files);
     }
 
-    return allFiles;
+    // Sort for deterministic execution
+    return allFiles.sort();
   }
 
   /**

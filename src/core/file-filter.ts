@@ -421,7 +421,8 @@ export class FileFilter {
       }
     }
 
-    return filtered;
+    // Return sorted results for deterministic execution
+    return filtered.sort();
   }
 
   /**

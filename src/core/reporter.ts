@@ -215,7 +215,17 @@ export class ReportAggregator {
     for (const violations of this.violations.values()) {
       all.push(...violations);
     }
-    return all;
+
+    // Sort for deterministic execution: file → line → column
+    return all.sort((a, b) => {
+      const fileCompare = a.file.path.localeCompare(b.file.path);
+      if (fileCompare !== 0) return fileCompare;
+      
+      const lineCompare = a.location.line - b.location.line;
+      if (lineCompare !== 0) return lineCompare;
+      
+      return (a.location.column || 0) - (b.location.column || 0);
+    });
   }
 
   /**

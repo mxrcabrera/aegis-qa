@@ -217,6 +217,9 @@ export class DomainAnalyzer {
         absolute: true,
       });
 
+      // Sort for deterministic execution
+      files.sort();
+
       for (const file of files) {
         this.sourceFiles.push(file);
 
@@ -247,6 +250,9 @@ export class DomainAnalyzer {
         cwd: this.config.projectRoot,
         absolute: true,
       });
+
+      // Sort for deterministic execution
+      files.sort();
 
       for (const file of files) {
         this.sourceFiles.push(file);
