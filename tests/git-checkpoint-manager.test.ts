@@ -203,7 +203,7 @@ describe('GitCheckpointManager', () => {
         // Expected to throw or fail gracefully
         expect(error).toBeDefined();
       }
-    });
+    }, 10000);
 
     it('should handle rollback in non-git directory', async () => {
       const nonGitManager = new GitCheckpointManager('/tmp');

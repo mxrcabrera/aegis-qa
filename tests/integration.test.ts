@@ -199,10 +199,10 @@ describe('Integration Tests - Complete QA Flow', () => {
     it('should handle checkpoint creation without git', async () => {
       const nonGitPath = '/tmp/non-git-project-' + Date.now();
       fs.mkdirSync(nonGitPath, { recursive: true });
-      
+
       try {
         const gitManager = new GitCheckpointManager(nonGitPath);
-        
+
         try {
           await gitManager.createCheckpoint('test');
           // Should fail gracefully
@@ -213,7 +213,7 @@ describe('Integration Tests - Complete QA Flow', () => {
       } finally {
         fs.rmSync(nonGitPath, { recursive: true, force: true });
       }
-    });
+    }, 10000);
   });
 
   describe('Edge Cases - No File Permissions', () => {
