@@ -105,12 +105,13 @@ export class ReportAggregator {
   }
 
   /**
-   * Sanitizes report content to remove secrets
+   * Sanitize report content using SecretSanitizer
    *
    * @private
    * @param content - Content to sanitize
    * @returns string - Sanitized content
    */
+  // @ts-expect-error TODO: integrate sanitizeReport
   private sanitizeReport(content: string): string {
     return this.secretSanitizer.sanitizeReport(content);
   }

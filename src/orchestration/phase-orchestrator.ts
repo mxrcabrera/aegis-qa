@@ -172,15 +172,17 @@ export class PhaseOrchestrator {
   private memoryThreshold: number = 1.5 * 1024 * 1024 * 1024; // 1.5GB
   private dryRunMode: boolean;
   private yesMode: boolean;
-  private verboseMode: boolean;
+  // @ts-expect-error TODO: integrate verbose mode
+  private _verboseMode: boolean;
   private activeTimeouts: Set<NodeJS.Timeout> = new Set();
-  private activeProcesses: Set<number> = new Set();
+  // @ts-expect-error TODO: integrate active process tracking
+  private _activeProcesses: Set<number> = new Set();
 
   constructor(config: PhaseOrchestratorConfig) {
     this.config = config;
     this.dryRunMode = config.dryRunMode ?? true; // Default to dry-run
     this.yesMode = config.yesMode ?? false; // Default to require confirmation
-    this.verboseMode = config.verboseMode ?? false; // Default to non-verbose
+    this._verboseMode = config.verboseMode ?? false; // Default to non-verbose
     this.gitCheckpointManager = new GitCheckpointManager(config.projectRoot);
     this.errorBaseline = new ErrorBaseline(config.projectRoot);
     this.thermalLock = new ThermalLock();

@@ -303,7 +303,7 @@ export class SandboxManager {
     console.log('[Sandbox] Running tests...');
 
     try {
-      const { stdout, stderr } = await execAsync('npm test', {
+      const { stderr } = await execAsync('npm test', {
         cwd: this.sandboxDir,
         timeout: 120000,
       });
