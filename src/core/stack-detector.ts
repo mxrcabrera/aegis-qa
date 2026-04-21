@@ -15,11 +15,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Allowed file system operations for security
- */
-const ALLOWED_FS_OPERATIONS = ['readFile', 'readFileSync', 'existsSync', 'readdirSync', 'statSync'];
-
-/**
  * Blocked patterns that could indicate code execution attempts
  */
 const BLOCKED_PATTERNS = [

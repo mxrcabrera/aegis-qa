@@ -16,10 +16,6 @@ import { RetryHelper } from './retry-helper.js';
 import { FileIntegrityChecker } from './file-integrity-checker.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
 
 /**
  * Git checkpoint information

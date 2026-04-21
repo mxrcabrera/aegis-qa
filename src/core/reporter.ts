@@ -16,7 +16,6 @@
 
 import type { Violation } from '../types/audit.js';
 import { ErrorBaseline, type TSCError } from './error-baseline.js';
-import { SecretSanitizer } from './secret-sanitizer.js';
 
 /**
  * Aggregated report results
@@ -82,7 +81,6 @@ export class ReportAggregator {
   private businessDomain: string = 'General';
   private errorBaseline: ErrorBaseline | null = null;
   private baselineEstablished: boolean = false;
-  private secretSanitizer: SecretSanitizer;
 
   /**
    * Creates a new ReportAggregator instance
@@ -101,18 +99,6 @@ export class ReportAggregator {
         ]),
       projectRoot: config.projectRoot ?? '.',
     };
-    this.secretSanitizer = new SecretSanitizer();
-  }
-
-  /**
-   * Sanitizes report content to remove secrets
-   *
-   * @private
-   * @param content - Content to sanitize
-   * @returns string - Sanitized content
-   */
-  private sanitizeReport(content: string): string {
-    return this.secretSanitizer.sanitizeReport(content);
   }
 
   /**
