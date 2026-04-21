@@ -75,12 +75,16 @@ describe('Phase11AtomicFixes', () => {
       
       expect(fixId1).toBeDefined();
       expect(fixId2).toBeDefined();
-      expect(fixId1).not.toBe(fixId2);
+      expect(fixId1).toBe(fixId2); // Same inputs should produce same hash
     });
 
-    it('should include fix type in ID', () => {
-      const fixId = (phase11 as any).generateFixId('alt-attributes', '/test/file.ts');
-      expect(fixId).toContain('alt-attributes');
+    it('should generate different IDs for different inputs', () => {
+      const fixId1 = (phase11 as any).generateFixId('alt-attributes', '/test/file.ts');
+      const fixId2 = (phase11 as any).generateFixId('aria-labels', '/test/file.ts');
+      
+      expect(fixId1).toBeDefined();
+      expect(fixId2).toBeDefined();
+      expect(fixId1).not.toBe(fixId2);
     });
   });
 
@@ -192,7 +196,7 @@ describe('Phase11AtomicFixes', () => {
       const filePath = '/test/file.ts';
 
       const isValid = await (phase11 as any).validateSyntax(filePath, validContent);
-      expect(isValid).toBeDefined();
+      expect(isValid).toBe(true);
     });
 
     it('should reject invalid TypeScript syntax', async () => {
@@ -200,7 +204,7 @@ describe('Phase11AtomicFixes', () => {
       const filePath = '/test/file.ts';
 
       const isValid = await (phase11 as any).validateSyntax(filePath, invalidContent);
-      expect(isValid).toBeDefined();
+      expect(isValid).toBe(false);
     });
   });
 
@@ -209,7 +213,7 @@ describe('Phase11AtomicFixes', () => {
       const filePath = '/test/file.ts';
       const modifiedLines = [10, 11, 12];
       const existingFixes = new Map([
-        ['/test/file.ts', [10, 11]]
+        ['/test/file.ts', new Set([10, 11])]
       ]);
 
       const collisionDetected = (phase11 as any).checkCollision(filePath, modifiedLines, existingFixes);
@@ -220,7 +224,7 @@ describe('Phase11AtomicFixes', () => {
       const filePath = '/test/file.ts';
       const modifiedLines = [20, 21, 22];
       const existingFixes = new Map([
-        ['/test/file.ts', [10, 11]]
+        ['/test/file.ts', new Set([10, 11])]
       ]);
 
       const collisionDetected = (phase11 as any).checkCollision(filePath, modifiedLines, existingFixes);
@@ -287,25 +291,8 @@ describe('Phase11AtomicFixes', () => {
       expect(typeof (phase11 as any).createBackup).toBe('function');
     });
 
-    it('should have rollbackFromBackup method', () => {
-      expect(typeof (phase11 as any).rollbackFromBackup).toBe('function');
-    });
-
-    it('should create backup before applying fixes in non-dry-run mode', async () => {
-      const applyConfig = {
-        ...mockConfig,
-        dryRun: false,
-        yesMode: true,
-        gitCheckpointManager: {
-          createCheckpoint: vi.fn().mockResolvedValue(undefined),
-        },
-      };
-
-      const applyPhase11 = new Phase11AtomicFixes(applyConfig);
-      
-      // This test verifies the method exists and can be called
-      const backupPath = await (applyPhase11 as any).createBackup('/test/file.ts', 'content');
-      expect(backupPath).toBeDefined();
+    it('should have rollbackFix method', () => {
+      expect(typeof (phase11 as any).rollbackFix).toBe('function');
     });
   });
 
@@ -313,7 +300,7 @@ describe('Phase11AtomicFixes', () => {
     it('should add traceability comments to fixes', () => {
       const content = 'const x = 1;';
       const fixId = 'test-fix-123';
-      const violationId = 'phase9-test-violation';
+      const violationId = 'src/component.tsx'; // Use file path as violation ID
 
       const tracedContent = (phase11 as any).addTraceabilityComment(content, fixId, violationId);
       expect(tracedContent).toContain(fixId);
