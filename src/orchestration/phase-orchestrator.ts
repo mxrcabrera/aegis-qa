@@ -123,6 +123,8 @@ interface PhaseOrchestratorConfig {
   applyCooldowns?: boolean;
   /** Phase timeout in milliseconds (default: 300000 = 5 minutes) */
   phaseTimeoutMs?: number;
+  /** Global execution timeout in milliseconds (default: no limit) */
+  maxRuntimeMs?: number;
   /** Whether to force memory flush after heavy phases */
   enableMemoryFlush?: boolean;
   /** Whether to write partial reports after each phase */
@@ -179,6 +181,8 @@ export class PhaseOrchestrator {
   private dryRunMode: boolean;
   private yesMode: boolean;
   private activeTimeouts: Set<NodeJS.Timeout> = new Set();
+  private globalExecutionStartTime: number = 0;
+  private globalRuntimeLimitMs: number | undefined;
 
   constructor(config: PhaseOrchestratorConfig) {
     this.config = config;
@@ -189,6 +193,7 @@ export class PhaseOrchestrator {
     this.thermalLock = new ThermalLock();
     this.memoryMonitor = new MemoryMonitor({ maxMemoryBytes: this.memoryThreshold });
     this.gcAvailable = typeof (global as any).gc === 'function';
+    this.globalRuntimeLimitMs = config.maxRuntimeMs;
 
     // Initialize sandbox manager if sandbox mode is enabled
     if (config.sandboxMode) {
@@ -225,6 +230,113 @@ export class PhaseOrchestrator {
     if (this.dryRunMode) {
       console.log('[Security] Dry-run mode enabled. No changes will be applied.');
       console.log('[Security] Use --apply flag to disable dry-run mode and apply changes.');
+    }
+  }
+
+  /**
+   * Checks if global execution timeout has been exceeded
+   *
+   * @private
+   * @returns boolean - Whether timeout has been exceeded
+   */
+  private hasGlobalTimeoutExceeded(): boolean {
+    if (!this.globalRuntimeLimitMs) {
+      return false;
+    }
+    const elapsed = Date.now() - this.globalExecutionStartTime;
+    return elapsed > this.globalRuntimeLimitMs;
+  }
+
+  /**
+   * Handles global timeout abort with partial report
+   *
+   * @private
+   * @param phaseResults - Results from completed phases
+   * @param totalPhases - Total number of phases expected
+   * @returns ReviewResult - Partial review result
+   */
+  private handleGlobalTimeoutAbort(
+    phaseResults: PhaseResult[],
+    totalPhases: number
+  ): ReviewResult {
+    const elapsed = Date.now() - this.globalExecutionStartTime;
+    const completedPhases = phaseResults.length;
+    const totalFindings = phaseResults.reduce((sum, r) => sum + r.findingsCount, 0);
+
+    console.error(`\n[GlobalTimeout] Execution aborted: max runtime of ${this.formatElapsedTime(this.globalRuntimeLimitMs!)} exceeded.`);
+    console.error(`[GlobalTimeout] ${completedPhases} of ${totalPhases} phases completed.`);
+    console.error(`[GlobalTimeout] Partial report generated.\n`);
+
+    // Generate partial report
+    this.generatePartialReport(phaseResults, elapsed, totalFindings);
+
+    return {
+      success: false,
+      totalExecutionTimeMs: elapsed,
+      phaseResults,
+      totalFindings,
+    };
+  }
+
+  /**
+   * Generates a partial report when execution is aborted
+   *
+   * @private
+   * @param phaseResults - Results from completed phases
+   * @param elapsed - Elapsed time in milliseconds
+   * @param totalFindings - Total findings count
+   */
+  private generatePartialReport(
+    phaseResults: PhaseResult[],
+    elapsed: number,
+    totalFindings: number
+  ): void {
+    const reportPath = `${this.config.projectRoot}/qa-report.partial.md`;
+    let report = `# Aegis QA - Partial Report (Global Timeout)\n\n`;
+    report += `**Execution aborted due to global timeout**\n\n`;
+    report += `- **Max Runtime**: ${this.formatElapsedTime(this.globalRuntimeLimitMs!)}\n`;
+    report += `- **Elapsed Time**: ${this.formatElapsedTime(elapsed)}\n`;
+    report += `- **Phases Completed**: ${phaseResults.length}\n`;
+    report += `- **Total Findings**: ${totalFindings}\n\n`;
+    report += `## Completed Phases\n\n`;
+
+    for (const result of phaseResults) {
+      const status = result.success ? '✅' : '❌';
+      report += `${status} **Phase ${result.phase}: ${result.phaseName}**\n`;
+      report += `   - Findings: ${result.findingsCount}\n`;
+      report += `   - Execution Time: ${this.formatElapsedTime(result.executionTimeMs)}\n`;
+      if (result.error) {
+        report += `   - Error: ${result.error}\n`;
+      }
+      report += `\n`;
+    }
+
+    try {
+      fs.writeFileSync(reportPath, report, 'utf-8');
+      console.log(`[GlobalTimeout] Partial report written to: ${reportPath}`);
+    } catch (error) {
+      console.error(`[GlobalTimeout] Failed to write partial report:`, error);
+    }
+  }
+
+  /**
+   * Formats elapsed time in human-readable format
+   *
+   * @private
+   * @param ms - Time in milliseconds
+   * @returns string - Formatted time string
+   */
+  private formatElapsedTime(ms: number): string {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
     }
   }
 
@@ -369,6 +481,12 @@ export class PhaseOrchestrator {
     console.log('­ƒøí´©Å  Aegis QA - Full Review Mode');
     console.log(`­ƒôé Project Root: ${this.config.projectRoot}\n`);
 
+    // Start global execution timer
+    this.globalExecutionStartTime = Date.now();
+    if (this.globalRuntimeLimitMs) {
+      console.log(`[GlobalTimeout] Max runtime set to: ${this.formatElapsedTime(this.globalRuntimeLimitMs)}`);
+    }
+
     const startTime = Date.now();
     const phaseResults: PhaseResult[] = [];
     let totalFindings = 0;
@@ -376,6 +494,11 @@ export class PhaseOrchestrator {
 
     // Check initial memory usage
     this.memoryMonitor.logMemoryUsage('Initial');
+
+    // Check global timeout before Phase 0
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
 
     // Phase 0: Setup - Hotel Check-in
     console.log('­ƒÅ¿ Phase 0: Setup - Hotel Check-in');
@@ -480,6 +603,11 @@ export class PhaseOrchestrator {
       };
     }
 
+    // Check global timeout before Phase 1
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 1: Code Quality
     console.log('­ƒöì Phase 1: Code Quality - Technical Health Assessment');
     const phase1StartTime = Date.now();
@@ -579,6 +707,11 @@ export class PhaseOrchestrator {
         executionTimeMs: Date.now() - phase1StartTime,
         error: errorMessage,
       });
+    }
+
+    // Check global timeout before Phase 2
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
     }
 
     // Phase 2: Business Logic (MOST IMPORTANT)
@@ -687,6 +820,11 @@ export class PhaseOrchestrator {
       });
     }
 
+    // Check global timeout before Phase 3
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 3: Security
     console.log('­ƒöÆ Phase 3: Security - Vulnerability & Secret Detection');
     const phase3StartTime = Date.now();
@@ -789,6 +927,11 @@ export class PhaseOrchestrator {
       });
     }
 
+    // Check global timeout before Phase 4
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 4: Database
     console.log('­ƒùä´©Å  Phase 4: Database - Schema & Query Audit');
     const phase4StartTime = Date.now();
@@ -884,6 +1027,11 @@ export class PhaseOrchestrator {
         executionTimeMs: Date.now() - phase4StartTime,
         error: errorMessage,
       });
+    }
+
+    // Check global timeout before Phase 5
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
     }
 
     // Phase 5: Clean Code
@@ -982,6 +1130,11 @@ export class PhaseOrchestrator {
       });
     }
 
+    // Check global timeout before Phase 6
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 6: API & Contracts
     console.log('­ƒîÉ Phase 6: API & Contracts');
     const phase6StartTime = Date.now();
@@ -1075,6 +1228,11 @@ export class PhaseOrchestrator {
         executionTimeMs: Date.now() - phase6StartTime,
         error: errorMessage,
       });
+    }
+
+    // Check global timeout before Phase 7
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
     }
 
     // Phase 7: Testing Strategy
@@ -1172,6 +1330,11 @@ export class PhaseOrchestrator {
       });
     }
 
+    // Check global timeout before Phase 8
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 8: Performance & Scalability
     console.log('ÔÜí Phase 8: Performance & Scalability');
     const phase8StartTime = Date.now();
@@ -1264,6 +1427,11 @@ export class PhaseOrchestrator {
         executionTimeMs: Date.now() - phase8StartTime,
         error: errorMessage,
       });
+    }
+
+    // Check global timeout before Phase 9
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
     }
 
     // Phase 9: Internationalization & Accessibility (i18n & a11y)
@@ -1360,6 +1528,11 @@ export class PhaseOrchestrator {
       });
     }
 
+    // Check global timeout before Phase 10
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 10: Environment & CI/CD
     console.log('­ƒî¬ Phase 10: Environment & CI/CD');
     const phase10StartTime = Date.now();
@@ -1452,6 +1625,11 @@ export class PhaseOrchestrator {
         executionTimeMs: Date.now() - phase10StartTime,
         error: errorMessage,
       });
+    }
+
+    // Check global timeout before Phase 11
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
     }
 
     // Phase 11: Testing Deep Audit
@@ -1661,6 +1839,11 @@ export class PhaseOrchestrator {
       });
     }
 
+    // Check global timeout before Phase 12
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 12: Error Handling & Observability
     console.log('INFO Phase 12: Error Handling & Observability');
     const phase12StartTime = Date.now();
@@ -1759,6 +1942,11 @@ export class PhaseOrchestrator {
         executionTimeMs: Date.now() - phase12StartTime,
         error: errorMessage,
       });
+    }
+
+    // Check global timeout before Phase 13
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
     }
 
     // Phase 13: i18n & l10n
@@ -1862,6 +2050,11 @@ export class PhaseOrchestrator {
       });
     }
 
+    // Check global timeout before Phase 14
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
+    }
+
     // Phase 14: Git, Repo & Documentation Hygiene
     console.log('INFO Phase 14: Git, Repo & Documentation Hygiene');
     const phase14StartTime = Date.now();
@@ -1956,6 +2149,11 @@ export class PhaseOrchestrator {
         executionTimeMs: Date.now() - phase14StartTime,
         error: errorMessage,
       });
+    }
+
+    // Check global timeout before Phase 15
+    if (this.hasGlobalTimeoutExceeded()) {
+      return this.handleGlobalTimeoutAbort(phaseResults, 16);
     }
 
     // Phase 15: CI/CD & DevOps
@@ -2510,6 +2708,12 @@ Generated: ${timestamp}
   async runFixes(): Promise<FixResult> {
     console.log('­ƒöº Aegis QA - Atomic Fixes Mode\n');
 
+    // Start global execution timer
+    this.globalExecutionStartTime = Date.now();
+    if (this.globalRuntimeLimitMs) {
+      console.log(`[GlobalTimeout] Max runtime set to: ${this.formatElapsedTime(this.globalRuntimeLimitMs)}`);
+    }
+
     const startTime = Date.now();
 
     // Git checkpoint before Phase 16 (Fix Strategy Generation)
@@ -2577,6 +2781,11 @@ Generated: ${timestamp}
     // For now, this is a skeleton
     console.log('ÔÜá´©Å  Atomic fixes not yet implemented (skeleton)');
 
+    // Check global timeout before returning
+    if (this.hasGlobalTimeoutExceeded()) {
+      console.error('[GlobalTimeout] Execution aborted: max runtime exceeded in runFixes()');
+    }
+
     const executionTimeMs = Date.now() - startTime;
 
     return {
@@ -2598,11 +2807,22 @@ Generated: ${timestamp}
     console.log('­ƒöä Aegis QA - Incremental Review Mode');
     console.log(`­ƒôé Project Root: ${this.config.projectRoot}\n`);
 
+    // Start global execution timer
+    this.globalExecutionStartTime = Date.now();
+    if (this.globalRuntimeLimitMs) {
+      console.log(`[GlobalTimeout] Max runtime set to: ${this.formatElapsedTime(this.globalRuntimeLimitMs)}`);
+    }
+
     const startTime = Date.now();
 
     // TODO: Implement incremental review
     // For now, this is a skeleton
     console.log('ÔÜá´©Å  Incremental review not yet implemented (skeleton)');
+
+    // Check global timeout before returning
+    if (this.hasGlobalTimeoutExceeded()) {
+      console.error('[GlobalTimeout] Execution aborted: max runtime exceeded in runIncrementalReview()');
+    }
 
     const executionTimeMs = Date.now() - startTime;
 

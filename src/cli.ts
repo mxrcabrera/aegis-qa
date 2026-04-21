@@ -24,6 +24,36 @@ import { resolve, normalize } from 'path';
 import * as fs from 'fs';
 import { FileSystem, setFileSystem, type WriteGuardMode } from './core/write-guard.js';
 
+/**
+ * Parses human-readable time format to milliseconds
+ *
+ * Supports formats like: 30m, 1h, 2h, 90s
+ *
+ * @param timeStr - Human-readable time string
+ * @returns number - Time in milliseconds
+ * @throws {Error} If format is invalid
+ */
+function parseHumanTime(timeStr: string): number {
+  const match = timeStr.match(/^(\d+)([smh])$/);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}. Expected format: 30m, 1h, 90s`);
+  }
+
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+
+  switch (unit) {
+    case 's':
+      return value * 1000;
+    case 'm':
+      return value * 60 * 1000;
+    case 'h':
+      return value * 60 * 60 * 1000;
+    default:
+      throw new Error(`Invalid time unit: ${unit}. Expected: s, m, h`);
+  }
+}
+
 interface CLIConfig {
   command: 'review' | 'fix' | 'incremental' | 'help';
   targetDir: string;
@@ -38,6 +68,7 @@ interface CLIConfig {
   interactiveFix?: boolean;
   sandboxMode?: boolean;
   noWriteMode?: boolean;
+  maxRuntime?: string; // Human format: 30m, 1h, 2h
 }
 
 class AegisCLI {
@@ -207,6 +238,14 @@ class AegisCLI {
     }
 
     // Create phase orchestrator with execution hardening enabled
+    let maxRuntimeMs: number | undefined;
+    if (this.config.maxRuntime) {
+      maxRuntimeMs = parseHumanTime(this.config.maxRuntime);
+    } else if (this.config.ciMode) {
+      // Default to 30 minutes in CI mode if not specified
+      maxRuntimeMs = 30 * 60 * 1000; // 30 minutes
+    }
+
     const phaseOrchestrator = new PhaseOrchestrator({
       projectRoot: resolve(targetDir),
       thermalController,
@@ -216,6 +255,7 @@ class AegisCLI {
       currentState: this.currentState!,
       applyCooldowns: !this.config.skipThermal,
       phaseTimeoutMs: 300000, // 5 minutes per phase
+      maxRuntimeMs, // Global execution timeout
       enableMemoryFlush: true, // Enable memory flush after heavy phases
       enablePartialReports: true, // Write partial reports after each phase
       dryRunMode: !this.config.applyMode, // Default to dry-run, false only if --apply
@@ -444,6 +484,13 @@ async function main() {
   const sandboxMode = args.includes('--sandbox');
   const noWriteMode = args.includes('--no-write');
 
+  // Parse --max-runtime flag
+  const maxRuntimeIndex = args.indexOf('--max-runtime');
+  let maxRuntime: string | undefined;
+  if (maxRuntimeIndex !== -1 && args[maxRuntimeIndex + 1]) {
+    maxRuntime = args[maxRuntimeIndex + 1];
+  }
+
   // Security: Validate all input before proceeding
   try {
     AegisCLI.validateInput(command, targetDir, applyMode, yesMode);
@@ -466,6 +513,7 @@ async function main() {
     interactiveFix,
     sandboxMode,
     noWriteMode,
+    maxRuntime,
   });
 
   try {
