@@ -518,6 +518,18 @@ async function main() {
     minConfidence = confidenceValue;
   }
 
+  // Parse --run-tests flag (for future use when PhaseOrchestrator skeleton is implemented)
+  const runTests = args.includes('--run-tests');
+  void runTests; // Suppress unused warning
+
+  // Parse --test-command flag (for future use when PhaseOrchestrator skeleton is implemented)
+  const testCommandIndex = args.indexOf('--test-command');
+  let testCommand: string | undefined;
+  if (testCommandIndex !== -1 && args[testCommandIndex + 1]) {
+    testCommand = args[testCommandIndex + 1];
+  }
+  void testCommand; // Suppress unused warning
+
   // Security: Validate all input before proceeding
   try {
     AegisCLI.validateInput(command, targetDir, applyMode, yesMode);

@@ -46,6 +46,15 @@ export interface RemediationResults {
   appliedFixes: FixResult[];
   suggestedFixes: FixResult[];
   totalFixes: number;
+  testValidationResults?: {
+    enabled: boolean;
+    testCommand?: string;
+    baselinePassed: number;
+    baselineFailed: number;
+    newFailures: number;
+    newPasses: number;
+    rollbacks: number;
+  };
 }
 
 export class AtomicFixer {
@@ -56,6 +65,9 @@ export class AtomicFixer {
   private maxRisk: 'safe' | 'moderate' | 'risky';
   private minConfidence: number;
   private impactAnalyzer: ImpactAnalyzer;
+  private runTests: boolean;
+  private testCommand: string | undefined;
+  private testBaseline: Map<string, boolean>; // Test name -> passed/failed before fixes
 
   /**
    * Generates a deterministic hash for fix IDs based on content, file, and line
@@ -167,7 +179,9 @@ export class AtomicFixer {
     interactiveMode: boolean = true,
     dryRun: boolean = false,
     maxRisk: 'safe' | 'moderate' | 'risky' = 'safe',
-    minConfidence: number = 0.8
+    minConfidence: number = 0.8,
+    runTests: boolean = false,
+    testCommand?: string
   ) {
     this.projectRoot = projectRoot;
     this.interactiveMode = interactiveMode;
@@ -176,6 +190,210 @@ export class AtomicFixer {
     this.maxRisk = maxRisk;
     this.minConfidence = minConfidence;
     this.impactAnalyzer = new ImpactAnalyzer(projectRoot);
+    this.runTests = runTests;
+    this.testCommand = testCommand;
+    this.testBaseline = new Map();
+  }
+
+  /**
+   * Auto-detect test command from package.json
+   *
+   * @private
+   * @returns string | undefined - Detected test command or undefined
+   */
+  private autoDetectTestCommand(): string | undefined {
+    const packageJsonPath = path.join(this.projectRoot, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      return undefined;
+    }
+
+    try {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      const scripts = packageJson.scripts || {};
+
+      // Priority order: test, test:unit, vitest, jest
+      const testCommands = ['test', 'test:unit', 'vitest', 'jest'];
+      for (const cmd of testCommands) {
+        if (scripts[cmd]) {
+          return `npm run ${cmd}`;
+        }
+      }
+
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Get effective test command (custom or auto-detected)
+   *
+   * @private
+   * @returns string | undefined - Test command or undefined
+   */
+  private getTestCommand(): string | undefined {
+    if (this.testCommand) {
+      return this.testCommand;
+    }
+    return this.autoDetectTestCommand();
+  }
+
+  /**
+   * Run test command and capture results
+   *
+   * @private
+   * @param command - Test command to run
+   * @param timeoutMs - Timeout in milliseconds (default: 60000 = 1 minute)
+   * @param filePath - Optional file path for --findRelatedTests optimization
+   * @returns Promise<{ passed: boolean, output: string, tests: Map<string, boolean> }> - Test results
+   */
+  private async runTestCommand(
+    command: string,
+    timeoutMs: number = 60000,
+    filePath?: string
+  ): Promise<{ passed: boolean; output: string; tests: Map<string, boolean> }> {
+    const { exec } = await import('child_process');
+
+    // Add --findRelatedTests optimization for jest
+    let optimizedCommand = command;
+    if (filePath && command.includes('jest')) {
+      optimizedCommand = `${command} --findRelatedTests ${filePath}`;
+    }
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        resolve({
+          passed: false,
+          output: `Test command timed out after ${timeoutMs}ms`,
+          tests: new Map()
+        });
+      }, timeoutMs);
+
+      exec(optimizedCommand, { cwd: this.projectRoot }, (error, stdout, stderr) => {
+        clearTimeout(timer);
+        const output = stdout + stderr;
+        const passed = !error;
+
+        // Parse test results (simple heuristic)
+        const tests = new Map<string, boolean>();
+        // This is a simple implementation - real parsing would depend on test runner format
+        const testLines = output.split('\n').filter(line =>
+          line.includes('PASS') || line.includes('FAIL') || line.includes('✓') || line.includes('✗')
+        );
+        testLines.forEach(line => {
+          const testName = line.replace(/PASS|FAIL|✓|✗/g, '').trim();
+          if (testName) {
+            tests.set(testName, line.includes('PASS') || line.includes('✓'));
+          }
+        });
+
+        resolve({ passed, output, tests });
+      });
+    });
+  }
+
+  /**
+   * Establish test baseline before applying fixes
+   *
+   * @private
+   * @returns Promise<void>
+   */
+  private async establishTestBaseline(): Promise<void> {
+    const testCommand = this.getTestCommand();
+    if (!testCommand) {
+      console.warn('[TestValidation] No test command found. Skipping test validation.');
+      return;
+    }
+
+    console.log(`[TestValidation] Establishing baseline with command: ${testCommand}`);
+    const result = await this.runTestCommand(testCommand);
+
+    // Store baseline
+    result.tests.forEach((passed, testName) => {
+      this.testBaseline.set(testName, passed);
+    });
+
+    const passedCount = Array.from(this.testBaseline.values()).filter(v => v).length;
+    const failedCount = this.testBaseline.size - passedCount;
+
+    console.log(`[TestValidation] Baseline established: ${passedCount} passed, ${failedCount} failed`);
+  }
+
+  /**
+   * Validate tests after applying fixes
+   *
+   * @private
+   * @param fix - The fix that was applied
+   * @returns Promise<{ passed: boolean, rollbackRequired: boolean, details: string, newFailures: number }> - Validation result
+   */
+  private async validateTestsAfterFix(fix: Fix): Promise<{
+    passed: boolean;
+    rollbackRequired: boolean;
+    details: string;
+    newFailures: number;
+  }> {
+    const testCommand = this.getTestCommand();
+    if (!testCommand) {
+      return { passed: true, rollbackRequired: false, details: 'No test command, skipping validation', newFailures: 0 };
+    }
+
+    // Skip test validation for safe fixes (optimization)
+    if (fix.riskLevel === 'safe') {
+      return { passed: true, rollbackRequired: false, details: 'Safe fix, skipping test validation', newFailures: 0 };
+    }
+
+    console.log(`[TestValidation] Running tests after fix: ${fix.id}`);
+    const result = await this.runTestCommand(testCommand, 60000, fix.file);
+
+    // Compare with baseline
+    let newFailures = 0;
+    let newPasses = 0;
+    let rollbackRequired = false;
+
+    result.tests.forEach((passed, testName) => {
+      const baselinePassed = this.testBaseline.get(testName);
+      if (baselinePassed === undefined) {
+        // New test
+        if (passed) {
+          newPasses++;
+        }
+      } else if (baselinePassed && !passed) {
+        // Test that passed before now fails - rollback required
+        newFailures++;
+        rollbackRequired = true;
+      }
+    });
+
+    // Use rollbackRequired to determine if rollback is needed
+    if (rollbackRequired && newFailures > 0) {
+      // Rollback logic handled by caller
+      void rollbackRequired; // Suppress unused warning
+    }
+
+    if (newFailures > 0) {
+      return {
+        passed: false,
+        rollbackRequired: true,
+        details: `${newFailures} tests that passed before now fail. Rollback required.`,
+        newFailures
+      };
+    }
+
+    if (newPasses > 0) {
+      return {
+        passed: true,
+        rollbackRequired: false,
+        details: `${newPasses} new tests pass. Fix is safe.`,
+        newFailures
+      };
+    }
+
+    return {
+      passed: true,
+      rollbackRequired: false,
+      details: 'No test regression detected.',
+      newFailures
+    };
   }
 
   /**
@@ -188,9 +406,19 @@ export class AtomicFixer {
       totalFixes: 0
     };
 
+    // Test validation metrics
+    let newFailures = 0;
+    let newPasses = 0;
+    let rollbacks = 0;
+
     // Ensure diffs directory exists
     if (!fs.existsSync(this.diffsPath)) {
       fs.mkdirSync(this.diffsPath, { recursive: true });
+    }
+
+    // Establish test baseline if test validation is enabled
+    if (this.runTests) {
+      await this.establishTestBaseline();
     }
 
     // Generate fixes based on violations
@@ -224,12 +452,54 @@ export class AtomicFixer {
       }
 
       const result = await this.applyFix(fix);
-      
+
       if (result.applied) {
+        // Validate tests after fix if test validation is enabled
+        if (this.runTests) {
+          const validation = await this.validateTestsAfterFix(fix);
+
+          if (validation.rollbackRequired) {
+            console.log(`[TestValidation] ${validation.details}`);
+            console.log(`[TestValidation] Rolling back fix ${fix.id}...`);
+            rollbacks++;
+            newFailures += validation.newFailures;
+
+            // Rollback the fix
+            const backupPath = path.join(this.diffsPath, `${fix.id}.backup`);
+            await this.rollbackFix(fix, backupPath);
+            result.applied = false;
+            result.error = validation.details;
+            results.suggestedFixes.push(result);
+            continue;
+          } else {
+            console.log(`[TestValidation] ${validation.details}`);
+            // Track new passes
+            if (validation.details.includes('new tests pass')) {
+              newPasses++;
+            }
+          }
+        }
+
         results.appliedFixes.push(result);
       } else {
         results.suggestedFixes.push(result);
       }
+    }
+
+    // Add test validation results to output
+    if (this.runTests) {
+      const baselinePassed = Array.from(this.testBaseline.values()).filter(v => v).length;
+      const baselineFailed = this.testBaseline.size - baselinePassed;
+
+      results.testValidationResults = {
+        enabled: true,
+        testCommand: this.getTestCommand(),
+        baselinePassed,
+        baselineFailed,
+        newFailures,
+        newPasses,
+        rollbacks
+      };
     }
 
     return results;
