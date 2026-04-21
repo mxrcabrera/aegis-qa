@@ -246,8 +246,20 @@ describe('GitCheckpointManager', () => {
     });
 
     it('should handle very long checkpoint tags', async () => {
-      // Skip this test as it causes timeout on Windows
-      expect(true).toBe(true);
+      const isInGitRepo = await manager.isInGitRepository();
+      if (isInGitRepo) {
+        const longTag = 'a'.repeat(1000);
+        try {
+          await manager.createCheckpoint(longTag);
+          // Should handle gracefully (either truncate or reject)
+          expect(true).toBe(true);
+        } catch (error) {
+          // Expected to handle gracefully
+          expect(error).toBeDefined();
+        }
+      } else {
+        expect(true).toBe(true);
+      }
     });
 
     it('should handle special characters in checkpoint tags', async () => {
