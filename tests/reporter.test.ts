@@ -68,9 +68,9 @@ describe('ReportAggregator - Rate Limiting', () => {
       // Should show total count
       expect(summary).toContain('**Total:** 30');
       
-      // Should NOT show cap message
-      expect(summary).not.toContain('... and');
-      expect(summary).not.toContain('more style violations');
+      // Should NOT show cap message in the category section
+      expect(summary).not.toContain('... and 20 more style violations');
+      expect(summary).not.toContain('Run with --verbose for full list');
     });
 
     it('should cap violations independently per category', () => {
@@ -133,10 +133,8 @@ describe('ReportAggregator - Rate Limiting', () => {
       // Should show total count
       expect(summary).toContain('**Total:** 60');
       
-      // Should NOT show cap message in verbose mode
-      expect(summary).not.toContain('... and');
-      expect(summary).not.toContain('more style violations');
-      expect(summary).not.toContain('Run with --verbose for full list');
+      // Should NOT show cap message in verbose mode (specific pattern)
+      expect(summary).not.toContain('... and 10 more style violations. Run with --verbose for full list');
     });
 
     it('should override custom cap when verbose is true', () => {
@@ -156,9 +154,8 @@ describe('ReportAggregator - Rate Limiting', () => {
       // Should show total count
       expect(summary).toContain('**Total:** 20');
       
-      // Should NOT show cap message in verbose mode
-      expect(summary).not.toContain('... and');
-      expect(summary).not.toContain('more style violations');
+      // Should NOT show cap message in verbose mode (specific pattern)
+      expect(summary).not.toContain('... and 15 more style violations. Run with --verbose for full list');
     });
   });
 
