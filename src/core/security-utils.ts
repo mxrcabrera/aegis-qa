@@ -1248,7 +1248,7 @@ export async function verifyDependencyIntegrity(
         result.reason = 'Checksum mismatch';
       }
     }
-  } catch (error) {
+  } catch {
     result.valid = false;
     result.reason = 'Failed to verify dependency';
   }
@@ -1293,7 +1293,7 @@ export async function checkVulnerabilities(packageJsonPath: string): Promise<Dep
         }
       }
     }
-  } catch (error) {
+  } catch {
     results.push({
       valid: false,
       packageName: 'package.json',
