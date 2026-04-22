@@ -609,9 +609,6 @@ class AegisCLI {
     }
     
     // Resolve paths relative to target directory
-    const path = path;
-    const fs = fs;
-    
     const resolvedReport1 = path.resolve(this.config.targetDir, report1Path);
     const resolvedReport2 = path.resolve(this.config.targetDir, report2Path);
     

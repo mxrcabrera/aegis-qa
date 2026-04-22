@@ -154,8 +154,11 @@ Generated: 2024-01-02T10:00:00
 - [CRIT-002] **CRITICAL** src/other.ts:20
   - Another critical issue
 
-- [CRIT-003] **CRITICAL** src/new.ts:30
+- [CRIT-003] **CRITICAL** src/new-file.ts:30
   - New critical issue
+
+- [CRIT-004] **CRITICAL** src/another-file.ts:40
+  - Another new critical issue
 `,
         'utf-8'
       );
