@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 15: Security SCA (Software Composition Analysis)
  *
  * Purpose: Audit dependencies for known vulnerabilities and license compliance.
@@ -19,6 +18,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
+
+/**
+ * Package data from package-lock.json
+ */
+interface PackageData {
+  version: string;
+}
 
 /**
  * SCA finding
@@ -151,7 +157,7 @@ export class Phase15SecuritySCA {
       console.log(`  ��ᴩ�  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 15 failed: ${errorMessage}\n`);
 
@@ -198,7 +204,7 @@ export class Phase15SecuritySCA {
 
         packageCount++;
 
-        const version = (packageData as any).version;
+        const version = (packageData as PackageData).version;
 
         // Check for packages with known vulnerabilities (basic heuristic)
         // In a real implementation, this would use npm audit or a vulnerability database
@@ -222,7 +228,7 @@ export class Phase15SecuritySCA {
 
       console.log(`��� Analyzed ${packageCount} packages from lock file`);
 
-    } catch {
+    } catch (error: unknown) {
       console.warn(`��ᴩ�  Failed to analyze lock file:`, error instanceof Error ? error.message : error);
     }
 
@@ -279,7 +285,7 @@ export class Phase15SecuritySCA {
         }
       }
 
-    } catch {
+    } catch (error: unknown) {
       console.warn(`��ᴩ�  Failed to analyze licenses:`, error instanceof Error ? error.message : error);
     }
 
@@ -314,10 +320,10 @@ export class Phase15SecuritySCA {
       // Group findings by type
       const findingsByType = new Map<string, SCAFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -326,11 +332,11 @@ export class Phase15SecuritySCA {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}**`;
-          if ((finding as any).packageName) {
-            findingsContent += ` ${(finding as any).packageName}@${(finding as any).packageVersion}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}**`;
+          if (finding.packageName) {
+            findingsContent += ` ${finding.packageName}@${finding.packageVersion}`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -365,11 +371,13 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

@@ -13,6 +13,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { SecurityScanner } from './security-scanner.js';
+import { DomainMap } from '../types/domain.js';
 
 interface TestResult {
   success: boolean;
@@ -24,7 +25,7 @@ interface TestResult {
 /**
  * Creates a mock DomainMap for testing
  */
-function createMockDomainMap(): unknown {
+function createMockDomainMap(): DomainMap {
   return {
     entities: [
       {
@@ -36,30 +37,13 @@ function createMockDomainMap(): unknown {
         fields: ['id', 'monto', 'estado', 'usuario_id', 'fecha'],
         source: 'database',
       },
-      {
-        name: 'users',
-        type: 'table',
-        isCore: true,
-        fieldCount: 4,
-        confidence: 0.9,
-        fields: ['id', 'email', 'password', 'created_at'],
-        source: 'database',
-      },
     ],
     relationships: [],
-    criticalPaths: [
-      {
-        name: 'Payment',
-        type: 'payment',
-        confidence: 0.9,
-        entities: ['pagos'],
-        actions: ['create', 'update', 'cancel'],
-      },
-    ],
+    criticalPaths: [],
     serverActions: [],
     overallConfidence: 0.9,
     metadata: {
-      method: 'static',
+      method: 'database',
       aiAssisted: false,
       timestamp: new Date().toISOString(),
       sourceFiles: [],

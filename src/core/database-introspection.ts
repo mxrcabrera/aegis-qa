@@ -15,6 +15,7 @@
  */
 
 import type { Entity, Relationship } from '../types/domain.js';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Database schema representation
@@ -344,9 +345,9 @@ export class PrismaDatabaseIntrospector implements DatabaseIntrospector {
  * Connects to Supabase to query the actual database schema.
  */
 export class SupabaseDatabaseIntrospector implements DatabaseIntrospector {
-  private secretManager: unknown; // SecretManager type
+  private secretManager: { getSupabaseClient(): SupabaseClient | null };
 
-  constructor(secretManager: unknown) {
+  constructor(secretManager: { getSupabaseClient(): SupabaseClient | null }) {
     this.secretManager = secretManager;
   }
 

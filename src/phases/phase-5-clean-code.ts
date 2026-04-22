@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 5: Clean Code & Refactoring
  *
  * Purpose: Evaluate readability, maintainability, and adherence to SOLID/DRY principles.
@@ -21,6 +20,24 @@ import { StatePersistence, type ExecutionState } from '../core/state-persistence
 import { ThermalController } from '../core/thermal-controller.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+
+/**
+ * Business profile from Phase 2
+ */
+interface BusinessProfile {
+  /** Core paths */
+  corePaths: string[];
+}
+
+/**
+ * Phase 1 result
+ */
+interface Phase1Result {
+  /** File scores */
+  fileScores: Record<string, number>;
+  /** Complexity scores */
+  complexityScores?: Record<string, number>;
+}
 
 /**
  * Clean code finding
@@ -115,11 +132,11 @@ export class Phase5CleanCode {
 
     try {
       // Get BusinessProfile from Phase 2 for Critical Modules
-      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const criticalModules = businessProfile?.corePaths || [];
-      
+
       // Get Phase 1 results for Quality Scores
-      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
+      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState) as Phase1Result | undefined;
       const qualityScores = phase1Results?.fileScores || {};
 
       console.log(`­ƒÄ» Context: ${criticalModules.length} Critical Modules from Phase 2\n`);
@@ -210,7 +227,7 @@ export class Phase5CleanCode {
       console.log(`  ÔÜá´©Å  Medium severity findings: ${mediumSeverityFindings}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 5 failed: ${errorMessage}\n`);
 
@@ -305,7 +322,7 @@ export class Phase5CleanCode {
       const qualityScore = qualityScores[filePath] || 0;
       
       // Get Phase 1 complexity for Cyclomatic-Complexity Bridge
-      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
+      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState) as Phase1Result | undefined;
       const complexity = phase1Results?.complexityScores?.[filePath] || 0;
 
       // 1. SOLID & Design Patterns (skip in lite scan mode)
@@ -332,7 +349,7 @@ export class Phase5CleanCode {
       }
 
       return findings;
-    } catch {
+    } catch (error: unknown) {
       console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -583,10 +600,10 @@ export class Phase5CleanCode {
       // Group findings by type
       const findingsByType = new Map<string, CleanCodeFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -595,11 +612,11 @@ export class Phase5CleanCode {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
-          if ((finding as any).line) {
-            findingsContent += `:${(finding as any).line}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
+          if (finding.line) {
+            findingsContent += `:${finding.line}`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -634,11 +651,13 @@ Generated: ${timestamp}
       }
 
       console.log(`­ƒôØ Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

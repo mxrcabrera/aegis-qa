@@ -397,11 +397,11 @@ export class GitCheckpointManager {
     }
 
     // Restore files from snapshot
-    const snapshot = new Map<string, unknown>(Object.entries(metadata.snapshot));
-    
+    const snapshot = new Map<string, { checksum: string }>(Object.entries(metadata.snapshot) as [string, { checksum: string }][]);
+
     for (const [filePath, checksum] of snapshot.entries()) {
       const fullPath = path.join(this.projectRoot, filePath);
-      
+
       if (fs.existsSync(fullPath)) {
         const currentChecksum = await FileIntegrityChecker.calculateChecksum(fullPath);
         if (currentChecksum.checksum === checksum.checksum) {

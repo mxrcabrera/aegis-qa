@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 7: Testing Strategy
  *
  * Purpose: Evaluate test infrastructure and detect testing blind spots.
@@ -20,6 +19,24 @@ import * as crypto from 'crypto';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+
+/**
+ * Business profile from Phase 2
+ */
+interface BusinessProfile {
+  /** Business domain */
+  domain: string;
+  /** Core paths */
+  corePaths: string[];
+}
+
+/**
+ * Phase 1 result
+ */
+interface Phase1Result {
+  /** Complexity scores */
+  complexityScores: Record<string, number>;
+}
 
 /**
  * Testing finding
@@ -116,7 +133,7 @@ export class Phase7TestingStrategy {
 
     try {
       // Get BusinessProfile from Phase 2 for domain context and Critical Modules
-      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const domain = businessProfile?.domain || 'General';
       const criticalModules = businessProfile?.corePaths || [];
       const isFintech = domain === 'Fintech';
@@ -125,7 +142,7 @@ export class Phase7TestingStrategy {
       console.log(`��Ļ Context: ${criticalModules.length} Critical Modules from Phase 2\n`);
 
       // Get Phase 1 results for Cross-Phase Coverage Gap
-      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
+      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState) as Phase1Result | undefined;
       const complexityScores = phase1Results?.complexityScores || {};
 
       // Scan for source files and test files
@@ -178,7 +195,7 @@ export class Phase7TestingStrategy {
       console.log(`  ���� Source files: ${sourceFiles.length}, Test files: ${testFiles.length}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 7 failed: ${errorMessage}\n`);
 
@@ -494,7 +511,7 @@ export class Phase7TestingStrategy {
       }
 
       return findings;
-    } catch {
+    } catch (error: unknown) {
       console.warn(`��ᴩ�  Failed to analyze test file ${testFilePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -582,7 +599,7 @@ export class Phase7TestingStrategy {
         } else {
           hasUnitTests = true;
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip files that can't be read
       }
     }
@@ -646,10 +663,10 @@ export class Phase7TestingStrategy {
       // Group findings by type
       const findingsByType = new Map<string, TestingFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -658,11 +675,11 @@ export class Phase7TestingStrategy {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
-          if ((finding as any).line) {
-            findingsContent += `:${(finding as any).line}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
+          if (finding.line) {
+            findingsContent += `:${finding.line}`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -699,11 +716,13 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

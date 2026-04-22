@@ -97,6 +97,10 @@ interface HardwareLockResult {
     cpuCores: number;
     ramTotal: number;
   };
+  /** Recommended batch size based on hardware */
+  recommendedBatchSize?: number;
+  /** Recommended cooldown based on hardware */
+  recommendedCooldown?: number;
 }
 
 /**
@@ -265,7 +269,7 @@ export class Phase0Setup {
       await this.writePartialReport(setupResults);
 
       return setupResults;
-    } catch {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
@@ -294,7 +298,7 @@ export class Phase0Setup {
    * @private
    * @param setupResults - Setup phase results
    */
-  private async writePartialReport(setupResults: any): Promise<void> {
+  private async writePartialReport(setupResults: Phase0Result): Promise<void> {
     try {
       const reportPath = path.join(this.config.projectRoot, 'qa-report.partial.md');
       const timestamp = new Date().toISOString();
@@ -302,28 +306,28 @@ export class Phase0Setup {
       const reportContent = `
 ## Phase 0: Setup - PASSED
 - **Timestamp:** ${timestamp}
-- **Execution Time:** ${(setupResults as any).executionTimeMs}ms
+- **Execution Time:** ${setupResults.executionTimeMs}ms
 
 ### Environment Validation
 - **Project Type:** ${this.config.currentState.projectType || 'unknown'}
-- **Dependencies:** ${(setupResults as any).dependencies.valid ? ' Valid' : ' Invalid'}
-  - node_modules: ${(setupResults as any).dependencies.hasNodeModules ? ' Present' : ' Missing'}
-  - Lockfile: ${(setupResults as any).dependencies.lockfileType || 'none'}
-  - Warnings: ${(setupResults as any).dependencies.warnings.length}
-- **Critical Files:** ${(setupResults as any).criticalFiles.complete ? ' Complete' : ' Incomplete'}
-  - Present: ${(setupResults as any).criticalFiles.present.join(', ')}
-  - Missing: ${(setupResults as any).criticalFiles.missing.join(', ') || 'None'}
-- **Syntax Check:** ${(setupResults as any).syntax.valid ? ' Valid' : ' Errors found'}
-  - Files Checked: ${(setupResults as any).syntax.filesChecked}
-  - Error Files: ${(setupResults as any).syntax.errorFiles.length}
+- **Dependencies:** ${setupResults.dependencies.valid ? ' Valid' : ' Invalid'}
+  - node_modules: ${setupResults.dependencies.hasNodeModules ? ' Present' : ' Missing'}
+  - Lockfile: ${setupResults.dependencies.lockfileType || 'none'}
+  - Warnings: ${setupResults.dependencies.warnings.length}
+- **Critical Files:** ${setupResults.criticalFiles.complete ? ' Complete' : ' Incomplete'}
+  - Present: ${setupResults.criticalFiles.present.join(', ')}
+  - Missing: ${setupResults.criticalFiles.missing.join(', ') || 'None'}
+- **Syntax Check:** ${setupResults.syntax.valid ? ' Valid' : ' Errors found'}
+  - Files Checked: ${setupResults.syntax.filesChecked}
+  - Error Files: ${setupResults.syntax.errorFiles.length}
 
 ### Hardware Diagnostic
-- **Status:** ${(setupResults as any).hardware.passed ? ' Passed' : ' Failed'}
-- **Temperature Rise Rate:** ${(setupResults as any).hardware.temperatureRiseRate}-�C/min
+- **Status:** ${setupResults.hardware.passed ? ' Passed' : ' Failed'}
+- **Temperature Rise Rate:** ${setupResults.hardware.temperatureRiseRate}-°C/min
 
 ### Hardware Profile
-- **Recommended Batch Size:** ${(setupResults as any).hardware.recommendedBatchSize || 20}
-- **Recommended Cooldown:** ${(setupResults as any).hardware.recommendedCooldown || 15000}ms
+- **Recommended Batch Size:** ${setupResults.hardware.recommendedBatchSize || 20}
+- **Recommended Cooldown:** ${setupResults.hardware.recommendedCooldown || 15000}ms
 
 ---
 
@@ -342,7 +346,7 @@ Generated: ${timestamp}
       }
 
       console.log(` Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error) {
       console.warn(' Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
@@ -435,7 +439,7 @@ Generated: ${timestamp}
       const hasDependencies = packageJson.dependencies || packageJson.devDependencies;
 
       return !!hasDependencies;
-    } catch {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -552,7 +556,7 @@ Generated: ${timestamp}
           filesChecked++;
         }
       }
-    } catch {
+    } catch (error: unknown) {
       // If tsc is not available, fall back to basic check
       console.warn('tsc not available, falling back to basic syntax check');
       return this.basicSyntaxCheckFallback();
@@ -606,7 +610,7 @@ Generated: ${timestamp}
               errorFiles.push({ path: file, error: 'Basic syntax check failed' });
             }
           }
-        } catch {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           errorFiles.push({ path: file, error: errorMessage });
         }
@@ -693,6 +697,8 @@ Generated: ${timestamp}
     };
   }
 }
+
+
 
 
 

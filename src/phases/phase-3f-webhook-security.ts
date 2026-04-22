@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 3F: Webhook & Integration Security
  *
  * Purpose: Analyze webhook and integration security including signature verification,
@@ -134,7 +133,7 @@ export class Phase3FWebhookSecurity {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -197,11 +196,11 @@ export class Phase3FWebhookSecurity {
 
         if (isWebhookHandler) {
           const integrationType = this.detectIntegrationType(content);
-          
+
           // Check for signature verification
-          const hasSignatureCheck = 
-            content.includes('verify') || 
-            content.includes('signature') || 
+          const hasSignatureCheck =
+            content.includes('verify') ||
+            content.includes('signature') ||
             content.includes('hmac') ||
             content.includes('svix') ||
             content.includes('stripe.webhooks.constructEvent');
@@ -214,11 +213,11 @@ export class Phase3FWebhookSecurity {
               filePath,
               description: `Webhook handler without signature verification detected (${integrationType || 'custom'})`,
               suggestion: 'Always verify webhook signatures using HMAC or provider-specific signature verification to prevent spoofing attacks',
-              integrationType: integrationType as unknown,
+              integrationType: integrationType ?? 'custom',
             });
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -269,12 +268,12 @@ export class Phase3FWebhookSecurity {
                 line: index + 1,
                 description: `Integration handler without idempotency (${integrationType || 'custom'})`,
                 suggestion: 'Implement idempotency using idempotency keys to prevent duplicate processing from retries',
-                integrationType: integrationType as unknown,
+                integrationType: integrationType ?? 'custom',
               });
             }
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -345,7 +344,7 @@ export class Phase3FWebhookSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -400,7 +399,7 @@ export class Phase3FWebhookSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -450,7 +449,7 @@ export class Phase3FWebhookSecurity {
             });
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -485,7 +484,7 @@ export class Phase3FWebhookSecurity {
             sourceFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -505,6 +504,8 @@ export class Phase3FWebhookSecurity {
     };
   }
 }
+
+
 
 
 

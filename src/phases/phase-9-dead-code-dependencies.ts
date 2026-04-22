@@ -175,7 +175,7 @@ export class Phase9DeadCodeDependencies {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -229,7 +229,7 @@ export class Phase9DeadCodeDependencies {
             files.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip directories we can't read
       }
     };
@@ -271,7 +271,7 @@ export class Phase9DeadCodeDependencies {
         
         const fileFindings = this.analyzeFileForDeadCodeDependencies(filePath, sanitizedContent);
         findings.push(...fileFindings);
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -501,6 +501,8 @@ export class Phase9DeadCodeDependencies {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+
+
 
 
 

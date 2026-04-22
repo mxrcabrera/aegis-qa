@@ -137,7 +137,7 @@ export class PhaseCleanup {
       console.log(`INFO Medium severity findings: ${mediumSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -211,7 +211,7 @@ export class PhaseCleanup {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -239,7 +239,7 @@ export class PhaseCleanup {
       const allContent = sourceFiles.map((file) => {
         try {
           return fs.readFileSync(file, 'utf-8');
-        } catch {
+        } catch (error: unknown) {
           return '';
         }
       }).join('\n');
@@ -272,7 +272,7 @@ export class PhaseCleanup {
           });
         }
       });
-    } catch {
+    } catch (error: unknown) {
       console.warn(`Failed to analyze package.json:`, sanitizeError(error));
     }
 
@@ -322,7 +322,7 @@ export class PhaseCleanup {
             }
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -356,7 +356,7 @@ export class PhaseCleanup {
           const importPath = match.match(/['"]([^'"]+)['"]/)?.[1] || '';
           allImports.add(importPath);
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -446,7 +446,7 @@ export class PhaseCleanup {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -489,7 +489,7 @@ export class PhaseCleanup {
             }
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -514,7 +514,7 @@ export class PhaseCleanup {
             sourceFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -534,6 +534,8 @@ export class PhaseCleanup {
     };
   }
 }
+
+
 
 
 

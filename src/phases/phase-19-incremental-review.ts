@@ -215,7 +215,7 @@ export class Phase19IncrementalReview {
         selectedFiles,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 19 failed: ${errorMessage}\n`);
 
@@ -263,7 +263,7 @@ export class Phase19IncrementalReview {
       const uniqueFiles = Array.from(new Set(modifiedFiles));
 
       return uniqueFiles;
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to get modified files from git:', error instanceof Error ? error.message : error);
       return [];
     }
@@ -414,7 +414,7 @@ export class Phase19IncrementalReview {
             }
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Failed to read file
       }
     }
@@ -542,7 +542,7 @@ export class Phase19IncrementalReview {
               }
             }
           }
-        } catch {
+        } catch (error: unknown) {
           // Failed to read file
         }
         
@@ -625,7 +625,7 @@ export class Phase19IncrementalReview {
       const fullPath = path.join(this.config.projectRoot, filePath);
       const content = fs.readFileSync(fullPath, 'utf-8');
       return crypto.createHash('sha256').update(content).digest('hex');
-    } catch {
+    } catch (error: unknown) {
       return '';
     }
   }
@@ -676,7 +676,7 @@ export class Phase19IncrementalReview {
           }
         }
       }
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to get untracked Core Path files:', error instanceof Error ? error.message : error);
     }
 
@@ -724,6 +724,8 @@ export class Phase19IncrementalReview {
     return selectedFiles;
   }
 }
+
+
 
 
 

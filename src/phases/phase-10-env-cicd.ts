@@ -41,6 +41,18 @@ interface EnvCICDFinding {
 }
 
 /**
+ * Phase 3 result
+ */
+interface Phase3Result {
+  /** Security findings */
+  findings: Array<{
+    type: string;
+    description: string;
+    filePath: string;
+  }>;
+}
+
+/**
  * Phase 10 configuration
  */
 interface Phase10Config {
@@ -105,7 +117,7 @@ export class Phase10EnvCICD {
 
     try {
       // Get Phase 3 results for Security Check cross-reference
-      const phase3Results = this.config.statePersistence.getAnalysisResults(3, this.config.currentState);
+      const phase3Results = this.config.statePersistence.getAnalysisResults(3, this.config.currentState) as Phase3Result | undefined;
       const securityFindings = phase3Results?.findings || [];
 
       console.log(`���� Context: ${securityFindings.length} security findings from Phase 3\n`);
@@ -154,7 +166,7 @@ export class Phase10EnvCICD {
       console.log(`  ��ᴩ�  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 10 failed: ${errorMessage}\n`);
 
@@ -225,7 +237,7 @@ export class Phase10EnvCICD {
           while ((envMatch = processEnvPattern.exec(content)) !== null) {
             usedEnvVars.add(envMatch[1]);
           }
-        } catch {
+        } catch (error: unknown) {
           // Skip files that can't be read
         }
       }
@@ -301,7 +313,7 @@ export class Phase10EnvCICD {
               suggestion: `Add the following variables to deployment configuration: ${missingInDeploy.slice(0, 5).join(', ')}${missingInDeploy.length > 5 ? '...' : ''}. Critical variables must be configured in deployment environment.`,
             });
           }
-        } catch {
+        } catch (error: unknown) {
           // Skip files that can't be read
         }
       }
@@ -364,7 +376,7 @@ export class Phase10EnvCICD {
             suggestion: 'Add "engines" field to package.json to specify required Node.js and npm versions. This ensures consistent behavior across environments.',
           });
         }
-      } catch {
+      } catch (error: unknown) {
         // Invalid package.json, skip
       }
     }
@@ -406,7 +418,7 @@ export class Phase10EnvCICD {
             suggestion: `Run "npm install" to synchronize package-lock.json with package.json. Missing dependencies in lockfile will cause installation failures in production.`,
           });
         }
-      } catch {
+      } catch (error: unknown) {
         // Invalid lockfile, mark as infrastructure drift
         findings.push({
           id: this.generateFindingId(packageLockPath, undefined, 'infrastructure-drift'),
@@ -450,7 +462,7 @@ export class Phase10EnvCICD {
         while ((match = processEnvPattern.exec(content)) !== null) {
           criticalVars.add(match[1]);
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip files that can't be read
       }
     }
@@ -481,7 +493,7 @@ export class Phase10EnvCICD {
           absolute: true,
         });
         files.push(...matchedFiles);
-      } catch {
+      } catch (error: unknown) {
         // glob not available, skip
       }
     }
@@ -515,7 +527,7 @@ export class Phase10EnvCICD {
           absolute: true,
         });
         allFiles.push(...files);
-      } catch {
+      } catch (error: unknown) {
         // glob not available, skip
       }
     }
@@ -551,10 +563,10 @@ export class Phase10EnvCICD {
       // Group findings by type
       const findingsByType = new Map<string, EnvCICDFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -563,11 +575,11 @@ export class Phase10EnvCICD {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
-          if ((finding as any).line) {
-            findingsContent += `:${(finding as any).line}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
+          if (finding.line) {
+            findingsContent += `:${finding.line}`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -601,11 +613,13 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

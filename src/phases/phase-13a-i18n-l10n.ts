@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 13: i18n & l10n - Internationalization & Localization
  *
  * Purpose: Detect hardcoded strings that should be in translation files,
@@ -24,6 +23,25 @@ import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+
+/**
+ * Business profile
+ */
+interface BusinessProfile {
+  /** Domain */
+  domain: string;
+  /** Core path files */
+  corePathFiles: string[];
+  /** Critical modules */
+  criticalModules: string[];
+}
+
+/**
+ * Global object with gc
+ */
+interface GlobalWithGC {
+  gc?: () => void;
+}
 
 /**
  * i18n/l10n finding
@@ -159,7 +177,7 @@ export class Phase13I18nL10n {
       }
 
       // Get critical modules from Phase 2 business profile if available
-      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const criticalModules = phase2Results?.criticalModules || [];
       const corePathFiles = new Set<string>(phase2Results?.corePathFiles || []);
       const businessDomain = phase2Results?.domain || '';
@@ -207,11 +225,12 @@ export class Phase13I18nL10n {
           const ramIncrease = currentResources.ramUsage - previousRamUsage;
           if (ramIncrease > 10) {
             console.log(`WARNING Memory leak detected (RAM increased ${ramIncrease}%). Attempting cleanup...`);
-            if (typeof global !== 'undefined' && (global as any).gc) {
+            const globalWithGC = global as unknown as GlobalWithGC;
+            if (typeof global !== 'undefined' && globalWithGC.gc) {
               try {
-                (global as any).gc();
+                globalWithGC.gc();
                 console.log('INFO Garbage collection executed');
-              } catch {
+              } catch (error: unknown) {
                 console.log('WARNING Garbage collection failed');
               }
             }
@@ -360,7 +379,7 @@ export class Phase13I18nL10n {
             break;
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Invalid package.json, skip
       }
     }
@@ -867,20 +886,20 @@ export class Phase13I18nL10n {
 `;
 
       for (const finding of findings) {
-        const severityIcon = (finding as any).severity === 'critical' ? 'CRITICAL' : (finding as any).severity === 'high' ? 'HIGH' : (finding as any).severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${(finding as any).type}** ${(finding as any).filePath}`;
-        if ((finding as any).line) {
-          reportContent += `:${(finding as any).line}`;
+        const severityIcon = finding.severity === 'critical' ? 'CRITICAL' : finding.severity === 'high' ? 'HIGH' : finding.severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${finding.type}** ${finding.filePath}`;
+        if (finding.line) {
+          reportContent += `:${finding.line}`;
         }
         reportContent += `\n`;
-        reportContent += `  - ${(finding as any).description}\n`;
-        if ((finding as any).stringValue) {
-          reportContent += `  - String: "${(finding as any).stringValue}"\n`;
+        reportContent += `  - ${finding.description}\n`;
+        if (finding.stringValue) {
+          reportContent += `  - String: "${finding.stringValue}"\n`;
         }
-        if ((finding as any).suggestion) {
-          reportContent += `  - Suggestion: ${(finding as any).suggestion}\n`;
+        if (finding.suggestion) {
+          reportContent += `  - Suggestion: ${finding.suggestion}\n`;
         }
-        if ((finding as any).isCorePath) {
+        if (finding.isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -951,11 +970,13 @@ Generated: ${timestamp}
       } else {
         console.log('SUCCESS Self-Audit: No Aegis log strings reported as translatable in phase-13-i18n-l10n.ts');
       }
-    } catch {
+    } catch (error: unknown) {
       console.log('WARNING Self-Audit failed:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

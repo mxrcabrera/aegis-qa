@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 3: Security - Vulnerability & Secret Detection
  *
  * Purpose: Identify vulnerabilities and data leaks, using BusinessProfile as a risk multiplier.
@@ -24,6 +23,22 @@ import { StatePersistence, type ExecutionState } from '../core/state-persistence
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
 import { ReportAggregator } from '../core/reporter.js';
+
+/**
+ * Business Profile result from Phase 2
+ */
+interface BusinessProfileResult {
+  /** Critical modules identified in Phase 2 */
+  criticalModules: string[];
+  /** Business domain */
+  domain: string;
+  /** Core paths */
+  corePaths?: string[];
+  /** File scores */
+  fileScores?: Record<string, number>;
+  /** Complexity scores */
+  complexityScores?: Record<string, number>;
+}
 
 /**
  * Security finding
@@ -120,7 +135,7 @@ export class Phase3Security {
 
     try {
       // Get BusinessProfile from Phase 2 for context
-      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfileResult | undefined;
       const criticalModules = businessProfile?.criticalModules || [];
       const domain = businessProfile?.domain || 'General';
 
@@ -215,7 +230,7 @@ export class Phase3Security {
       console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 3 failed: ${errorMessage}\n`);
 
@@ -321,7 +336,7 @@ export class Phase3Security {
       }
 
       return findings;
-    } catch {
+    } catch (error: unknown) {
       console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -640,21 +655,21 @@ export class Phase3Security {
     const escalatedFindings: SecurityFinding[] = [];
 
     for (const finding of findings) {
-      let severity = (finding as any).severity;
+      let severity = finding.severity;
       const escalationReasons: string[] = [];
 
       // Escalate if in critical module
-      if ((finding as any).inCriticalModule && severity !== 'critical') {
+      if (finding.inCriticalModule && severity !== 'critical') {
         severity = 'critical';
         escalationReasons.push('Critical Module');
       }
 
       // Escalate if domain is Fintech or Health
       if ((domain === 'Fintech' || domain === 'Health') && severity !== 'critical') {
-        const severityOrder = ['low', 'medium', 'high', 'critical'];
+        const severityOrder: ('low' | 'medium' | 'high' | 'critical')[] = ['low', 'medium', 'high', 'critical'];
         const currentIndex = severityOrder.indexOf(severity);
         if (currentIndex < severityOrder.length - 1) {
-          severity = severityOrder[currentIndex + 1] as unknown;
+          severity = severityOrder[currentIndex + 1];
           escalationReasons.push(`Domain: ${domain}`);
         }
       }
@@ -663,8 +678,8 @@ export class Phase3Security {
         ...finding,
         severity,
         description: escalationReasons.length > 0
-          ? `${(finding as any).description} [ESCALATED: ${escalationReasons.join(', ')}]`
-          : (finding as any).description,
+          ? `${finding.description} [ESCALATED: ${escalationReasons.join(', ')}]`
+          : finding.description,
       });
     }
 
@@ -738,17 +753,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as any).id,
+            id: finding.id,
             type: 'security',
-            severity: (finding as any).severity,
+            severity: finding.severity,
             file: {
-              path: (finding as any).filePath,
-              extension: path.extname((finding as any).filePath).slice(1),
+              path: finding.filePath,
+              extension: path.extname(finding.filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as any).line || 1, column: 0 },
-            message: (finding as any).description,
+            location: { line: finding.line || 1, column: 0 },
+            message: finding.description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -757,7 +772,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} AI API security issues`);
-    } catch {
+    } catch (error: unknown) {
       console.warn(`    AI API security check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -822,17 +837,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as any).id,
+            id: finding.id,
             type: 'security',
-            severity: (finding as any).severity,
+            severity: finding.severity,
             file: {
-              path: (finding as any).filePath,
-              extension: path.extname((finding as any).filePath).slice(1),
+              path: finding.filePath,
+              extension: path.extname(finding.filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as any).line || 1, column: 0 },
-            message: (finding as any).description,
+            location: { line: finding.line || 1, column: 0 },
+            message: finding.description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.7,
@@ -841,7 +856,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} secure development issues`);
-    } catch {
+    } catch (error: unknown) {
       console.warn(`    Secure development methodology check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -897,7 +912,7 @@ export class Phase3Security {
               });
             }
           });
-        } catch {
+        } catch (error: unknown) {
           console.warn(`    Failed to analyze ${filePath}`);
         }
       }
@@ -906,17 +921,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as any).id,
+            id: finding.id,
             type: 'security',
-            severity: (finding as any).severity,
+            severity: finding.severity,
             file: {
-              path: (finding as any).filePath,
-              extension: path.extname((finding as any).filePath).slice(1),
+              path: finding.filePath,
+              extension: path.extname(finding.filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
             location: { line: 1, column: 0 },
-            message: (finding as any).description,
+            message: finding.description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.9,
@@ -925,7 +940,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} RLS security issues`);
-    } catch {
+    } catch (error: unknown) {
       console.warn(`    BaaS/RLS security check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -989,17 +1004,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as any).id,
+            id: finding.id,
             type: 'security',
-            severity: (finding as any).severity,
+            severity: finding.severity,
             file: {
-              path: (finding as any).filePath,
-              extension: path.extname((finding as any).filePath).slice(1),
+              path: finding.filePath,
+              extension: path.extname(finding.filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as any).line || 1, column: 0 },
-            message: (finding as any).description,
+            location: { line: finding.line || 1, column: 0 },
+            message: finding.description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -1008,7 +1023,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} webhook security issues`);
-    } catch {
+    } catch (error: unknown) {
       console.warn(`    Webhook security check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -1075,17 +1090,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as any).id,
+            id: finding.id,
             type: 'security',
-            severity: (finding as any).severity,
+            severity: finding.severity,
             file: {
-              path: (finding as any).filePath,
-              extension: path.extname((finding as any).filePath).slice(1),
+              path: finding.filePath,
+              extension: path.extname(finding.filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as any).line || 1, column: 0 },
-            message: (finding as any).description,
+            location: { line: finding.line || 1, column: 0 },
+            message: finding.description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -1094,7 +1109,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} PII privacy issues`);
-    } catch {
+    } catch (error: unknown) {
       console.warn(`    Data privacy PII check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -1115,7 +1130,7 @@ export class Phase3Security {
         }
       }
       return false;
-    } catch {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -1130,7 +1145,7 @@ export class Phase3Security {
     try {
       const supabasePath = path.join(this.config.projectRoot, 'supabase');
       return fs.existsSync(supabasePath);
-    } catch {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -1151,7 +1166,7 @@ export class Phase3Security {
         }
       }
       return false;
-    } catch {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -1206,10 +1221,10 @@ export class Phase3Security {
       // Group findings by type
       const findingsByType = new Map<string, SecurityFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -1218,11 +1233,11 @@ export class Phase3Security {
 ### ${type.charAt(0).toUpperCase() + type.slice(1)} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
-          if ((finding as any).line) {
-            findingsContent += `:${(finding as any).line}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
+          if (finding.line) {
+            findingsContent += `:${finding.line}`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -1258,11 +1273,14 @@ Generated: ${timestamp}
       }
 
       console.log(`­ƒôØ Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 
 

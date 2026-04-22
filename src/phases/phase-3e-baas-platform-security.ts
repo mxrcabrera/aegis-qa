@@ -137,7 +137,7 @@ export class Phase3EBaaSPlatformSecurity {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -207,7 +207,7 @@ export class Phase3EBaaSPlatformSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -261,7 +261,7 @@ export class Phase3EBaaSPlatformSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -314,7 +314,7 @@ export class Phase3EBaaSPlatformSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -380,7 +380,7 @@ export class Phase3EBaaSPlatformSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -438,7 +438,7 @@ export class Phase3EBaaSPlatformSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -461,7 +461,7 @@ export class Phase3EBaaSPlatformSecurity {
             sqlFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -487,7 +487,7 @@ export class Phase3EBaaSPlatformSecurity {
             sourceFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -513,7 +513,7 @@ export class Phase3EBaaSPlatformSecurity {
             configFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -547,6 +547,8 @@ export class Phase3EBaaSPlatformSecurity {
     };
   }
 }
+
+
 
 
 

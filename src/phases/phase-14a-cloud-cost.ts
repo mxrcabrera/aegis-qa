@@ -138,7 +138,7 @@ export class Phase14CloudCost {
       console.log(`  ��Ʀ Estimated monthly savings: $${estimatedSavings.toFixed(2)}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 14 failed: ${errorMessage}\n`);
 
@@ -202,11 +202,13 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

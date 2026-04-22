@@ -14,7 +14,7 @@
  * @since 1.0.0
  */
 
-import type { Violation } from '../types/audit.js';
+import type { Violation, Severity } from '../types/audit.js';
 import { ErrorBaseline, type TSCError } from './error-baseline.js';
 
 /**
@@ -41,9 +41,18 @@ export interface AggregatedReport {
 }
 
 /**
- * Severity levels for violations
+ * Business risk finding
  */
-export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+interface BusinessRiskFinding {
+  /** Domain */
+  domain?: string;
+  /** Risk level */
+  riskLevel?: string;
+  /** File path */
+  filePath?: string;
+  /** Quality score */
+  qualityScore?: number;
+}
 
 /**
  * Violation category
@@ -81,7 +90,7 @@ export interface ReporterConfig {
 export class ReportAggregator {
   private violations: Map<string, Violation[]> = new Map();
   private config: Required<ReporterConfig>;
-  private businessRiskFindings: unknown[] = [];
+  private businessRiskFindings: BusinessRiskFinding[] = [];
   private businessDomain: string = 'General';
   private errorBaseline: ErrorBaseline | null = null;
   private baselineEstablished: boolean = false;
@@ -141,10 +150,10 @@ export class ReportAggregator {
    * @param riskFindings - Business risk findings from Phase 2
    */
   setBusinessRiskFindings(riskFindings: unknown[]): void {
-    this.businessRiskFindings = riskFindings;
+    this.businessRiskFindings = riskFindings as BusinessRiskFinding[];
     // Extract business domain from risk findings if available
-    if (riskFindings.length > 0 && riskFindings[0].domain) {
-      this.businessDomain = riskFindings[0].domain;
+    if (riskFindings.length > 0 && (riskFindings[0] as BusinessRiskFinding).domain) {
+      this.businessDomain = (riskFindings[0] as BusinessRiskFinding).domain!;
     }
   }
 

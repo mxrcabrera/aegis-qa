@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 4: Database - Schema & Query Audit
  *
  * Purpose: Audit the data layer, schemas, and queries, with special attention
@@ -23,6 +22,22 @@ import { StatePersistence, type ExecutionState } from '../core/state-persistence
 import { ThermalController } from '../core/thermal-controller.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+
+/**
+ * Security summary from Phase 3
+ */
+interface SecuritySummary {
+  /** SQL injection findings count */
+  sqlInjectionFindings: number;
+}
+
+/**
+ * Business profile from Phase 2
+ */
+interface BusinessProfile {
+  /** Business domain */
+  domain: string;
+}
 
 /**
  * Database finding
@@ -119,13 +134,13 @@ export class Phase4Database {
 
     try {
       // Get security summary from Phase 3 for cross-phase alerting
-      const securitySummary = this.config.currentState.contextStore?.securitySummary;
-      const hasSqlInjectionRisks = securitySummary?.sqlInjectionFindings > 0;
+      const securitySummary = this.config.currentState.contextStore?.securitySummary as SecuritySummary | undefined;
+      const hasSqlInjectionRisks = securitySummary ? securitySummary.sqlInjectionFindings > 0 : false;
 
       console.log(`­ƒöì Context: SQL Injection Risks from Phase 3 = ${hasSqlInjectionRisks ? 'YES (Extreme Mode)' : 'NO'}\n`);
 
       // Get BusinessProfile from Phase 2 for Transactional Integrity Check
-      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const domain = businessProfile?.domain || 'General';
       const isFintech = domain === 'Fintech';
 
@@ -204,7 +219,7 @@ export class Phase4Database {
       console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 4 failed: ${errorMessage}\n`);
 
@@ -405,7 +420,7 @@ export class Phase4Database {
       }
 
       return findings;
-    } catch {
+    } catch (error: unknown) {
       console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -700,10 +715,10 @@ export class Phase4Database {
       // Group findings by type
       const findingsByType = new Map<string, DatabaseFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -712,14 +727,14 @@ export class Phase4Database {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
-          if ((finding as any).line) {
-            findingsContent += `:${(finding as any).line}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
+          if (finding.line) {
+            findingsContent += `:${finding.line}`;
           }
-          if ((finding as any).table) {
-            findingsContent += ` (${(finding as any).table})`;
+          if (finding.table) {
+            findingsContent += ` (${finding.table})`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -754,11 +769,13 @@ Generated: ${timestamp}
       }
 
       console.log(`­ƒôØ Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

@@ -32,6 +32,30 @@ import { getFileSystem } from '../core/write-guard.js';
 import * as readline from 'readline';
 
 /**
+ * Phase 2 result
+ */
+interface Phase2Result {
+  /** Core path files */
+  corePathFiles: string[];
+}
+
+/**
+ * Phase 10 result
+ */
+interface Phase10Result {
+  /** Detected environment variables */
+  detectedVariables: Array<{ name: string }>;
+}
+
+/**
+ * Git checkpoint manager
+ */
+interface GitCheckpointManager {
+  /** Create a checkpoint */
+  createCheckpoint(tagName: string): Promise<{ tagName: string; commitHash: string }>;
+}
+
+/**
  * Fix application result
  */
 interface FixApplicationResult {
@@ -188,7 +212,7 @@ interface Phase11Config {
   /** Whether to skip confirmation prompts (for CI/CD) */
   yesMode?: boolean;
   /** Git checkpoint manager for auto-backup */
-  gitCheckpointManager?: unknown;
+  gitCheckpointManager?: GitCheckpointManager;
   /** Sandbox configuration for safe fix execution */
   sandboxConfig?: SandboxConfig;
   /** Operation guard configuration for limiting actions */
@@ -383,7 +407,7 @@ export class Phase11AtomicFixes {
       }
 
       return confirmed;
-    } catch {
+    } catch (error: unknown) {
       process.removeListener('SIGINT', sigintHandler);
       rl.close();
       console.error('Error during confirmation:', error);
@@ -450,7 +474,7 @@ export class Phase11AtomicFixes {
         console.log('⏭️  Respuesta no reconocida, rechazando fix\n');
         return false;
       }
-    } catch {
+    } catch (error: unknown) {
       rl.close();
       console.error('Error durante aprobación:', error);
       return false;
@@ -553,7 +577,7 @@ export class Phase11AtomicFixes {
       }
 
       return approved;
-    } catch {
+    } catch (error: unknown) {
       rl.close();
       console.error('Error durante confirmación:', error);
       return false;
@@ -717,7 +741,7 @@ export class Phase11AtomicFixes {
 
       getFileSystem().writeFileSync(auditFilePath, JSON.stringify(auditData, null, 2), 'utf-8');
       console.log(`[AUDIT] Audit log written to: ${auditFilePath}`);
-    } catch {
+    } catch (error: unknown) {
       console.error(`[AUDIT] Failed to write audit log: ${error}`);
     }
   }
@@ -743,7 +767,7 @@ export class Phase11AtomicFixes {
 
       await this.config.gitCheckpointManager.createCheckpoint(tagName);
       console.log('✅ Backup Git creado exitosamente\n');
-    } catch {
+    } catch (error: unknown) {
       console.log('⚠️  Git backup falló, creando backup físico...\n');
       await this.createPhysicalBackup(filePaths);
     }
@@ -783,7 +807,7 @@ export class Phase11AtomicFixes {
       }
 
       console.log(`✅ Backup físico creado en: ${backupPath}\n`);
-    } catch {
+    } catch (error: unknown) {
       console.error('❌ Error creando backup físico:', error);
       throw error;
     }
@@ -992,7 +1016,7 @@ export class Phase11AtomicFixes {
       };
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`❌ Phase 11 failed: ${errorMessage}\n`);
       
@@ -1035,10 +1059,10 @@ export class Phase11AtomicFixes {
    */
   private getCorePathFiles(analysisResults: Record<string, unknown>): Set<string> {
     const corePathFiles = new Set<string>();
-    
-    const phase2Results = analysisResults['phase2'];
-    if (phase2Results && (phase2Results as any).corePathFiles) {
-      for (const file of (phase2Results as any).corePathFiles) {
+
+    const phase2Results = analysisResults['phase2'] as Phase2Result | undefined;
+    if (phase2Results && phase2Results.corePathFiles) {
+      for (const file of phase2Results.corePathFiles) {
         corePathFiles.add(file);
       }
     }
@@ -1377,7 +1401,7 @@ export class Phase11AtomicFixes {
     }
 
     // Get detected environment variables from Phase 10
-    const phase10Results = analysisResults['phase10'];
+    const phase10Results = analysisResults['phase10'] as Phase10Result | undefined;
     if (!phase10Results || !phase10Results.detectedVariables) {
       console.log('  No environment variables detected in Phase 10');
       return;
@@ -1700,7 +1724,7 @@ export class Phase11AtomicFixes {
       } else {
         console.log(`ℹ️  No fixes applied for Phase ${phaseNumber}, skipping validation`);
       }
-    } catch {
+    } catch (error: unknown) {
       console.warn(`⚠️  Validation failed for Phase ${phaseNumber}:`, error instanceof Error ? error.message : error);
     }
   }
@@ -1784,7 +1808,7 @@ export class Phase11AtomicFixes {
         }
 
         return stack.length === 0;
-      } catch {
+      } catch (error: unknown) {
         return false;
       }
     }
@@ -1881,7 +1905,7 @@ export class Phase11AtomicFixes {
       fixResult.applied = false;
       console.log(`INFO Rolled back fix ${fixResult.fixId}`);
       return true;
-    } catch {
+    } catch (error: unknown) {
       console.error(`ERROR Failed to rollback fix ${fixResult.fixId}:`, error instanceof Error ? error.message : error);
       return false;
     }
@@ -1940,7 +1964,7 @@ export class Phase11AtomicFixes {
             buildError = stderr;
           }
         }
-      } catch {
+      } catch (error: unknown) {
         buildExitCode = 1;
         buildError = error instanceof Error ? error.message : String(error);
       }
@@ -1974,7 +1998,7 @@ export class Phase11AtomicFixes {
       }
 
       return fixResult;
-    } catch {
+    } catch (error: unknown) {
       // If any error occurs, attempt rollback
       console.error(`ERROR applying fix ${fixId}:`, error instanceof Error ? error.message : error);
       
@@ -1985,7 +2009,7 @@ export class Phase11AtomicFixes {
           fixResult.rolledBack = true;
           fixResult.applied = false;
           console.log(`INFO Emergency rollback for ${fixId}`);
-        } catch {
+        } catch (error: unknown) {
           console.error(`ERROR Emergency rollback failed for ${fixId}`);
         }
       }
@@ -2134,11 +2158,13 @@ Generated: ${timestamp}
       }
 
       console.log(`📝 Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('⚠️  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

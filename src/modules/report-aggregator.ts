@@ -212,7 +212,8 @@ class ReportAggregator {
           
           for (const violation of auditorReport.violations) {
             const severityEmoji = this.getSeverityEmoji(violation.severity);
-            report += `| ${severityEmoji} ${violation.severity} | ${violation.file.path} | ${violation.location.line} | ${violation.rule} | ${violation.message.substring(0, 100)}... |\n`;
+            const filePath = (violation.file as { path: string }).path;
+            report += `| ${severityEmoji} ${violation.severity} | ${filePath} | ${violation.location.line} | ${violation.rule} | ${violation.message.substring(0, 100)}... |\n`;
           }
           report += '\n';
         } else {
@@ -255,7 +256,7 @@ class ReportAggregator {
         report += '|----|------|------|-------------|\n';
         
         for (const fixResult of this.remediationResults.appliedFixes) {
-          const fix = fixResult.fix;
+          const fix = (fixResult as { fix: { id: string; type: string; file: string; description: string } }).fix;
           report += `| ${fix.id} | ${fix.type} | ${path.basename(fix.file)} | ${fix.description} |\n`;
         }
         report += '\n';
@@ -267,8 +268,8 @@ class ReportAggregator {
         report += '|----|------|------|-------------|--------|\n';
         
         for (const fixResult of this.remediationResults.suggestedFixes) {
-          const fix = fixResult.fix;
-          report += `| ${fix.id} | ${fix.type} | ${path.basename(fix.file)} | ${fix.description} | ${fixResult.error || 'Manual review required'} |\n`;
+          const fix = (fixResult as { fix: { id: string; type: string; file: string; description: string } }).fix;
+          report += `| ${fix.id} | ${fix.type} | ${path.basename(fix.file)} | ${fix.description} | ${(fixResult as { error?: string }).error || 'Manual review required'} |\n`;
         }
         report += '\n';
         report += '**Note:** Patches for suggested fixes are available in `.sentinel/diffs/` directory.\n\n';
@@ -290,7 +291,7 @@ class ReportAggregator {
       
       for (const violation of predictiveReport.violations) {
         const severityEmoji = this.getSeverityEmoji(violation.severity);
-        const fileName = violation.file?.path || 'unknown';
+        const fileName = (violation.file as { path?: string }).path || 'unknown';
         const message = violation.message;
         report += `| ${severityEmoji} ${violation.severity} | ${path.basename(fileName)} | ${violation.location.line} | ${violation.rule} | ${message.substring(0, 80)}... |\n`;
       }
@@ -313,7 +314,7 @@ class ReportAggregator {
       
       for (const violation of costReport.violations) {
         const severityEmoji = this.getSeverityEmoji(violation.severity);
-        const fileName = violation.file?.path || 'unknown';
+        const fileName = (violation.file as { path?: string }).path || 'unknown';
         const message = violation.message;
         // Extract cost impact and savings from message if available
         report += `| ${severityEmoji} ${violation.severity} | ${path.basename(fileName)} | ${violation.location.line} | ${violation.rule} | ${message.substring(0, 60)}... |\n`;

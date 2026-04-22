@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 1: Code Quality - Technical Health Assessment
  *
  * Purpose: Evaluate the technical health of the code by detecting code smells,
@@ -26,6 +25,18 @@ import { StatePersistence, type ExecutionState } from '../core/state-persistence
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
 import { runWithFileTimeout, type FileTimeoutConfig } from '../core/file-timeout.js';
+
+/**
+ * Business profile
+ */
+interface BusinessProfile {
+  /** Domain */
+  domain: string;
+  /** Core path files */
+  corePathFiles: string[];
+  /** Critical modules */
+  criticalModules: string[];
+}
 
 /**
  * Code quality finding
@@ -163,7 +174,7 @@ export class Phase1CodeQuality {
       }
 
       // Get critical modules from Phase 2 business profile if available
-      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const criticalModules = phase2Results?.criticalModules || [];
 
       // Create batch processor for thermal-safe processing with smart scoping
@@ -229,7 +240,7 @@ export class Phase1CodeQuality {
         averageScore,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 1 failed: ${errorMessage}\n`);
 
@@ -420,7 +431,7 @@ export class Phase1CodeQuality {
         findings,
         isCritical: score < 50, // Files with score < 50 are critical
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.warn(`  ÔÜá´©Å  Failed to analyze ${filePath}: ${errorMessage}`);
 
@@ -681,7 +692,7 @@ export class Phase1CodeQuality {
     let score = 100;
 
     for (const finding of findings) {
-      switch ((finding as any).severity) {
+      switch (finding.severity) {
         case 'critical':
           score -= 25;
           break;
@@ -722,10 +733,10 @@ export class Phase1CodeQuality {
       // Group findings by file for cleaner report
       const findingsByFile = new Map<string, CodeQualityFinding[]>();
       for (const finding of allFindings) {
-        if (!findingsByFile.has((finding as any).filePath)) {
-          findingsByFile.set((finding as any).filePath, []);
+        if (!findingsByFile.has(finding.filePath)) {
+          findingsByFile.set(finding.filePath, []);
         }
-        findingsByFile.get((finding as any).filePath)!.push(finding);
+        findingsByFile.get(finding.filePath)!.push(finding);
       }
 
       let findingsContent = '';
@@ -734,9 +745,9 @@ export class Phase1CodeQuality {
 ### ${path.basename(filePath)}
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).type}** (${(finding as any).severity}): ${(finding as any).description}`;
-          if ((finding as any).line) {
-            findingsContent += ` (line ${(finding as any).line})`;
+          findingsContent += `- [${finding.id}] **${finding.type}** (${finding.severity}): ${finding.description}`;
+          if (finding.line) {
+            findingsContent += ` (line ${finding.line})`;
           }
           findingsContent += '\n';
         }
@@ -770,11 +781,13 @@ Generated: ${timestamp}
       }
 
       console.log(`  ­ƒôØ Partial report updated: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('  ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

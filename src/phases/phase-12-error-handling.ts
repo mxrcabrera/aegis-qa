@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED + HARDENED]
  *
  * Purpose: Evaluate error handling patterns, observability infrastructure, and resilience
@@ -31,6 +30,25 @@ import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+
+/**
+ * Business profile
+ */
+interface BusinessProfile {
+  /** Domain */
+  domain: string;
+  /** Core path files */
+  corePathFiles: string[];
+  /** Critical modules */
+  criticalModules: string[];
+}
+
+/**
+ * Global object with gc
+ */
+interface GlobalWithGC {
+  gc?: () => void;
+}
 
 /**
  * Error handling finding
@@ -171,7 +189,7 @@ export class Phase12ErrorHandling {
       }
 
       // Get critical modules from Phase 2 business profile if available
-      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const criticalModules = phase2Results?.criticalModules || [];
       const corePathFiles = new Set<string>(phase2Results?.corePathFiles || []);
 
@@ -227,11 +245,12 @@ export class Phase12ErrorHandling {
             console.log(`WARNING Memory leak detected (RAM increased ${ramIncrease}%). Attempting cleanup...`);
             
             // Intentar global.gc() si está disponible
-            if (typeof global !== 'undefined' && (global as any).gc) {
+            const globalWithGC = global as unknown as GlobalWithGC;
+            if (typeof global !== 'undefined' && globalWithGC.gc) {
               try {
-                (global as any).gc();
+                globalWithGC.gc();
                 console.log('INFO Garbage collection executed');
-              } catch {
+              } catch (error: unknown) {
                 console.log('WARNING Garbage collection failed');
               }
             }
@@ -297,7 +316,7 @@ export class Phase12ErrorHandling {
         highSeverityFindings,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 12 failed: ${errorMessage}\n`);
 
@@ -698,7 +717,7 @@ export class Phase12ErrorHandling {
             break;
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Invalid package.json, skip
       }
     }
@@ -724,7 +743,7 @@ export class Phase12ErrorHandling {
 
     // Check for missing observability in critical business paths
     if (!result.hasStructuredLogging || !result.hasMetrics) {
-      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const criticalModules = phase2Results?.criticalModules || [];
       
       if (criticalModules.length > 0 && (!result.hasStructuredLogging || !result.hasMetrics)) {
@@ -783,23 +802,23 @@ export class Phase12ErrorHandling {
 `;
 
       for (const finding of findings) {
-        const severityIcon = (finding as any).severity === 'critical' ? 'CRITICAL' : (finding as any).severity === 'high' ? 'HIGH' : (finding as any).severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${(finding as any).type}** ${(finding as any).filePath}`;
-        if ((finding as any).line) {
-          reportContent += `:${(finding as any).line}`;
+        const severityIcon = finding.severity === 'critical' ? 'CRITICAL' : finding.severity === 'high' ? 'HIGH' : finding.severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${finding.type}** ${finding.filePath}`;
+        if (finding.line) {
+          reportContent += `:${finding.line}`;
         }
         reportContent += `\n`;
-        
+
         // Sanitización de Logs de Auditoría: Usar descripción sanitizada si es sensitive-log
-        const descriptionToUse = (finding as any).type === 'sensitive-log' 
-          ? ((finding as any).sanitizedDescription || (finding as any).description)
-          : (finding as any).description;
-        
+        const descriptionToUse = finding.type === 'sensitive-log'
+          ? (finding.sanitizedDescription || finding.description)
+          : finding.description;
+
         reportContent += `  - ${descriptionToUse}\n`;
-        if ((finding as any).suggestion) {
-          reportContent += `  - Suggestion: ${(finding as any).suggestion}\n`;
+        if (finding.suggestion) {
+          reportContent += `  - Suggestion: ${finding.suggestion}\n`;
         }
-        if ((finding as any).isCorePath) {
+        if (finding.isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -824,7 +843,7 @@ Generated: ${timestamp}
       }
 
       console.log(`INFO Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
@@ -884,11 +903,13 @@ Generated: ${timestamp}
       } else {
         console.log('SUCCESS Self-Audit: No empty catch blocks found in phase-12-error-handling.ts');
       }
-    } catch {
+    } catch (error: unknown) {
       console.log('WARNING Self-Audit failed:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

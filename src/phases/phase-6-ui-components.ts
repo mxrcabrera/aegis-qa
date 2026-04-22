@@ -173,7 +173,7 @@ export class Phase6UIComponents {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -227,7 +227,7 @@ export class Phase6UIComponents {
             files.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip directories we can't read
       }
     };
@@ -279,7 +279,7 @@ export class Phase6UIComponents {
         
         const fileFindings = this.analyzeComponent(filePath, sanitizedContent);
         findings.push(...fileFindings);
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -569,7 +569,7 @@ export class Phase6UIComponents {
         if (/useState|useEffect|useCallback|useMemo/.test(content)) {
           componentsWithHooks++;
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip files we can't read
       }
     }
@@ -596,6 +596,8 @@ export class Phase6UIComponents {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+
+
 
 
 

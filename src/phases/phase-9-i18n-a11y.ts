@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 9: Internationalization & Accessibility (i18n & a11y)
  *
  * Purpose: Detect access barriers and localization problems before they affect real users.
@@ -21,6 +20,16 @@ import { StatePersistence, type ExecutionState } from '../core/state-persistence
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
 import { runWithFileTimeout, createTimeoutViolation } from '../core/file-timeout.js';
+
+/**
+ * Business profile
+ */
+interface BusinessProfile {
+  /** Domain */
+  domain: string;
+  /** Core paths */
+  corePaths: string[];
+}
 
 /**
  * i18n & a11y finding
@@ -113,7 +122,7 @@ export class Phase9I18nA11y {
 
     try {
       // Get BusinessProfile from Phase 2 for domain context and Critical Modules
-      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const criticalModules = businessProfile?.corePaths || [];
       const domain = businessProfile?.domain || 'General';
       const isFintech = domain === 'Fintech';
@@ -222,7 +231,7 @@ export class Phase9I18nA11y {
       console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 9 failed: ${errorMessage}\n`);
 
@@ -329,7 +338,7 @@ export class Phase9I18nA11y {
       }
 
       return findings;
-    } catch {
+    } catch (error: unknown) {
       console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -629,10 +638,10 @@ export class Phase9I18nA11y {
       // Group findings by type
       const findingsByType = new Map<string, I18nA11yFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -641,11 +650,11 @@ export class Phase9I18nA11y {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
-          if ((finding as any).line) {
-            findingsContent += `:${(finding as any).line}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
+          if (finding.line) {
+            findingsContent += `:${finding.line}`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -679,11 +688,13 @@ Generated: ${timestamp}
       }
 
       console.log(`­ƒôØ Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

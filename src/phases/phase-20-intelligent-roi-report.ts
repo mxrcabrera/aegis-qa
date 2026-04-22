@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 20: Intelligent ROI Report - Executive Report with Time Savings
  *
  * Purpose: Generate executive report with time savings weighted by complexity
@@ -46,9 +45,43 @@ interface Phase20Config {
   /** Current execution state */
   currentState: ExecutionState;
   /** All findings from phases 0-15 */
-  allFindings: unknown[];
+  allFindings: Finding[];
   /** Fix results from Phase 17 */
-  fixResults?: unknown[];
+  fixResults?: FixResult[];
+}
+
+/**
+ * Finding for ROI calculation
+ */
+interface Finding {
+  /** Finding type or category */
+  type?: string;
+  /** File path */
+  filePath?: string;
+  /** Severity */
+  severity?: string;
+  /** Whether finding is in core path */
+  inCorePath?: boolean;
+}
+
+/**
+ * Fix result from Phase 17
+ */
+interface FixResult {
+  /** Whether fix was successful */
+  success: boolean;
+}
+
+/**
+ * ROI calculation result
+ */
+interface ROIResult {
+  /** Total time saved in minutes */
+  totalTimeSavedMinutes: number;
+  /** Total time saved in hours */
+  totalTimeSavedHours: number;
+  /** Complexity breakdown */
+  complexityBreakdown: Record<string, number>;
 }
 
 /**
@@ -122,9 +155,9 @@ export class Phase20IntelligentROIReport {
       }
 
       // Calculate ROI
-      console.log('INFO Calculating (roi as any)...');
+      console.log('INFO Calculating ROI...');
       const roi = this.calculateROI();
-      console.log(`INFO Total time saved: ${(roi as any).totalTimeSavedMinutes} minutes (${(roi as any).totalTimeSavedHours} hours)\n`);
+      console.log(`INFO Total time saved: ${roi.totalTimeSavedMinutes} minutes (${roi.totalTimeSavedHours} hours)\n`);
 
       // Generate report
       console.log('INFO Generating executive report...');
@@ -137,9 +170,9 @@ export class Phase20IntelligentROIReport {
         success: true,
         reportPath,
         totalFindings: this.config.allFindings.length,
-        totalTimeSavedMinutes: (roi as any).totalTimeSavedMinutes,
-        totalTimeSavedHours: (roi as any).totalTimeSavedHours,
-        fixesApplied: this.config.fixResults?.filter((r: any) => r.success).length || 0,
+        totalTimeSavedMinutes: roi.totalTimeSavedMinutes,
+        totalTimeSavedHours: roi.totalTimeSavedHours,
+        fixesApplied: this.config.fixResults?.filter((r) => r.success).length || 0,
         executionTimeMs,
       };
 
@@ -150,7 +183,7 @@ export class Phase20IntelligentROIReport {
       console.log(`INFO Report: ${result.reportPath}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -174,13 +207,9 @@ export class Phase20IntelligentROIReport {
    * Calculates ROI based on findings
    *
    * @private
-   * @returns ROI calculation result
+   * @returns ROIResult - ROI calculation result
    */
-  private calculateROI(): {
-    totalTimeSavedMinutes: number;
-    totalTimeSavedHours: number;
-    complexityBreakdown: Record<string, number>;
-  } {
+  private calculateROI(): ROIResult {
     const complexityBreakdown: Record<string, number> = {
       core: 0,
       business: 0,
@@ -213,10 +242,10 @@ export class Phase20IntelligentROIReport {
    * @param finding - Finding object
    * @returns Finding complexity
    */
-  private determineComplexity(finding: any): FindingComplexity {
+  private determineComplexity(finding: Finding): FindingComplexity {
     // Determine complexity based on finding type and severity
-    const type = (finding as any).type || '';
-    const severity = (finding as any).severity || '';
+    const type = finding.type || '';
+    const severity = finding.severity || '';
 
     // Core issues (business logic, database)
     if (type.includes('business') || type.includes('database') || type.includes('api')) {
@@ -271,9 +300,9 @@ export class Phase20IntelligentROIReport {
    *
    * @private
    * @param roi - ROI calculation result
-   * @returns string - Report file path
+   * @returns string - Report path
    */
-  private generateReport(roi: any): string {
+  private generateReport(roi: ROIResult): string {
     const reportPath = path.join(this.config.projectRoot, 'qa-report.md');
 
     // Generate report content
@@ -307,12 +336,12 @@ export class Phase20IntelligentROIReport {
    * @param roi - ROI calculation result
    * @returns string - Report content
    */
-  private generateReportContent(roi: any): string {
+  private generateReportContent(roi: ROIResult): string {
     const timestamp = new Date().toISOString();
     const totalFindings = this.config.allFindings.length;
-    const criticalFindings = this.config.allFindings.filter((f: any) => f.severity === 'critical').length;
-    const highSeverityFindings = this.config.allFindings.filter((f: any) => f.severity === 'high').length;
-    const fixesApplied = this.config.fixResults?.filter((r: any) => r.success).length || 0;
+    const criticalFindings = this.config.allFindings.filter((f) => f.severity === 'critical').length;
+    const highSeverityFindings = this.config.allFindings.filter((f) => f.severity === 'high').length;
+    const fixesApplied = this.config.fixResults?.filter((r) => r.success).length || 0;
 
     return `# Aegis QA - Executive ROI Report
 
@@ -329,17 +358,17 @@ This report provides a comprehensive analysis of code quality findings and the e
 - **Critical Findings:** ${criticalFindings}
 - **High Severity Findings:** ${highSeverityFindings}
 - **Fixes Applied:** ${fixesApplied}
-- **Total Time Saved:** ${(roi as any).totalTimeSavedHours.toFixed(2)} hours (${(roi as any).totalTimeSavedMinutes} minutes)
+- **Total Time Saved:** ${roi.totalTimeSavedHours.toFixed(2)} hours (${roi.totalTimeSavedMinutes} minutes)
 
 ## Complexity Breakdown
 
 | Complexity | Count | Time per Finding | Total Time Saved |
 |------------|-------|-----------------|------------------|
-| Core (Business Logic, Database) | ${(roi as any).complexityBreakdown.core} | 30 min | ${((roi as any).complexityBreakdown.core * 30).toFixed(0)} min |
-| Business (Domain, Logic) | ${(roi as any).complexityBreakdown.business} | 20 min | ${((roi as any).complexityBreakdown.business * 20).toFixed(0)} min |
-| Security | ${(roi as any).complexityBreakdown.security} | 15 min | ${((roi as any).complexityBreakdown.security * 15).toFixed(0)} min |
-| Style (Formatting, Low Severity) | ${(roi as any).complexityBreakdown.style} | 5 min | ${((roi as any).complexityBreakdown.style * 5).toFixed(0)} min |
-| Low | ${(roi as any).complexityBreakdown.low} | 2 min | ${((roi as any).complexityBreakdown.low * 2).toFixed(0)} min |
+| Core (Business Logic, Database) | ${roi.complexityBreakdown.core} | 30 min | ${(roi.complexityBreakdown.core * 30).toFixed(0)} min |
+| Business (Domain, Logic) | ${roi.complexityBreakdown.business} | 20 min | ${(roi.complexityBreakdown.business * 20).toFixed(0)} min |
+| Security | ${roi.complexityBreakdown.security} | 15 min | ${(roi.complexityBreakdown.security * 15).toFixed(0)} min |
+| Style (Formatting, Low Severity) | ${roi.complexityBreakdown.style} | 5 min | ${(roi.complexityBreakdown.style * 5).toFixed(0)} min |
+| Low | ${roi.complexityBreakdown.low} | 2 min | ${(roi.complexityBreakdown.low * 2).toFixed(0)} min |
 
 ## Findings by Severity
 
@@ -347,8 +376,8 @@ This report provides a comprehensive analysis of code quality findings and the e
 |----------|-------|
 | Critical | ${criticalFindings} |
 | High | ${highSeverityFindings} |
-| Medium | ${this.config.allFindings.filter((f: any) => f.severity === 'medium').length} |
-| Low | ${this.config.allFindings.filter((f: any) => f.severity === 'low').length} |
+| Medium | ${this.config.allFindings.filter((f) => f.severity === 'medium').length} |
+| Low | ${this.config.allFindings.filter((f) => f.severity === 'low').length} |
 
 ## Recommendations
 
@@ -396,6 +425,8 @@ This report provides a comprehensive analysis of code quality findings and the e
     return censoredContent;
   }
 }
+
+
 
 
 

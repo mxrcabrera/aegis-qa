@@ -171,7 +171,7 @@ export class Phase14ACloudCostDetection {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -242,7 +242,7 @@ export class Phase14ACloudCostDetection {
               files.push(path.join(dir, item));
             }
           }
-        } catch {
+        } catch (error: unknown) {
           // Skip directories we can't read
         }
       }
@@ -296,7 +296,7 @@ export class Phase14ACloudCostDetection {
         
         const fileFindings = this.analyzeCloudFile(filePath, sanitizedContent);
         findings.push(...fileFindings);
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -517,6 +517,8 @@ export class Phase14ACloudCostDetection {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+
+
 
 
 

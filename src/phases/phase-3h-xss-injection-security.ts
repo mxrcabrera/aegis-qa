@@ -163,7 +163,7 @@ export class Phase3HXSSInjectionSecurity {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -235,7 +235,7 @@ export class Phase3HXSSInjectionSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -283,7 +283,7 @@ export class Phase3HXSSInjectionSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -355,7 +355,7 @@ export class Phase3HXSSInjectionSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -412,7 +412,7 @@ export class Phase3HXSSInjectionSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -465,7 +465,7 @@ export class Phase3HXSSInjectionSecurity {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -515,7 +515,7 @@ export class Phase3HXSSInjectionSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -565,7 +565,7 @@ export class Phase3HXSSInjectionSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -613,7 +613,7 @@ export class Phase3HXSSInjectionSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -666,7 +666,7 @@ export class Phase3HXSSInjectionSecurity {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -714,7 +714,7 @@ export class Phase3HXSSInjectionSecurity {
             }
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -739,7 +739,7 @@ export class Phase3HXSSInjectionSecurity {
             sourceFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -764,6 +764,8 @@ export class Phase3HXSSInjectionSecurity {
     };
   }
 }
+
+
 
 
 

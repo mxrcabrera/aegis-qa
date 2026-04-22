@@ -130,7 +130,7 @@ export class PhaseAPIContracts {
       console.log(`INFO Medium severity findings: ${mediumSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -205,7 +205,7 @@ export class PhaseAPIContracts {
             }
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -289,7 +289,7 @@ export class PhaseAPIContracts {
             }
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -338,7 +338,7 @@ export class PhaseAPIContracts {
           const count = paginationPatterns.get(paginationPattern) || 0;
           paginationPatterns.set(paginationPattern, count + 1);
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -394,7 +394,7 @@ export class PhaseAPIContracts {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -432,7 +432,7 @@ export class PhaseAPIContracts {
             sourceFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -453,6 +453,8 @@ export class PhaseAPIContracts {
     };
   }
 }
+
+
 
 
 

@@ -173,7 +173,7 @@ export class Phase15DevOpsSuite {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -245,7 +245,7 @@ export class Phase15DevOpsSuite {
               files.push(path.join(dir, item));
             }
           }
-        } catch {
+        } catch (error: unknown) {
           // Skip directories we can't read
         }
       }
@@ -299,7 +299,7 @@ export class Phase15DevOpsSuite {
         
         const fileFindings = this.analyzeDevOpsFile(filePath, sanitizedContent);
         findings.push(...fileFindings);
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -554,6 +554,8 @@ export class Phase15DevOpsSuite {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+
+
 
 
 

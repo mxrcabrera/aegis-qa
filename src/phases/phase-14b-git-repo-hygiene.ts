@@ -204,7 +204,7 @@ export class Phase14BGitRepoHygiene {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -255,7 +255,7 @@ export class Phase14BGitRepoHygiene {
             files.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip directories we can't read
       }
     };
@@ -309,7 +309,7 @@ export class Phase14BGitRepoHygiene {
             suggestion: 'Consider using Git LFS or moving to external storage',
           });
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to check file ${filePath}:`, sanitizeError(error));
       }
     }
@@ -389,6 +389,8 @@ export class Phase14BGitRepoHygiene {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+
+
 
 
 

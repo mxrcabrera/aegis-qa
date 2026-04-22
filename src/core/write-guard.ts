@@ -266,7 +266,10 @@ export class FileSystem {
    * @returns Array of file/directory names
    */
   readdirSync(dirPath: string, options?: { withFileTypes?: boolean; encoding?: BufferEncoding }): string[] | Buffer[] | fs.Dirent[] {
-    return fs.readdirSync(dirPath, options as unknown as fs.EncodingOption | { withFileTypes?: boolean; encoding?: BufferEncoding | null } | null | undefined);
+    if (options?.withFileTypes) {
+      return fs.readdirSync(dirPath, { withFileTypes: true });
+    }
+    return fs.readdirSync(dirPath, options?.encoding as BufferEncoding);
   }
 
   /**
@@ -313,7 +316,10 @@ export class FileSystem {
    * @returns Promise that resolves with array of file/directory names
    */
   async readdir(dirPath: string, options?: { withFileTypes?: boolean; encoding?: BufferEncoding }): Promise<string[] | Buffer[] | fs.Dirent[]> {
-    return fs.promises.readdir(dirPath, options as unknown as fs.EncodingOption | { withFileTypes?: boolean; encoding?: BufferEncoding | null } | null | undefined);
+    if (options?.withFileTypes) {
+      return fs.promises.readdir(dirPath, { withFileTypes: true });
+    }
+    return fs.promises.readdir(dirPath, options?.encoding as BufferEncoding);
   }
 
   /**

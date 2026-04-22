@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 18: Post-Fix Validation & Quality Gate
  *
  * Purpose: Final inspection before concluding the work.
@@ -56,6 +55,53 @@ interface Regression {
   newErrorType: string;
   /** Description */
   description: string;
+}
+
+/**
+ * Exec error from command execution
+ */
+interface ExecError {
+  /** Standard error output */
+  stderr?: string;
+  /** Error message */
+  message?: string;
+}
+
+/**
+ * Finding from Phase 1 scan
+ */
+interface Finding {
+  /** File path */
+  filePath: string;
+  /** Finding type */
+  type: string;
+  /** Severity */
+  severity?: string;
+  /** Description */
+  description?: string;
+  /** Line number */
+  line?: number;
+}
+
+/**
+ * Phase data with findings
+ */
+interface PhaseData {
+  /** Findings from the phase */
+  findings?: Finding[];
+  /** Code findings */
+  codeFindings?: Finding[];
+}
+
+/**
+ * Phase 17 data
+ */
+interface Phase17Data {
+  /** Execution result */
+  executionResult?: {
+    /** Modified files */
+    modifiedFiles?: string[];
+  };
 }
 
 /**
@@ -179,7 +225,7 @@ export class Phase18PostFixValidation {
         validationResult,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 18 failed: ${errorMessage}\n`);
 
@@ -216,10 +262,11 @@ export class Phase18PostFixValidation {
       
       console.log(`INFO Pre-fix baseline captured: ${errors.length} type errors`);
       return { errorCount: errors.length, errors };
-    } catch {
-      const stderr = (error as any).stderr || '';
+    } catch (error: unknown) {
+      const execError = error as ExecError;
+      const stderr = execError.stderr || '';
       const errors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
-      
+
       console.log(`INFO Pre-fix baseline captured: ${errors.length} type errors`);
       return { errorCount: errors.length, errors };
     }
@@ -272,8 +319,9 @@ export class Phase18PostFixValidation {
 
       console.log('SUCCESS No new type errors detected. Global integrity maintained');
       return { status: 'passed', errorCount: postFixErrorCount, newErrors: 0 };
-    } catch {
-      const stderr = (error as any).stderr || '';
+    } catch (error: unknown) {
+      const execError = error as ExecError;
+      const stderr = execError.stderr || '';
       const postFixErrors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
       const postFixErrorCount = postFixErrors.length;
       
@@ -372,20 +420,20 @@ export class Phase18PostFixValidation {
 
     // Compare findings to detect regressions
     for (const preFixFinding of preFixFindings) {
-      const filePath = (preFixFinding as any).filePath;
+      const filePath = preFixFinding.filePath;
       if (!filePath) continue;
 
       // Check if same zone has new errors post-fix
       const zoneErrors = postFixFindings.filter(f => f.filePath === filePath);
-      
+
       for (const postFixError of zoneErrors) {
         if (this.isRegression(preFixFinding, postFixError)) {
           regressions.push({
             id: `regression-${Date.now()}`,
             filePath,
-            originalFindingType: (preFixFinding as any).type || 'unknown',
-            newErrorType: (postFixError as any).type || 'unknown',
-            description: `Fix for ${(preFixFinding as any).type} introduced ${(postFixError as any).type} in same zone`,
+            originalFindingType: preFixFinding.type || 'unknown',
+            newErrorType: postFixError.type || 'unknown',
+            description: `Fix for ${preFixFinding.type} introduced ${postFixError.type} in same zone`,
           });
         }
       }
@@ -400,19 +448,20 @@ export class Phase18PostFixValidation {
    *
    * @private
    * @param phaseData - Phase data
-   * @returns Array of findings
+   * @returns Finding[] - Extracted findings
    */
-  private extractFindingsFromPhaseData(phaseData: any): unknown[] {
+  private extractFindingsFromPhaseData(phaseData: unknown): Finding[] {
     if (Array.isArray(phaseData)) {
-      return phaseData;
+      return phaseData as Finding[];
     }
 
-    if ((phaseData as any).findings && Array.isArray((phaseData as any).findings)) {
-      return (phaseData as any).findings;
+    const data = phaseData as PhaseData;
+    if (data.findings && Array.isArray(data.findings)) {
+      return data.findings;
     }
 
-    if ((phaseData as any).codeFindings && Array.isArray((phaseData as any).codeFindings)) {
-      return (phaseData as any).codeFindings;
+    if (data.codeFindings && Array.isArray(data.codeFindings)) {
+      return data.codeFindings;
     }
 
     return [];
@@ -422,9 +471,9 @@ export class Phase18PostFixValidation {
    * Runs Phase 1 scan to get post-fix findings
    *
    * @private
-   * @returns Promise<any[]> - Post-fix findings
+   * @returns Promise<Finding[]> - Post-fix findings
    */
-  private async runPhase1Scan(): Promise<unknown[]> {
+  private async runPhase1Scan(): Promise<Finding[]> {
     // Placeholder: In real implementation, would re-run Phase 1
     // For now, return empty array
     return [];
@@ -438,19 +487,19 @@ export class Phase18PostFixValidation {
    * @param postFixError - Post-fix error
    * @returns boolean - Whether it's a regression
    */
-  private isRegression(preFixFinding: unknown, postFixError: any): boolean {
+  private isRegression(preFixFinding: Finding, postFixError: Finding): boolean {
     // Check if they're in the same file and same line/zone
-    if ((preFixFinding as any).filePath !== (postFixError as any).filePath) {
+    if (preFixFinding.filePath !== postFixError.filePath) {
       return false;
     }
 
     // Check if post-fix error is different type (new error introduced)
-    if ((preFixFinding as any).type === (postFixError as any).type) {
+    if (preFixFinding.type === postFixError.type) {
       return false;
     }
 
     // Check if they're in the same zone (within 5 lines)
-    const lineDiff = Math.abs(((preFixFinding as any).line || 0) - ((postFixError as any).line || 0));
+    const lineDiff = Math.abs((preFixFinding.line || 0) - (postFixError.line || 0));
     if (lineDiff <= 5) {
       return true;
     }
@@ -516,7 +565,7 @@ export class Phase18PostFixValidation {
             }
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`WARNING Failed to check ${filePath} for security regressions:`, error instanceof Error ? error.message : error);
       }
     }
@@ -532,12 +581,12 @@ export class Phase18PostFixValidation {
    * @param phase17Data - Phase 17 data
    * @returns string[] - Modified file paths
    */
-  private getModifiedFiles(phase17Data: any): string[] {
+  private getModifiedFiles(phase17Data: unknown): string[] {
     const modifiedFiles: string[] = [];
+    const data = phase17Data as Phase17Data;
 
-    if ((phase17Data as any).executionResult) {
-      // In real implementation, would track modified files
-      // For now, return empty array
+    if (data.executionResult?.modifiedFiles) {
+      return data.executionResult.modifiedFiles;
     }
 
     return modifiedFiles;
@@ -572,7 +621,7 @@ export class Phase18PostFixValidation {
           fs.unlinkSync(backupFile);
           filesCleaned++;
           console.log(`INFO Deleted backup file: ${backupFile}`);
-        } catch {
+        } catch (error: unknown) {
           console.warn(`WARNING Failed to delete backup file ${backupFile}:`, error instanceof Error ? error.message : error);
         }
       }
@@ -586,13 +635,13 @@ export class Phase18PostFixValidation {
           this.deleteFolderRecursive(zombieFolder);
           foldersCleaned++;
           console.log(`INFO Deleted zombie backup folder: ${zombieFolder}`);
-        } catch {
+        } catch (error: unknown) {
           console.warn(`WARNING Failed to delete zombie folder ${zombieFolder}:`, error instanceof Error ? error.message : error);
         }
       }
 
       console.log(`INFO Final Sanitization complete: ${filesCleaned} files, ${foldersCleaned} folders cleaned`);
-    } catch {
+    } catch (error: unknown) {
       console.error('ERROR Final Sanitization failed:', error instanceof Error ? error.message : error);
     }
 
@@ -686,7 +735,7 @@ export class Phase18PostFixValidation {
       } else {
         console.log('WARNING No qa-report.md found to lock');
       }
-    } catch {
+    } catch (error: unknown) {
       console.error('ERROR Failed to lock final report:', error instanceof Error ? error.message : error);
     }
   }
@@ -729,7 +778,7 @@ export class Phase18PostFixValidation {
       } else {
         console.log('INFO System temperature/usage normal. No breath needed.');
       }
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to perform Big Breath:', error instanceof Error ? error.message : error);
     }
   }
@@ -763,6 +812,8 @@ export class Phase18PostFixValidation {
     return backupFiles;
   }
 }
+
+
 
 
 

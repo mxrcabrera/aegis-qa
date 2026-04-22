@@ -25,6 +25,14 @@ import { StatePersistence, type ExecutionState } from '../core/state-persistence
 import { execSafe } from '../core/command-sanitizer.js';
 
 /**
+ * Phase 2 result
+ */
+interface Phase2Result {
+  /** Core path files */
+  corePathFiles: string[];
+}
+
+/**
  * Git hygiene finding
  */
 interface GitHygieneFinding {
@@ -204,7 +212,7 @@ export class Phase14GitHygiene {
       }
 
       // Get critical modules from Phase 2 business profile if available
-      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const phase2Results = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as Phase2Result | undefined;
       const corePathFiles = new Set<string>(phase2Results?.corePathFiles || []);
 
       // Perform git hygiene audit
@@ -245,7 +253,7 @@ export class Phase14GitHygiene {
         highSeverityFindings: allFindings.filter(f => f.severity === 'high').length,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 14 failed: ${errorMessage}\n`);
 
@@ -435,7 +443,7 @@ export class Phase14GitHygiene {
               result.largeFiles.push({ path: relativePath, sizeMB: Math.round(sizeMB * 100) / 100 });
             }
           }
-        } catch {
+        } catch (error: unknown) {
           // File might not be accessible
         }
       }
@@ -458,7 +466,7 @@ export class Phase14GitHygiene {
           }
         }
       }
-    } catch {
+    } catch (error: unknown) {
       // Not a git repository or git not available
     }
 
@@ -472,7 +480,7 @@ export class Phase14GitHygiene {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
         const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
         isNextJs = !!dependencies['next'];
-      } catch {
+      } catch (error: unknown) {
         // Invalid package.json
       }
     }
@@ -559,7 +567,7 @@ export class Phase14GitHygiene {
             }
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Invalid package.json
       }
     }
@@ -874,17 +882,17 @@ export class Phase14GitHygiene {
 `;
 
       for (const finding of findings) {
-        const severityIcon = (finding as any).severity === 'critical' ? 'CRITICAL' : (finding as any).severity === 'high' ? 'HIGH' : (finding as any).severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${(finding as any).type}** ${(finding as any).filePath}`;
-        if ((finding as any).line) {
-          reportContent += `:${(finding as any).line}`;
+        const severityIcon = finding.severity === 'critical' ? 'CRITICAL' : finding.severity === 'high' ? 'HIGH' : finding.severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${finding.type}** ${finding.filePath}`;
+        if (finding.line) {
+          reportContent += `:${finding.line}`;
         }
         reportContent += `\n`;
-        reportContent += `  - ${(finding as any).description}\n`;
-        if ((finding as any).suggestion) {
-          reportContent += `  - Suggestion: ${(finding as any).suggestion}\n`;
+        reportContent += `  - ${finding.description}\n`;
+        if (finding.suggestion) {
+          reportContent += `  - Suggestion: ${finding.suggestion}\n`;
         }
-        if ((finding as any).isCorePath) {
+        if (finding.isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -909,7 +917,7 @@ Generated: ${timestamp}
       }
 
       console.log(`INFO Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
@@ -928,6 +936,8 @@ Generated: ${timestamp}
     return hash.substring(0, 12);
   }
 }
+
+
 
 
 

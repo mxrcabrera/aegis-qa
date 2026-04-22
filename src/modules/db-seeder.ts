@@ -127,7 +127,7 @@ class DBSeeder {
       for (const student of this.testData.students) {
         const { data, error } = await client
           .from("estudiantes")
-          .upsert(student as unknown, { onConflict: "id" })
+          .upsert(student as TestStudent, { onConflict: "id" })
           .select()
           .single();
 
@@ -145,7 +145,7 @@ class DBSeeder {
       for (const clase of this.testData.classes) {
         const { data, error } = await client
           .from("clases")
-          .upsert(clase as unknown, { onConflict: "id" })
+          .upsert(clase as TestClase, { onConflict: "id" })
           .select()
           .single();
 
@@ -193,7 +193,7 @@ class DBSeeder {
 
       const { data, error } = await client
         .from("reservas")
-        .insert(reserva as unknown)
+        .insert(reserva as TestReserva)
         .select()
         .single();
 
@@ -203,7 +203,7 @@ class DBSeeder {
       }
 
       console.log(`✅ Reservation created: ${(data as { id?: string }).id}`);
-      return data as unknown as TestReserva;
+      return data as TestReserva;
     } catch (error) {
       console.error("Error creating reservation:", error);
       return null;

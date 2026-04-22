@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 3B: AI API Integration Security
  *
  * Purpose: Analyze AI API integrations for security vulnerabilities including
@@ -115,7 +114,7 @@ export class Phase3BAIAPIIntegration {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -158,7 +157,7 @@ export class Phase3BAIAPIIntegration {
             sourceFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -188,7 +187,7 @@ export class Phase3BAIAPIIntegration {
 
         const fileFindings = this.analyzeFileForAIAPI(filePath, sanitizedContent);
         findings.push(...fileFindings);
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -234,7 +233,7 @@ export class Phase3BAIAPIIntegration {
     return null;
   }
 
-  private checkPromptInjection(filePath: string, line: number, content: string, apiProvider: string): AIAPIFinding[] {
+  private checkPromptInjection(filePath: string, line: number, content: string, apiProvider: 'openai' | 'anthropic' | 'cohere' | 'huggingface' | 'custom'): AIAPIFinding[] {
     const findings: AIAPIFinding[] = [];
     const patterns = [
       /userInput\s*\+\s*['"`].*['"`]/, // String concatenation with user input
@@ -253,7 +252,7 @@ export class Phase3BAIAPIIntegration {
           line,
           description: `Potential prompt injection vulnerability: user input used directly in AI prompt without sanitization`,
           suggestion: 'Sanitize and validate user input before including in AI prompts. Use allow-lists and length limits.',
-          apiProvider: apiProvider as unknown,
+          apiProvider,
         });
       }
     });
@@ -261,7 +260,7 @@ export class Phase3BAIAPIIntegration {
     return findings;
   }
 
-  private checkKeyExposure(filePath: string, line: number, content: string, apiProvider: string): AIAPIFinding[] {
+  private checkKeyExposure(filePath: string, line: number, content: string, apiProvider: 'openai' | 'anthropic' | 'cohere' | 'huggingface' | 'custom'): AIAPIFinding[] {
     const findings: AIAPIFinding[] = [];
     const patterns = [
       /api[_-]?key\s*=\s*['"`][a-zA-Z0-9_-]{20,}['"`]/, // Hardcoded API key
@@ -281,10 +280,10 @@ export class Phase3BAIAPIIntegration {
           filePath,
           line,
           description: `AI API key exposed in ${isClientSide ? 'client-side code' : 'source code'}`,
-          suggestion: isClientSide 
+          suggestion: isClientSide
             ? 'Move API key calls to server actions or API routes. Never expose API keys in client code.'
             : 'Use environment variables and secret management. Never commit API keys to source code.',
-          apiProvider: apiProvider as unknown,
+          apiProvider,
         });
       }
     });
@@ -292,9 +291,9 @@ export class Phase3BAIAPIIntegration {
     return findings;
   }
 
-  private checkCostLimits(filePath: string, line: number, content: string, apiProvider: string): AIAPIFinding[] {
+  private checkCostLimits(filePath: string, line: number, content: string, apiProvider: 'openai' | 'anthropic' | 'cohere' | 'huggingface' | 'custom'): AIAPIFinding[] {
     const findings: AIAPIFinding[] = [];
-    
+
     // Check if max_tokens or similar cost controls are missing in API calls
     const hasAPIcall = content.includes('completion') || content.includes('chat.completions');
     const hasCostControl = content.includes('max_tokens') || content.includes('max_completion_tokens') || content.includes('limit');
@@ -308,16 +307,16 @@ export class Phase3BAIAPIIntegration {
         line,
         description: `AI API call without cost limits (max_tokens) - potential for excessive costs`,
         suggestion: 'Always set max_tokens or equivalent cost limits to prevent runaway costs from long AI responses.',
-        apiProvider: apiProvider as unknown,
+        apiProvider,
       });
     }
 
     return findings;
   }
 
-  private checkOutputValidation(filePath: string, line: number, content: string, apiProvider: string): AIAPIFinding[] {
+  private checkOutputValidation(filePath: string, line: number, content: string, apiProvider: 'openai' | 'anthropic' | 'cohere' | 'huggingface' | 'custom'): AIAPIFinding[] {
     const findings: AIAPIFinding[] = [];
-    
+
     // Check if AI output is used directly without validation
     const patterns = [
       /response\.choices\[0\]\.message\.content/, // Direct use of OpenAI response
@@ -335,7 +334,7 @@ export class Phase3BAIAPIIntegration {
           line,
           description: `AI output used directly without validation or sanitization`,
           suggestion: 'Always validate and sanitize AI output before using it. Check for malicious content, length limits, and expected format.',
-          apiProvider: apiProvider as unknown,
+          apiProvider,
         });
       }
     });
@@ -354,6 +353,8 @@ export class Phase3BAIAPIIntegration {
     };
   }
 }
+
+
 
 
 

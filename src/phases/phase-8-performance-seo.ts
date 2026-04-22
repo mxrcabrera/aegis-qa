@@ -173,7 +173,7 @@ export class Phase8PerformanceSEO {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -226,7 +226,7 @@ export class Phase8PerformanceSEO {
             files.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip directories we can't read
       }
     };
@@ -268,7 +268,7 @@ export class Phase8PerformanceSEO {
         
         const fileFindings = this.analyzeFileForPerformanceSEO(filePath, sanitizedContent);
         findings.push(...fileFindings);
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -500,6 +500,8 @@ export class Phase8PerformanceSEO {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+
+
 
 
 

@@ -745,7 +745,7 @@ export class StatePersistence {
     if (!currentState.analysisResults.fileHashCache) {
       currentState.analysisResults.fileHashCache = {};
     }
-    currentState.analysisResults.fileHashCache[filePath] = { hash, score, timestamp: new Date().toISOString() };
+    (currentState.analysisResults.fileHashCache as Record<string, { hash: string; score: number; timestamp: string }>)[filePath] = { hash, score, timestamp: new Date().toISOString() };
   }
 
   /**
@@ -759,7 +759,7 @@ export class StatePersistence {
     if (!currentState.analysisResults || !currentState.analysisResults.fileHashCache) {
       return null;
     }
-    return currentState.analysisResults.fileHashCache[filePath] || null;
+    return (currentState.analysisResults.fileHashCache as Record<string, { hash: string; score: number; timestamp: string }>)[filePath] || null;
   }
 }
 

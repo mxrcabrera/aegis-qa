@@ -139,7 +139,7 @@ export class Phase3GDataPrivacyPII {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -217,7 +217,7 @@ export class Phase3GDataPrivacyPII {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -255,7 +255,7 @@ export class Phase3GDataPrivacyPII {
         if (lowerContent.includes('deleted_at') || lowerContent.includes('is_deleted')) {
           hasSoftDelete = true;
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -314,7 +314,7 @@ export class Phase3GDataPrivacyPII {
         if (lowerContent.includes('gdpr') || lowerContent.includes('right to data portability')) {
           hasDataExport = true;
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -389,7 +389,7 @@ export class Phase3GDataPrivacyPII {
             });
           }
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -443,7 +443,7 @@ export class Phase3GDataPrivacyPII {
             }
           });
         });
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -475,7 +475,7 @@ export class Phase3GDataPrivacyPII {
         if (lowerContent.includes('retention') || lowerContent.includes('ttl') || lowerContent.includes('expire')) {
           hasRetentionPolicy = true;
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -509,7 +509,7 @@ export class Phase3GDataPrivacyPII {
             sqlFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -535,7 +535,7 @@ export class Phase3GDataPrivacyPII {
             sourceFiles.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -556,6 +556,8 @@ export class Phase3GDataPrivacyPII {
     };
   }
 }
+
+
 
 
 

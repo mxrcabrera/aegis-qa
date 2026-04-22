@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 8: Performance & Scalability
  *
  * Purpose: Detect bottlenecks, memory leaks, and patterns that impede scaling.
@@ -20,6 +19,36 @@ import * as crypto from 'crypto';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
+
+/**
+ * Business profile from Phase 2
+ */
+interface BusinessProfile {
+  /** Business domain */
+  domain: string;
+  /** Core paths */
+  corePaths: string[];
+}
+
+/**
+ * Phase 1 result
+ */
+interface Phase1Result {
+  /** Complexity scores */
+  complexityScores: Record<string, number>;
+}
+
+/**
+ * Phase 4 result
+ */
+interface Phase4Result {
+  /** Database findings */
+  findings: Array<{
+    type: string;
+    description: string;
+    filePath: string;
+  }>;
+}
 
 /**
  * Performance finding
@@ -112,17 +141,17 @@ export class Phase8Performance {
 
     try {
       // Get Phase 2 results for Critical Modules and Domain context
-      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState);
+      const businessProfile = this.config.statePersistence.getAnalysisResults(2, this.config.currentState) as BusinessProfile | undefined;
       const criticalModules = businessProfile?.corePaths || [];
       const domain = businessProfile?.domain || 'General';
       const isFintech = domain === 'Fintech';
 
       // Get Phase 1 results for complexity scores
-      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
+      const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState) as Phase1Result | undefined;
       const complexityScores = phase1Results?.complexityScores || {};
 
       // Get Phase 4 results for Caching context
-      const phase4Results = this.config.statePersistence.getAnalysisResults(4, this.config.currentState);
+      const phase4Results = this.config.statePersistence.getAnalysisResults(4, this.config.currentState) as Phase4Result | undefined;
       const databaseFindings = phase4Results?.findings || [];
 
       console.log(`��Ļ Domain Context: ${domain}${isFintech ? ' (Fintech - Strict Mode for Performance)' : ''}\n`);
@@ -183,7 +212,7 @@ export class Phase8Performance {
       console.log(`  ��ᴩ�  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 8 failed: ${errorMessage}\n`);
 
@@ -288,7 +317,7 @@ export class Phase8Performance {
       findings.push(...scalabilityFindings);
 
       return findings;
-    } catch {
+    } catch (error: unknown) {
       console.warn(`��ᴩ�  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -600,10 +629,10 @@ export class Phase8Performance {
       // Group findings by type
       const findingsByType = new Map<string, PerformanceFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as any).type)) {
-          findingsByType.set((finding as any).type, []);
+        if (!findingsByType.has(finding.type)) {
+          findingsByType.set(finding.type, []);
         }
-        findingsByType.get((finding as any).type)!.push(finding);
+        findingsByType.get(finding.type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -612,11 +641,11 @@ export class Phase8Performance {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
-          if ((finding as any).line) {
-            findingsContent += `:${(finding as any).line}`;
+          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
+          if (finding.line) {
+            findingsContent += `:${finding.line}`;
           }
-          findingsContent += `\n  - ${(finding as any).description}\n`;
+          findingsContent += `\n  - ${finding.description}\n`;
         }
       }
 
@@ -650,11 +679,13 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

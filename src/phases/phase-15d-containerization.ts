@@ -177,7 +177,7 @@ export class Phase15CContainerization {
         highSeverityFindings: allFindings.filter(f => f.severity === 'high').length,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 15C failed: ${errorMessage}\n`);
 
@@ -321,7 +321,7 @@ export class Phase15CContainerization {
         dependencies['aws-sdk'];
       
       return hasProductionScripts || hasProductionDeps;
-    } catch {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -377,7 +377,7 @@ export class Phase15CContainerization {
       }
 
       return { passed: true };
-    } catch {
+    } catch (error: unknown) {
       // Failed to read Dockerfile, consider as pass (cannot audit)
       return { passed: true };
     }
@@ -509,7 +509,7 @@ export class Phase15CContainerization {
           value: `Single-stage build with heavy base image (${fromCount} FROM instruction)`,
         });
       }
-    } catch {
+    } catch (error: unknown) {
       // Failed to read Dockerfile
     }
   }
@@ -652,17 +652,17 @@ export class Phase15CContainerization {
 `;
 
       for (const finding of findings) {
-        const severityIcon = (finding as any).severity === 'critical' ? 'CRITICAL' : (finding as any).severity === 'high' ? 'HIGH' : (finding as any).severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${(finding as any).type}** ${(finding as any).filePath}`;
-        if ((finding as any).line) {
-          reportContent += `:${(finding as any).line}`;
+        const severityIcon = finding.severity === 'critical' ? 'CRITICAL' : finding.severity === 'high' ? 'HIGH' : finding.severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${finding.type}** ${finding.filePath}`;
+        if (finding.line) {
+          reportContent += `:${finding.line}`;
         }
         reportContent += `\n`;
-        reportContent += `  - ${(finding as any).description}\n`;
-        if ((finding as any).suggestion) {
-          reportContent += `  - Suggestion: ${(finding as any).suggestion}\n`;
+        reportContent += `  - ${finding.description}\n`;
+        if (finding.suggestion) {
+          reportContent += `  - Suggestion: ${finding.suggestion}\n`;
         }
-        if ((finding as any).isCorePath) {
+        if (finding.isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -687,7 +687,7 @@ Generated: ${timestamp}
       }
 
       console.log(`INFO Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
@@ -706,6 +706,8 @@ Generated: ${timestamp}
     return hash.substring(0, 12);
   }
 }
+
+
 
 
 

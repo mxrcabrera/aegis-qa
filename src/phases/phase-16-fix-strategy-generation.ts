@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 16: Fix Strategy Generation - Intelligent Fix Strategy Planning
  *
  * Purpose: Generate intelligent fix strategies for identified issues,
@@ -49,6 +48,18 @@ interface FileDependencyInfo {
 }
 
 /**
+ * Finding for fix strategy
+ */
+interface Finding {
+  /** Finding ID */
+  id: string;
+  /** File path */
+  filePath: string;
+  /** Suggested fix */
+  suggestion?: string;
+}
+
+/**
  * Fix strategy
  */
 export interface FixStrategy {
@@ -81,7 +92,7 @@ interface Phase16Config {
   /** Current execution state */
   currentState: ExecutionState;
   /** Findings from previous phases */
-  findings: unknown[];
+  findings: Finding[];
 }
 
 /**
@@ -184,7 +195,7 @@ export class Phase16FixStrategyGeneration {
       console.log(`INFO Safe Level 4 files: ${safeLevel4Files}`);
 
       return result;
-    } catch {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -230,7 +241,7 @@ export class Phase16FixStrategyGeneration {
             files.push(fullPath);
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip directories we can't read
       }
     };
@@ -262,7 +273,7 @@ export class Phase16FixStrategyGeneration {
           }
           importMap.get(imp)!.add(filePath);
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip files we can't read
       }
     }
@@ -371,7 +382,7 @@ export class Phase16FixStrategyGeneration {
       const exportPattern = /export\s+(?:default|const|let|var|function|class|interface|type)/g;
       const matches = sanitizedContent.match(exportPattern);
       return matches ? matches.length : 0;
-    } catch {
+    } catch (error: unknown) {
       console.warn(`Failed to count exports for ${filePath}:`, sanitizeError(error));
       return 0;
     }
@@ -388,7 +399,7 @@ export class Phase16FixStrategyGeneration {
     const strategies: FixStrategy[] = [];
 
     for (const finding of this.config.findings) {
-      const filePath = (finding as any).filePath;
+      const filePath = finding.filePath;
       const fileDep = fileDependencies.find(f => f.filePath === filePath);
 
       if (!fileDep) {
@@ -396,12 +407,12 @@ export class Phase16FixStrategyGeneration {
       }
 
       const strategy: FixStrategy = {
-        findingId: (finding as any).id,
+        findingId: finding.id,
         filePath,
         safetyLevel: fileDep.safetyLevel,
         approach: this.determineApproach(fileDep),
         risk: this.determineRisk(fileDep),
-        suggestedFix: (finding as any).suggestion || 'Review and fix issue',
+        suggestedFix: finding.suggestion || 'Review and fix issue',
         blastRadius: fileDep.importCount,
       };
 
@@ -455,6 +466,8 @@ export class Phase16FixStrategyGeneration {
     }
   }
 }
+
+
 
 
 

@@ -267,9 +267,10 @@ export class MemoryMonitor {
    * @private
    */
   private triggerGarbageCollection(): void {
-    if (typeof (global as typeof globalThis & { gc?: () => void }).gc === 'function') {
+    const globalWithGC = global as typeof globalThis & { gc?: () => void };
+    if (typeof globalWithGC.gc === 'function') {
       console.log('🧹 Triggering manual garbage collection...');
-      (global as typeof globalThis & { gc?: () => void }).gc();
+      globalWithGC.gc!();
       const stats = this.getMemoryStats();
       console.log(`🧹 Memory after GC: ${stats.usagePercentage.toFixed(1)}% (${this.formatBytes(stats.rss)})`);
     } else {

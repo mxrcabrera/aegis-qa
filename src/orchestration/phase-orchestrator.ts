@@ -379,7 +379,10 @@ export class PhaseOrchestrator {
       const beforeGC = process.memoryUsage();
 
       // Trigger GC
-      (global as typeof globalThis & { gc?: () => void }).gc();
+      const globalWithGC = global as typeof globalThis & { gc?: () => void };
+      if (typeof globalWithGC.gc === 'function') {
+        globalWithGC.gc!();
+      }
 
       // Get memory after GC
       const afterGC = process.memoryUsage();
@@ -2536,7 +2539,8 @@ export class PhaseOrchestrator {
     this.memoryMonitor.checkMemory();
     if (this.gcAvailable) {
       try {
-        (global as typeof globalThis & { gc?: () => void }).gc();
+        const globalWithGC = global as typeof globalThis & { gc?: () => void };
+        globalWithGC.gc!();
         console.log('  ?? Garbage collection triggered during timeout cleanup');
       } catch (error) {
         console.warn('  ?? Failed to trigger GC during cleanup:', error);

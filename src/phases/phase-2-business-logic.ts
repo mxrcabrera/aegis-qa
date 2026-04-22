@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 2: Business Logic - Business Semantics & Core Path Detection
  *
  * Purpose: Deduce the business purpose of the repository to prioritize the subsequent 18 phases.
@@ -194,6 +193,26 @@ interface BusinessRiskFinding {
 }
 
 /**
+ * Phase 1 result
+ */
+interface Phase1Result {
+  /** File scores from Phase 1 */
+  fileScores: FileScore[];
+}
+
+/**
+ * File score from Phase 1
+ */
+interface FileScore {
+  /** File path */
+  filePath: string;
+  /** Quality score */
+  score: number;
+  /** Whether file is critical */
+  isCritical: boolean;
+}
+
+/**
  * Business profile
  */
 interface BusinessProfile {
@@ -350,20 +369,20 @@ export class Phase2BusinessLogic {
 
       const executionTimeMs = Date.now() - startTime;
 
-      console.log(`Ô£à Phase 2 Complete`);
-      console.log(`  ­ƒÄ» Domain: ${(businessProfile as any).domain}`);
-      console.log(`  ­ƒôè Confidence: ${(businessProfile as any).confidence}%`);
-      console.log(`  ­ƒôª Stack: ${(businessProfile as any).stack.length} dependencies`);
-      console.log(`  ­ƒöÆ Critical modules: ${(businessProfile as any).criticalModules.length}`);
-      console.log(`  ÔÜá´©Å  Risk findings: ${(businessProfile as any).riskFindings.length}`);
-      console.log(`  ­ƒÄ» Recommended focus: ${(businessProfile as any).recommendedFocus.join(', ')}\n`);
+      console.log(`PASSED Phase 2 Complete`);
+      console.log(`  Domain: ${businessProfile.domain}`);
+      console.log(`  Confidence: ${businessProfile.confidence}%`);
+      console.log(`  Stack: ${businessProfile.stack.length} dependencies`);
+      console.log(`  Critical modules: ${businessProfile.criticalModules.length}`);
+      console.log(`  Risk findings: ${businessProfile.riskFindings.length}`);
+      console.log(`  Recommended focus: ${businessProfile.recommendedFocus.join(', ')}\n`);
 
       return {
         success: true,
         businessProfile,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 2 failed: ${errorMessage}\n`);
 
@@ -449,7 +468,7 @@ export class Phase2BusinessLogic {
       console.log(`  Domain scores: ${JSON.stringify(domainScores)}`);
 
       return { domain: detectedDomain, confidence, stack };
-    } catch {
+    } catch (error: unknown) {
       console.warn('  ÔÜá´©Å  Failed to parse package.json:', error instanceof Error ? error.message : error);
       return { domain: 'General', confidence: 0, stack: [] };
     }
@@ -585,14 +604,14 @@ export class Phase2BusinessLogic {
     const riskFindings: BusinessRiskFinding[] = [];
 
     // Get Phase 1 results from StatePersistence
-    const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
+    const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState) as Phase1Result | undefined;
 
-    if (!phase1Results || !(phase1Results as any).fileScores) {
-      console.log('  ÔÜá´©Å  Phase 1 results not found, skipping cross-reference');
+    if (!phase1Results || !phase1Results.fileScores) {
+      console.log('  Phase 1 results not found, skipping cross-reference');
       return riskFindings;
     }
 
-    const fileScores = (phase1Results as any).fileScores;
+    const fileScores = phase1Results.fileScores;
 
     for (const fileScore of fileScores) {
       // Check if file is in a core path
@@ -687,7 +706,7 @@ export class Phase2BusinessLogic {
         this.config.projectRoot.includes('qa-orchestrator');
 
       return isAegisQA;
-    } catch {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -805,7 +824,7 @@ export class Phase2BusinessLogic {
       };
 
       walkDir(projectRoot);
-    } catch {
+    } catch (error: unknown) {
       // If scanning fails, return empty array
     }
 
@@ -884,7 +903,7 @@ export class Phase2BusinessLogic {
             coreFlow.push('Database Layer');
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Skip files that can't be read
       }
     }
@@ -1005,33 +1024,33 @@ export class Phase2BusinessLogic {
       const timestamp = new Date().toISOString();
 
       let riskFindingsContent = '';
-      for (const risk of (businessProfile as any).riskFindings) {
+      for (const risk of businessProfile.riskFindings) {
         riskFindingsContent += `- **[${risk.riskLevel.toUpperCase()}] ${risk.filePath}**\n`;
         riskFindingsContent += `  - Reason: ${risk.reason}\n`;
         riskFindingsContent += `  - Quality Score: ${risk.qualityScore}/100\n`;
       }
 
       const reportContent = `
-## Phase 2: Business Logic - Ô£à PASSED
+## Phase 2: Business Logic - PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${Date.now() - Date.now()}ms
 
 ### Business Understanding
-- **Domain:** ${(businessProfile as any).domain}
-- **Sensitivity Level:** ${(businessProfile as any).sensitivityLevel.toUpperCase()}
-- **Core Flow:** ${(businessProfile as any).coreFlow.length > 0 ? (businessProfile as any).coreFlow.join(', ') : 'No specific flow detected'}
-- **Aegis Assessment:** ${(businessProfile as any).businessUnderstanding}
+- **Domain:** ${businessProfile.domain}
+- **Sensitivity Level:** ${businessProfile.sensitivityLevel.toUpperCase()}
+- **Core Flow:** ${businessProfile.coreFlow.length > 0 ? businessProfile.coreFlow.join(', ') : 'No specific flow detected'}
+- **Aegis Assessment:** ${businessProfile.businessUnderstanding}
 
 ### Business Domain Analysis
-- **Confidence:** ${(businessProfile as any).confidence}%
-- **Stack Dependencies:** ${(businessProfile as any).stack.length}
+- **Confidence:** ${businessProfile.confidence}%
+- **Stack Dependencies:** ${businessProfile.stack.length}
 
 ### Core Paths Identified
-${(businessProfile as any).corePaths.length > 0 ? (businessProfile as any).corePaths.map(p => `- ${p}`).join('\n') : 'None detected'}
+${businessProfile.corePaths.length > 0 ? businessProfile.corePaths.map(p => `- ${p}`).join('\n') : 'None detected'}
 
 ### Business Risk Findings
-- **Total Risk Findings:** ${(businessProfile as any).riskFindings.length}
-- **Critical Modules:** ${(businessProfile as any).criticalModules.length}
+- **Total Risk Findings:** ${businessProfile.riskFindings.length}
+- **Critical Modules:** ${businessProfile.criticalModules.length}
 
 ${riskFindingsContent ? `
 ### Risk Details
@@ -1039,15 +1058,15 @@ ${riskFindingsContent}
 ` : ''}
 
 ### Recommended Focus for Subsequent Phases
-${(businessProfile as any).recommendedFocus.map(f => `- ${f}`).join('\n')}
+${businessProfile.recommendedFocus.map(f => `- ${f}`).join('\n')}
 
 ### Priority Phase
-- **Phase ${(businessProfile as any).priorityPhase}:** Most critical phase for this business domain
+- **Phase ${businessProfile.priorityPhase}:** Most critical phase for this business domain
 
 ### Untouchable Folders (Atomic Fixer)
-${(businessProfile as any).untouchableFolders.length > 0 ? (businessProfile as any).untouchableFolders.map(f => `- ${f}`).join('\n') : 'None'}
+${businessProfile.untouchableFolders.length > 0 ? businessProfile.untouchableFolders.map(f => `- ${f}`).join('\n') : 'None'}
 
-${(businessProfile as any).isSelfAudit ? `### Self-Audit Mode
+${businessProfile.isSelfAudit ? `### Self-Audit Mode
 - **Status:** Active - Aegis QA is auditing itself
 - **Adjusted Context:** Developer Tools / QA Infrastructure
 - **Core Focus:** Hardware Monitoring & Static Analysis
@@ -1070,11 +1089,13 @@ Generated: ${timestamp}
       }
 
       console.log(`­ƒôØ Partial report written: ${reportPath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
 
 
 

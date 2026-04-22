@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 20: Intelligent Report Comparison
  *
  * Purpose: Executive summary of Aegis QA.
@@ -89,6 +88,48 @@ interface ThermalProfile {
   thermalEvents: string[];
   /** Recommendation */
   recommendation?: string;
+}
+
+/**
+ * Fix strategy from Phase 16
+ */
+interface FixStrategy {
+  /** Whether the fix was applied */
+  applied: boolean;
+  /** Blast radius of the fix */
+  blastRadius: number;
+  /** Whether the file is in a core path */
+  isCorePath: boolean;
+  /** Type of finding */
+  findingType: string;
+}
+
+/**
+ * Phase 16 result
+ */
+interface Phase16Result {
+  /** Strategies organized by phase */
+  strategiesByPhase: Record<number, FixStrategy[]>;
+}
+
+/**
+ * Finding from analysis results
+ */
+interface Finding {
+  /** Finding status */
+  status?: 'FIXED' | 'FOUND';
+  /** File path */
+  filePath: string;
+  /** Finding type */
+  type: string;
+}
+
+/**
+ * Phase data with findings
+ */
+interface PhaseData {
+  /** Findings from the phase */
+  findings?: Finding[];
 }
 
 /**
@@ -203,7 +244,7 @@ export class Phase20IntelligentReportComparison {
       console.log(`INFO Average RAM: ${thermalProfile.averageRamUsage}%\n`);
 
       return phase20Result;
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 20 failed: ${errorMessage}\n`);
 
@@ -264,7 +305,7 @@ export class Phase20IntelligentReportComparison {
       comparison.low = currentSeverity.low - previousSeverity.low;
 
       console.log(`INFO Severity comparison: Critical ${comparison.critical}, High ${comparison.high}, Medium ${comparison.medium}, Low ${comparison.low}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to perform diff-based report:', error instanceof Error ? error.message : error);
     }
 
@@ -323,8 +364,8 @@ export class Phase20IntelligentReportComparison {
     console.log('INFO Calculating Success Metrics (ROI) with Sensitivity Adjustment...');
 
     // Get strategy details from Phase 16 to determine complexity
-    const phase16Data = this.config.currentState.analysisResults?.['16'];
-    
+    const phase16Data = this.config.currentState.analysisResults?.['16'] as Phase16Result | undefined;
+
     let totalTimeSavedMinutes = 0;
     let fixesApplied = 0;
     let fixesComplex = 0;
@@ -332,15 +373,15 @@ export class Phase20IntelligentReportComparison {
     let fixesStandard = 0;
 
     // Get strategy details from Phase 16 to determine complexity
-    if (phase16Data && (phase16Data as any).strategiesByPhase) {
-      for (const strategies of Object.values((phase16Data as any).strategiesByPhase)) {
-        for (const strategy of strategies as unknown[]) {
-          if ((strategy as any).applied) {
+    if (phase16Data && phase16Data.strategiesByPhase) {
+      for (const strategies of Object.values(phase16Data.strategiesByPhase)) {
+        for (const strategy of strategies) {
+          if (strategy.applied) {
             fixesApplied++;
 
             // Determine fix complexity based on file characteristics
-            const isComplex = (strategy as any).blastRadius > 10 || (strategy as any).isCorePath;
-            const isSimple = (strategy as any).findingType === 'style' || (strategy as any).findingType === 'formatting';
+            const isComplex = strategy.blastRadius > 10 || strategy.isCorePath;
+            const isSimple = strategy.findingType === 'style' || strategy.findingType === 'formatting';
 
             if (isComplex) {
               totalTimeSavedMinutes += 30; // 30 minutes for complex fixes (Core Path or high Blast Radius)
@@ -393,21 +434,21 @@ export class Phase20IntelligentReportComparison {
 
     // Compare to detect regressions
     for (const previousFinding of previousFindings) {
-      if ((previousFinding as any).status === 'FIXED') {
+      if (previousFinding.status === 'FIXED') {
         const currentFinding = currentFindings.find(
-          (f: any) => (f as any).filePath === (previousFinding as any).filePath && (f as any).type === (previousFinding as any).type
+          (f) => f.filePath === previousFinding.filePath && f.type === previousFinding.type
         );
 
-        if (currentFinding && (currentFinding as any).status !== 'FIXED') {
+        if (currentFinding && currentFinding.status !== 'FIXED') {
           regressions.push({
             id: `regression-${Date.now()}`,
-            filePath: (previousFinding as any).filePath,
-            errorType: (previousFinding as any).type,
+            filePath: previousFinding.filePath,
+            errorType: previousFinding.type,
             previousStatus: 'FIXED',
             currentStatus: 'FOUND',
             description: `Error marked as FIXED in previous audit reappeared`,
           });
-          console.log(`WARNING [REGRESION-CRÍTICA] ${(previousFinding as any).type} in ${(previousFinding as any).filePath}`);
+          console.log(`WARNING [REGRESION-CRÍTICA] ${previousFinding.type} in ${previousFinding.filePath}`);
         }
       }
     }
@@ -420,16 +461,17 @@ export class Phase20IntelligentReportComparison {
    * Gets current findings
    *
    * @private
-   * @returns any[] - Current findings
+   * @returns Finding[] - Current findings
    */
-  private getCurrentFindings(): unknown[] {
-    const findings: unknown[] = [];
+  private getCurrentFindings(): Finding[] {
+    const findings: Finding[] = [];
 
     // Aggregate findings from all phases
     const analysisResults = this.config.currentState.analysisResults || {};
     for (const [, phaseData] of Object.entries(analysisResults)) {
-      if ((phaseData as any).findings) {
-        findings.push(...(phaseData as any).findings);
+      const data = phaseData as PhaseData;
+      if (data.findings) {
+        findings.push(...data.findings);
       }
     }
 
@@ -440,9 +482,9 @@ export class Phase20IntelligentReportComparison {
    * Gets previous findings from StatePersistence
    *
    * @private
-   * @returns any[] - Previous findings
+   * @returns Finding[] - Previous findings
    */
-  private getPreviousFindings(): unknown[] {
+  private getPreviousFindings(): Finding[] {
     // In real implementation, would retrieve from StatePersistence
     // For now, return empty array
     return [];
@@ -525,7 +567,7 @@ export class Phase20IntelligentReportComparison {
       const profilePath = path.join(logsDir, 'performance.json');
       fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2), 'utf-8');
       console.log(`INFO Thermal Profile saved to ${profilePath}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to save Thermal Profile:', error instanceof Error ? error.message : error);
     }
   }
@@ -579,7 +621,7 @@ export class Phase20IntelligentReportComparison {
           (historyData.severityComparison?.medium || 0);
         
         errorCounts.push(totalErrors);
-      } catch {
+      } catch (error: unknown) {
         // Failed to read history file
       }
     }
@@ -649,7 +691,7 @@ export class Phase20IntelligentReportComparison {
       } else {
         console.log('INFO No secrets detected in qa-report.md');
       }
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to run Self-Destruct Secure Mode:', error instanceof Error ? error.message : error);
     }
   }
@@ -666,6 +708,8 @@ export class Phase20IntelligentReportComparison {
     this.thermalEvents.push('Phase 20 started');
   }
 }
+
+
 
 
 

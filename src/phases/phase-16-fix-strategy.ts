@@ -1,5 +1,4 @@
-﻿// eslint-disable @typescript-eslint/no-explicit-any
-/**
+﻿/**
  * Phase 16: Fix Strategy Generation
  *
  * Purpose: Transform findings from phases 1-15 into precise instructions for AtomicFixer.
@@ -20,6 +19,38 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
+
+/**
+ * Finding from phase data
+ */
+interface Finding {
+  /** Finding ID */
+  id: string;
+  /** File path */
+  filePath: string;
+  /** Line number */
+  line?: number;
+  /** Finding type */
+  type: string;
+  /** Severity */
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  /** Description */
+  description?: string;
+  /** Suggestion */
+  suggestion?: string;
+}
+
+/**
+ * Phase data with findings
+ */
+interface PhaseData {
+  /** Findings from the phase */
+  findings?: Finding[];
+  /** Code findings */
+  codeFindings?: Finding[];
+  /** Security findings */
+  securityFindings?: Finding[];
+}
 
 /**
  * Fix strategy
@@ -165,7 +196,7 @@ export class Phase16FixStrategyGeneration {
         strategyResult,
         executionTimeMs,
       };
-    } catch {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 16 failed: ${errorMessage}\n`);
 
@@ -214,10 +245,10 @@ export class Phase16FixStrategyGeneration {
 
       for (const finding of findings) {
         // AST-Preflight Check: Verify file has no syntax errors before generating strategy
-        if ((finding as any).filePath) {
-          const preflightCheck = this.performASTPreflightCheck((finding as any).filePath);
+        if (finding.filePath) {
+          const preflightCheck = this.performASTPreflightCheck(finding.filePath);
           if (!preflightCheck.passed) {
-            console.log(`WARNING AST-Preflight Check failed for ${(finding as any).filePath}. Manual Fix First required.`);
+            console.log(`WARNING AST-Preflight Check failed for ${finding.filePath}. Manual Fix First required.`);
             continue; // Skip this finding, refuse to propose automatic fixes
           }
         }
@@ -238,7 +269,7 @@ export class Phase16FixStrategyGeneration {
         const strategy = this.generateStrategyForFinding(finding, phaseNum);
         if (strategy) {
           phaseStrategies.push(strategy);
-          this.strategyCache.set((strategy as any).strategyId, strategy);
+          this.strategyCache.set(strategy.strategyId, strategy);
         }
       }
 
@@ -261,7 +292,7 @@ export class Phase16FixStrategyGeneration {
     // Count strategies requiring human intervention
     for (const strategies of result.strategiesByPhase.values()) {
       for (const strategy of strategies) {
-        if ((strategy as any).requiresHumanIntervention) {
+        if (strategy.requiresHumanIntervention) {
           result.humanInterventionRequired++;
         }
       }
@@ -277,43 +308,26 @@ export class Phase16FixStrategyGeneration {
    * @param phaseData - Phase data
    * @returns Array of findings
    */
-  private extractFindingsFromPhaseData(phaseData: any): unknown[] {
-    const findings: unknown[] = [];
-
+  private extractFindingsFromPhaseData(phaseData: unknown): Finding[] {
     // Handle different phase data structures
     if (Array.isArray(phaseData)) {
-      return phaseData;
+      return phaseData as Finding[];
     }
 
-    if ((phaseData as any).findings && Array.isArray((phaseData as any).findings)) {
-      return (phaseData as any).findings;
+    const data = phaseData as PhaseData;
+    if (data.findings && Array.isArray(data.findings)) {
+      return data.findings;
     }
 
-    if ((phaseData as any).codeFindings && Array.isArray((phaseData as any).codeFindings)) {
-      return (phaseData as any).codeFindings;
+    if (data.codeFindings && Array.isArray(data.codeFindings)) {
+      return data.codeFindings;
     }
 
-    if ((phaseData as any).securityFindings && Array.isArray((phaseData as any).securityFindings)) {
-      return (phaseData as any).securityFindings;
+    if (data.securityFindings && Array.isArray(data.securityFindings)) {
+      return data.securityFindings;
     }
 
-    if ((phaseData as any).gitHygieneFindings && Array.isArray((phaseData as any).gitHygieneFindings)) {
-      return (phaseData as any).gitHygieneFindings;
-    }
-
-    if ((phaseData as any).cicdFindings && Array.isArray((phaseData as any).cicdFindings)) {
-      return (phaseData as any).cicdFindings;
-    }
-
-    if ((phaseData as any).cloudInfraFindings && Array.isArray((phaseData as any).cloudInfraFindings)) {
-      return (phaseData as any).cloudInfraFindings;
-    }
-
-    if ((phaseData as any).containerizationFindings && Array.isArray((phaseData as any).containerizationFindings)) {
-      return (phaseData as any).containerizationFindings;
-    }
-
-    return findings;
+    return [];
   }
 
   /**
@@ -324,12 +338,12 @@ export class Phase16FixStrategyGeneration {
    * @param phaseSource - Phase number
    * @returns FixStrategy | null - Generated strategy
    */
-  private generateStrategyForFinding(finding: unknown, phaseSource: number): FixStrategy | null {
+  private generateStrategyForFinding(finding: Finding, phaseSource: number): FixStrategy | null {
     const strategyId = crypto.createHash('sha1').update(
-      `${(finding as any).id || (finding as any).type}${(finding as any).filePath || ''}${(finding as any).line || 0}`
+      `${finding.id || finding.type}${finding.filePath || ''}${finding.line || 0}`
     ).digest('hex').substring(0, 12);
 
-    const findingType = (finding as any).type || 'unknown';
+    const findingType = finding.type || 'unknown';
     const strategyMapping = this.getStrategyMapping(findingType);
 
     if (!strategyMapping) {
@@ -341,16 +355,16 @@ export class Phase16FixStrategyGeneration {
 
     const strategy: FixStrategy = {
       strategyId,
-      findingId: (finding as any).id || strategyId,
+      findingId: finding.id || strategyId,
       findingType,
-      filePath: (finding as any).filePath || '',
-      line: (finding as any).line,
+      filePath: finding.filePath || '',
+      line: finding.line,
       description: strategyMapping.description,
       suggestedAction: strategyMapping.action,
       safeLevel: strategyMapping.safeLevel,
       requiresHumanIntervention: strategyMapping.safeLevel === 5,
       phaseSource,
-      severity: (finding as any).severity || 'medium',
+      severity: finding.severity || 'medium',
       dependencies,
       conflictStatus: 'no-conflict',
       conflictingStrategies: [],
@@ -445,15 +459,15 @@ export class Phase16FixStrategyGeneration {
    * @param finding - Finding object
    * @returns string[] - List of dependent files
    */
-  private analyzeDependencies(finding: any): string[] {
+  private analyzeDependencies(finding: Finding): string[] {
     const dependencies: string[] = [];
 
-    if (!(finding as any).filePath) {
+    if (!finding.filePath) {
       return dependencies;
     }
 
     try {
-      const filePath = (finding as any).filePath;
+      const filePath = finding.filePath;
       const fileExtension = path.extname(filePath);
 
       // For TypeScript/JavaScript files, analyze variable/function references
@@ -480,13 +494,13 @@ export class Phase16FixStrategyGeneration {
                   break;
                 }
               }
-            } catch {
+            } catch (error: unknown) {
               // Failed to read source file
             }
           }
         }
       }
-    } catch {
+    } catch (error: unknown) {
       // Failed to analyze dependencies
     }
 
@@ -549,9 +563,9 @@ export class Phase16FixStrategyGeneration {
     // Group strategies by (filePath, line)
     for (const strategies of strategiesByPhase.values()) {
       for (const strategy of strategies) {
-        if (!(strategy as any).filePath || (strategy as any).line === undefined) continue;
+        if (!strategy.filePath || strategy.line === undefined) continue;
 
-        const key = `${(strategy as any).filePath}:${(strategy as any).line}`;
+        const key = `${strategy.filePath}:${strategy.line}`;
         if (!lineMap.has(key)) {
           lineMap.set(key, []);
         }
@@ -691,16 +705,16 @@ export class Phase16FixStrategyGeneration {
 
     for (const strategies of strategiesByPhase.values()) {
       for (const strategy of strategies) {
-        if (!(strategy as any).filePath) continue;
+        if (!strategy.filePath) continue;
 
-        const importCount = importMap.get((strategy as any).filePath) || 0;
-        
+        const importCount = importMap.get(strategy.filePath) || 0;
+
         // If file is imported by >10 files, elevate Safe Level to 4
         if (importCount > 10) {
-          console.log(`INFO High-Traffic File detected: ${(strategy as any).filePath} (${importCount} imports). Elevating Safe Level to 4.`);
-          (strategy as any).safeLevel = Math.max((strategy as any).safeLevel, 4);
-          if ((strategy as any).safeLevel === 5) {
-            (strategy as any).requiresHumanIntervention = true;
+          console.log(`INFO High-Traffic File detected: ${strategy.filePath} (${importCount} imports). Elevating Safe Level to 4.`);
+          strategy.safeLevel = Math.max(strategy.safeLevel, 4);
+          if (strategy.safeLevel === 5) {
+            strategy.requiresHumanIntervention = true;
           }
         }
       }
@@ -756,7 +770,7 @@ export class Phase16FixStrategyGeneration {
             }
           }
         }
-      } catch {
+      } catch (error: unknown) {
         // Failed to read file
       }
     }
@@ -799,7 +813,7 @@ export class Phase16FixStrategyGeneration {
       }
 
       return { passed: true };
-    } catch {
+    } catch (error: unknown) {
       return { passed: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -823,7 +837,7 @@ export class Phase16FixStrategyGeneration {
       fs.writeFileSync(tempFile, serialized, 'utf-8');
       
       console.log(`INFO Strategies serialized to disk: ${tempFile}`);
-    } catch {
+    } catch (error: unknown) {
       console.warn('WARNING Failed to serialize strategies to disk:', error instanceof Error ? error.message : error);
     }
   }
@@ -839,6 +853,8 @@ export class Phase16FixStrategyGeneration {
     console.log('INFO Strategy cache flushed');
   }
 }
+
+
 
 
 
