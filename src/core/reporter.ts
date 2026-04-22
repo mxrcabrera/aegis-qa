@@ -81,7 +81,7 @@ export interface ReporterConfig {
 export class ReportAggregator {
   private violations: Map<string, Violation[]> = new Map();
   private config: Required<ReporterConfig>;
-  private businessRiskFindings: any[] = [];
+  private businessRiskFindings: unknown[] = [];
   private businessDomain: string = 'General';
   private errorBaseline: ErrorBaseline | null = null;
   private baselineEstablished: boolean = false;
@@ -140,7 +140,7 @@ export class ReportAggregator {
    *
    * @param riskFindings - Business risk findings from Phase 2
    */
-  setBusinessRiskFindings(riskFindings: any[]): void {
+  setBusinessRiskFindings(riskFindings: unknown[]): void {
     this.businessRiskFindings = riskFindings;
     // Extract business domain from risk findings if available
     if (riskFindings.length > 0 && riskFindings[0].domain) {
@@ -184,7 +184,7 @@ export class ReportAggregator {
     if (escalatedSeverity && escalatedSeverity !== currentSeverity) {
       return {
         ...violation,
-        severity: escalatedSeverity as any,
+        severity: escalatedSeverity as Severity,
         message: `${violation.message} (ESCALATED: ${escalateReason})`,
       };
     }
