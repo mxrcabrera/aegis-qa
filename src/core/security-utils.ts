@@ -879,7 +879,7 @@ export async function checkWritePermission(filePath: string): Promise<Permission
     const fs = await import('fs');
     await fs.promises.access(filePath, fs.constants.W_OK);
     return { allowed: true, permission: 'write' };
-  } catch (error) {
+  } catch {
     return {
       allowed: false,
       reason: 'Write permission denied or file does not exist',
