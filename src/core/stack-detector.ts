@@ -251,7 +251,7 @@ export class StackDetector {
       if (this.safeExistsSync(path.join(this.projectRoot, 'package-lock.json'))) {
         return 'npm';
       }
-    } catch (error) {
+    } catch {
       // Ignore errors
     }
 

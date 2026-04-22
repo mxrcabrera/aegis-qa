@@ -227,7 +227,7 @@ export class Phase10Testing {
             files.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };
@@ -264,7 +264,7 @@ export class Phase10Testing {
             files.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };
