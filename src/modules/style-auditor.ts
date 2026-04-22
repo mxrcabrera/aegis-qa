@@ -705,7 +705,7 @@ export class StyleAuditor {
         const styleViolations = this.checkHardcodedStyles(line, lineNumber, metadata);
         violations.push(...styleViolations);
       }
-    } catch (error) {
+    } catch {
       console.warn(`[StyleAuditor] Failed to analyze file: ${relativePath}`);
     }
 
