@@ -244,7 +244,7 @@ export class Phase15DevOpsSuite {
               files.push(path.join(dir, item));
             }
           }
-        } catch (error) {
+        } catch {
           // Skip directories we can't read
         }
       }

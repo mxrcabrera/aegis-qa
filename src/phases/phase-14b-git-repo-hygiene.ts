@@ -254,7 +254,7 @@ export class Phase14BGitRepoHygiene {
             files.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };
