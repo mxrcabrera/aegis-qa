@@ -19,10 +19,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
 import { ReportAggregator } from '../core/reporter.js';
+import { Phase3BAIAPIIntegration } from './phase-3b-ai-api-security.js';
+import { Phase3CSecureDevMethodology } from './phase-3c-secure-dev-methodology.js';
+import { Phase3EBaaSPlatformSecurity } from './phase-3e-baas-platform-security.js';
+import { Phase3FWebhookSecurity } from './phase-3f-webhook-security.js';
+import { Phase3GDataPrivacyPII } from './phase-3g-data-privacy-pii.js';
+import { Phase3HXSSInjectionSecurity } from './phase-3h-xss-injection-security.js';
 
 /**
  * Business Profile result from Phase 2
@@ -70,6 +77,8 @@ interface SecurityFinding {
 interface Phase3Config {
   /** Project root directory */
   projectRoot: string;
+  /** Thermal controller for hardware protection */
+  thermalController: ThermalController;
   /** State persistence for storing results */
   statePersistence: StatePersistence;
   /** Current execution state */
@@ -176,19 +185,86 @@ export class Phase3Security {
       // Apply security multiplier
       const escalatedFindings = this.applySecurityMultiplier(findings, domain);
 
-      // Run security sub-phases with unique auditorName
-      await this.runSubPhase3B_AI_API_Security(); // security:ai-api
-      await this.runSubPhase3C_SecureDevMethodology(); // security:secure-dev
-      await this.runSubPhase3E_BaaSPlatformSecurity(); // security:rls
-      await this.runSubPhase3F_WebhookSecurity(); // security:webhook
-      await this.runSubPhase3G_DataPrivacyPII(); // security:privacy
+      // Run security sub-phases with imported classes
+      console.log('  Running security sub-phases...\n');
 
-      const criticalFindings = escalatedFindings.filter(f => f.severity === 'critical').length;
-      const highSeverityFindings = escalatedFindings.filter(f => f.severity === 'high').length;
+      // Phase 3B: AI API Security
+      const phase3B = new Phase3BAIAPIIntegration({
+        projectRoot: this.config.projectRoot,
+        thermalController: this.config.thermalController,
+        statePersistence: this.config.statePersistence,
+        currentState: this.config.currentState,
+      });
+      const result3B = await phase3B.execute();
+      console.log(`  Phase 3B complete: ${result3B.findings.length} findings\n`);
+
+      // Phase 3C: Secure Development Methodology
+      const phase3C = new Phase3CSecureDevMethodology({
+        projectRoot: this.config.projectRoot,
+        thermalController: this.config.thermalController,
+        statePersistence: this.config.statePersistence,
+        currentState: this.config.currentState,
+      });
+      const result3C = await phase3C.execute();
+      console.log(`  Phase 3C complete: ${result3C.findings.length} findings\n`);
+
+      // Phase 3E: BaaS Platform Security
+      const phase3E = new Phase3EBaaSPlatformSecurity({
+        projectRoot: this.config.projectRoot,
+        thermalController: this.config.thermalController,
+        statePersistence: this.config.statePersistence,
+        currentState: this.config.currentState,
+      });
+      const result3E = await phase3E.execute();
+      console.log(`  Phase 3E complete: ${result3E.findings.length} findings\n`);
+
+      // Phase 3F: Webhook Security
+      const phase3F = new Phase3FWebhookSecurity({
+        projectRoot: this.config.projectRoot,
+        thermalController: this.config.thermalController,
+        statePersistence: this.config.statePersistence,
+        currentState: this.config.currentState,
+      });
+      const result3F = await phase3F.execute();
+      console.log(`  Phase 3F complete: ${result3F.findings.length} findings\n`);
+
+      // Phase 3G: Data Privacy & PII
+      const phase3G = new Phase3GDataPrivacyPII({
+        projectRoot: this.config.projectRoot,
+        thermalController: this.config.thermalController,
+        statePersistence: this.config.statePersistence,
+        currentState: this.config.currentState,
+      });
+      const result3G = await phase3G.execute();
+      console.log(`  Phase 3G complete: ${result3G.findings.length} findings\n`);
+
+      // Phase 3H: XSS/Injection Security
+      const phase3H = new Phase3HXSSInjectionSecurity({
+        projectRoot: this.config.projectRoot,
+        thermalController: this.config.thermalController,
+        statePersistence: this.config.statePersistence,
+        currentState: this.config.currentState,
+      });
+      const result3H = await phase3H.execute();
+      console.log(`  Phase 3H complete: ${result3H.findings.length} findings\n`);
+
+      // Consolidate all findings from sub-phases into escalatedFindings
+      const subPhaseFindings: SecurityFinding[] = [];
+      subPhaseFindings.push(...this.convert3BFindings(result3B.findings));
+      subPhaseFindings.push(...this.convert3CFindings(result3C.findings));
+      subPhaseFindings.push(...this.convert3EFindings(result3E.findings));
+      subPhaseFindings.push(...this.convert3FFindings(result3F.findings));
+      subPhaseFindings.push(...this.convert3GFindings(result3G.findings));
+      subPhaseFindings.push(...this.convert3HFindings(result3H.findings));
+
+      const allFindings = [...escalatedFindings, ...subPhaseFindings];
+
+      const criticalFindings = allFindings.filter(f => f.severity === 'critical').length;
+      const highSeverityFindings = allFindings.filter(f => f.severity === 'high').length;
 
       const result: Phase3Result = {
         success: true,
-        findings: escalatedFindings,
+        findings: allFindings,
         criticalFindings,
         highSeverityFindings,
         executionTimeMs: Date.now() - startTime,
@@ -640,6 +716,121 @@ export class Phase3Security {
   }
 
   /**
+   * Converts Phase 3B findings to SecurityFinding
+   *
+   * @private
+   * @param findings - Phase 3B findings
+   * @returns SecurityFinding[] - Converted findings
+   */
+  private convert3BFindings(findings: any[]): SecurityFinding[] {
+    return findings.map(f => ({
+      id: f.id,
+      type: f.type === 'prompt-injection' ? 'injection' : 
+            f.type === 'key-exposure' ? 'secret' : 'weak-security',
+      severity: f.severity,
+      filePath: f.filePath,
+      line: f.line,
+      description: f.description,
+      suggestion: f.suggestion,
+    }));
+  }
+
+  /**
+   * Converts Phase 3C findings to SecurityFinding
+   *
+   * @private
+   * @param findings - Phase 3C findings
+   * @returns SecurityFinding[] - Converted findings
+   */
+  private convert3CFindings(findings: any[]): SecurityFinding[] {
+    return findings.map(f => ({
+      id: f.id,
+      type: f.type === 'exposed-secret' ? 'secret' : 'weak-security',
+      severity: f.severity,
+      filePath: f.filePath,
+      line: f.line,
+      description: f.description,
+      suggestion: f.suggestion,
+    }));
+  }
+
+  /**
+   * Converts Phase 3E findings to SecurityFinding
+   *
+   * @private
+   * @param findings - Phase 3E findings
+   * @returns SecurityFinding[] - Converted findings
+   */
+  private convert3EFindings(findings: any[]): SecurityFinding[] {
+    return findings.map(f => ({
+      id: f.id,
+      type: 'weak-security',
+      severity: f.severity,
+      filePath: f.filePath,
+      line: f.line,
+      description: f.description,
+      suggestion: f.suggestion,
+    }));
+  }
+
+  /**
+   * Converts Phase 3F findings to SecurityFinding
+   *
+   * @private
+   * @param findings - Phase 3F findings
+   * @returns SecurityFinding[] - Converted findings
+   */
+  private convert3FFindings(findings: any[]): SecurityFinding[] {
+    return findings.map(f => ({
+      id: f.id,
+      type: 'weak-security',
+      severity: f.severity,
+      filePath: f.filePath,
+      line: f.line,
+      description: f.description,
+      suggestion: f.suggestion,
+    }));
+  }
+
+  /**
+   * Converts Phase 3G findings to SecurityFinding
+   *
+   * @private
+   * @param findings - Phase 3G findings
+   * @returns SecurityFinding[] - Converted findings
+   */
+  private convert3GFindings(findings: any[]): SecurityFinding[] {
+    return findings.map(f => ({
+      id: f.id,
+      type: 'sensitive-data',
+      severity: f.severity,
+      filePath: f.filePath,
+      line: f.line,
+      description: f.description,
+      suggestion: f.suggestion,
+    }));
+  }
+
+  /**
+   * Converts Phase 3H findings to SecurityFinding
+   *
+   * @private
+   * @param findings - Phase 3H findings
+   * @returns SecurityFinding[] - Converted findings
+   */
+  private convert3HFindings(findings: any[]): SecurityFinding[] {
+    return findings.map(f => ({
+      id: f.id,
+      type: 'injection',
+      severity: f.severity,
+      filePath: f.filePath,
+      line: f.line,
+      description: f.description,
+      suggestion: f.suggestion,
+    }));
+  }
+
+  /**
    * Applies security multiplier based on BusinessProfile
    *
    * @private
@@ -684,525 +875,6 @@ export class Phase3Security {
     }
 
     return escalatedFindings;
-  }
-
-  /**
-   * Sub-phase 3B: AI API Security
-   * Analyzes AI API integrations for security vulnerabilities
-   *
-   * @private
-   */
-  private async runSubPhase3B_AI_API_Security(): Promise<void> {
-    const auditorName = 'security:ai-api';
-    
-    // Skip if no AI API usage detected
-    const hasAIUsage = await this.detectAIUsage();
-    if (!hasAIUsage) {
-      return; // Silent skip
-    }
-
-    console.log('  ­ƒö³ Sub-phase 3B: AI API Security...');
-
-    try {
-      const sourceFiles = await this.scanFiles();
-      const findings: SecurityFinding[] = [];
-
-      for (const file of sourceFiles) {
-        const content = fs.readFileSync(file, 'utf-8');
-        const fileHash = this.computeHash(content);
-
-        // Check for prompt injection vulnerabilities
-        const promptInjectionPatterns = /prompt\s*[:=]\s*.*\$\{.*\}/gi;
-        let match: RegExpExecArray | null;
-        while ((match = promptInjectionPatterns.exec(content)) !== null) {
-          const lineNumber = content.slice(0, match.index).split('\n').length;
-          findings.push({
-            id: this.generateFindingId(fileHash, lineNumber, 'ai-prompt-injection'),
-            type: 'injection',
-            severity: 'high',
-            filePath: file,
-            line: lineNumber,
-            description: 'Potential prompt injection vulnerability detected',
-            suggestion: 'Use proper prompt sanitization and validation to prevent prompt injection attacks',
-          });
-        }
-
-        // Check for exposed AI API keys
-        const aiKeyPatterns = [
-          /sk-ant-[a-zA-Z0-9_-]{95}/g, // Anthropic
-          /sk-[a-zA-Z0-9]{48}/g, // OpenAI
-        ];
-
-        for (const pattern of aiKeyPatterns) {
-          while ((match = pattern.exec(content)) !== null) {
-            const lineNumber = content.slice(0, match.index).split('\n').length;
-            findings.push({
-              id: this.generateFindingId(fileHash, lineNumber, 'ai-key-exposure'),
-              type: 'secret',
-              severity: 'critical',
-              filePath: file,
-              line: lineNumber,
-              description: `AI API key detected: ${this.sanitizeSecret(match[0])}`,
-              suggestion: 'Remove API keys from code and use environment variables or secret management',
-            });
-          }
-        }
-      }
-
-      // Report findings to ReportAggregator
-      if (this.config.reportAggregator && findings.length > 0) {
-        for (const finding of findings) {
-          this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
-            type: 'security',
-            severity: finding.severity,
-            file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
-              lineCount: 0,
-              inCriticalPath: false,
-            },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
-            rule: auditorName,
-            autoFixable: false,
-            confidence: 0.8,
-          });
-        }
-      }
-
-      console.log(`    Found ${findings.length} AI API security issues`);
-    } catch (error: unknown) {
-      console.warn(`    AI API security check failed: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-
-  /**
-   * Sub-phase 3C: Secure Development Methodology
-   * Checks for secure development practices
-   *
-   * @private
-   */
-  private async runSubPhase3C_SecureDevMethodology(): Promise<void> {
-    const auditorName = 'security:secure-dev';
-
-    console.log('  ­ƒö³ Sub-phase 3C: Secure Development Methodology...');
-
-    try {
-      const sourceFiles = await this.scanFiles();
-      const findings: SecurityFinding[] = [];
-
-      for (const file of sourceFiles) {
-        const content = fs.readFileSync(file, 'utf-8');
-        const fileHash = this.computeHash(content);
-        const lines = content.split('\n');
-
-        lines.forEach((line, index) => {
-          // Check for hardcoded credentials
-          const credentialPatterns = [
-            /password\s*[:=]\s*["'][^"']{6,}["']/gi,
-            /api[_-]?key\s*[:=]\s*["'][^"']{20,}["']/gi,
-          ];
-
-          for (const pattern of credentialPatterns) {
-            if (pattern.test(line)) {
-              findings.push({
-                id: this.generateFindingId(fileHash, index + 1, 'hardcoded-credential'),
-                type: 'secret',
-                severity: 'high',
-                filePath: file,
-                line: index + 1,
-                description: 'Hardcoded credential detected',
-                suggestion: 'Use environment variables or secret management for credentials',
-              });
-            }
-          }
-
-          // Check for debug statements in production code
-          if (line.includes('debugger') && !file.includes('.test.') && !file.includes('.spec.')) {
-            findings.push({
-              id: this.generateFindingId(fileHash, index + 1, 'debugger-statement'),
-              type: 'weak-security',
-              severity: 'low',
-              filePath: file,
-              line: index + 1,
-              description: 'Debugger statement found in production code',
-              suggestion: 'Remove debugger statements before production deployment',
-            });
-          }
-        });
-      }
-
-      // Report findings to ReportAggregator
-      if (this.config.reportAggregator && findings.length > 0) {
-        for (const finding of findings) {
-          this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
-            type: 'security',
-            severity: finding.severity,
-            file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
-              lineCount: 0,
-              inCriticalPath: false,
-            },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
-            rule: auditorName,
-            autoFixable: false,
-            confidence: 0.7,
-          });
-        }
-      }
-
-      console.log(`    Found ${findings.length} secure development issues`);
-    } catch (error: unknown) {
-      console.warn(`    Secure development methodology check failed: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-
-  /**
-   * Sub-phase 3E: BaaS/RLS Platform Security
-   * Validates Row Level Security policies for Supabase
-   *
-   * @private
-   */
-  private async runSubPhase3E_BaaSPlatformSecurity(): Promise<void> {
-    const auditorName = 'security:rls';
-
-    // Skip if no Supabase project detected
-    const hasSupabase = await this.detectSupabaseProject();
-    if (!hasSupabase) {
-      return; // Silent skip
-    }
-
-    console.log('  ­ƒö³ Sub-phase 3E: BaaS/RLS Platform Security...');
-
-    try {
-      const findings: SecurityFinding[] = [];
-      const sqlFiles = await this.findSQLFiles();
-
-      for (const filePath of sqlFiles) {
-        try {
-          const content = fs.readFileSync(filePath, 'utf-8');
-          const fileHash = this.computeHash(content);
-          const tables = this.extractTables(content);
-
-          tables.forEach((tableName) => {
-            const hasRLS = content.includes(`ALTER TABLE ${tableName} ENABLE ROW LEVEL SECURITY`);
-            const hasPolicies = content.includes(`CREATE POLICY`) && content.includes(`ON ${tableName}`);
-
-            if (!hasRLS) {
-              findings.push({
-                id: this.generateFindingId(fileHash, undefined, 'missing-rls'),
-                type: 'weak-security',
-                severity: 'critical',
-                filePath,
-                description: `Table '${tableName}' does not have Row Level Security enabled`,
-                suggestion: 'Enable RLS on this table and create appropriate policies to restrict access based on user identity',
-              });
-            } else if (!hasPolicies) {
-              findings.push({
-                id: this.generateFindingId(fileHash, undefined, 'rls-no-policies'),
-                type: 'weak-security',
-                severity: 'high',
-                filePath,
-                description: `Table '${tableName}' has RLS enabled but no policies defined`,
-                suggestion: 'Create RLS policies to define access rules. Without policies, all access is denied by default',
-              });
-            }
-          });
-        } catch {
-          console.warn(`    Failed to analyze ${filePath}`);
-        }
-      }
-
-      // Report findings to ReportAggregator
-      if (this.config.reportAggregator && findings.length > 0) {
-        for (const finding of findings) {
-          this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
-            type: 'security',
-            severity: finding.severity,
-            file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
-              lineCount: 0,
-              inCriticalPath: false,
-            },
-            location: { line: 1, column: 0 },
-            message: finding.description,
-            rule: auditorName,
-            autoFixable: false,
-            confidence: 0.9,
-          });
-        }
-      }
-
-      console.log(`    Found ${findings.length} RLS security issues`);
-    } catch (error: unknown) {
-      console.warn(`    BaaS/RLS security check failed: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-
-  /**
-   * Sub-phase 3F: Webhook Security
-   * Analyzes webhook implementations for security vulnerabilities
-   *
-   * @private
-   */
-  private async runSubPhase3F_WebhookSecurity(): Promise<void> {
-    const auditorName = 'security:webhook';
-
-    // Skip if no webhooks detected
-    const hasWebhooks = await this.detectWebhooks();
-    if (!hasWebhooks) {
-      return; // Silent skip
-    }
-
-    console.log('  ­ƒö³ Sub-phase 3F: Webhook Security...');
-
-    try {
-      const sourceFiles = await this.scanFiles();
-      const findings: SecurityFinding[] = [];
-
-      for (const file of sourceFiles) {
-        const content = fs.readFileSync(file, 'utf-8');
-        const fileHash = this.computeHash(content);
-        const lines = content.split('\n');
-
-        lines.forEach((line, index) => {
-          // Check for missing webhook signature verification
-          if (line.includes('webhook') && !line.includes('verify') && !line.includes('signature')) {
-            findings.push({
-              id: this.generateFindingId(fileHash, index + 1, 'webhook-no-verification'),
-              type: 'weak-security',
-              severity: 'high',
-              filePath: file,
-              line: index + 1,
-              description: 'Webhook endpoint without signature verification',
-              suggestion: 'Implement webhook signature verification to prevent unauthorized requests',
-            });
-          }
-
-          // Check for plain HTTP webhooks
-          if (line.includes('webhook') && line.includes('http://')) {
-            findings.push({
-              id: this.generateFindingId(fileHash, index + 1, 'webhook-insecure-http'),
-              type: 'weak-security',
-              severity: 'critical',
-              filePath: file,
-              line: index + 1,
-              description: 'Webhook endpoint using insecure HTTP protocol',
-              suggestion: 'Use HTTPS for all webhook endpoints to ensure data encryption in transit',
-            });
-          }
-        });
-      }
-
-      // Report findings to ReportAggregator
-      if (this.config.reportAggregator && findings.length > 0) {
-        for (const finding of findings) {
-          this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
-            type: 'security',
-            severity: finding.severity,
-            file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
-              lineCount: 0,
-              inCriticalPath: false,
-            },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
-            rule: auditorName,
-            autoFixable: false,
-            confidence: 0.8,
-          });
-        }
-      }
-
-      console.log(`    Found ${findings.length} webhook security issues`);
-    } catch (error: unknown) {
-      console.warn(`    Webhook security check failed: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-
-  /**
-   * Sub-phase 3G: Data Privacy PII
-   * Analyzes PII handling for privacy compliance
-   *
-   * @private
-   */
-  private async runSubPhase3G_DataPrivacyPII(): Promise<void> {
-    const auditorName = 'security:privacy';
-
-    console.log('  ­ƒö³ Sub-phase 3G: Data Privacy PII...');
-
-    try {
-      const sourceFiles = await this.scanFiles();
-      const findings: SecurityFinding[] = [];
-
-      for (const file of sourceFiles) {
-        const content = fs.readFileSync(file, 'utf-8');
-        const fileHash = this.computeHash(content);
-        const lines = content.split('\n');
-
-        lines.forEach((line, index) => {
-          // Check for PII in logs
-          const piiPatterns = [
-            { pattern: /console\.log.*email/gi, name: 'email' },
-            { pattern: /console\.log.*ssn/gi, name: 'SSN' },
-            { pattern: /console\.log.*credit.*card/gi, name: 'credit card' },
-            { pattern: /console\.log.*password/gi, name: 'password' },
-          ];
-
-          for (const { pattern, name } of piiPatterns) {
-            if (pattern.test(line)) {
-              findings.push({
-                id: this.generateFindingId(fileHash, index + 1, 'pii-in-logs'),
-                type: 'sensitive-data',
-                severity: 'high',
-                filePath: file,
-                line: index + 1,
-                description: `Potential ${name} leak in console.log`,
-                suggestion: 'Remove PII from logs and use proper logging with sanitization',
-              });
-            }
-          }
-
-          // Check for unencrypted PII storage
-          if (line.includes('password') && (line.includes('plaintext') || line.includes('plain'))) {
-            findings.push({
-              id: this.generateFindingId(fileHash, index + 1, 'unencrypted-pii'),
-              type: 'weak-security',
-              severity: 'critical',
-              filePath: file,
-              line: index + 1,
-              description: 'Password stored in plaintext',
-              suggestion: 'Use proper password hashing (bcrypt, argon2) for password storage',
-            });
-          }
-        });
-      }
-
-      // Report findings to ReportAggregator
-      if (this.config.reportAggregator && findings.length > 0) {
-        for (const finding of findings) {
-          this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
-            type: 'security',
-            severity: finding.severity,
-            file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
-              lineCount: 0,
-              inCriticalPath: false,
-            },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
-            rule: auditorName,
-            autoFixable: false,
-            confidence: 0.8,
-          });
-        }
-      }
-
-      console.log(`    Found ${findings.length} PII privacy issues`);
-    } catch (error: unknown) {
-      console.warn(`    Data privacy PII check failed: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-
-  /**
-   * Detects if the project uses AI APIs
-   *
-   * @private
-   * @returns Promise<boolean> - True if AI API usage detected
-   */
-  private async detectAIUsage(): Promise<boolean> {
-    try {
-      const sourceFiles = await this.scanFiles();
-      for (const file of sourceFiles) {
-        const content = fs.readFileSync(file, 'utf-8');
-        if (/openai|anthropic|cohere|huggingface|ollama/i.test(content)) {
-          return true;
-        }
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Detects if the project uses Supabase
-   *
-   * @private
-   * @returns Promise<boolean> - True if Supabase project detected
-   */
-  private async detectSupabaseProject(): Promise<boolean> {
-    try {
-      const supabasePath = path.join(this.config.projectRoot, 'supabase');
-      return fs.existsSync(supabasePath);
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Detects if the project uses webhooks
-   *
-   * @private
-   * @returns Promise<boolean> - True if webhooks detected
-   */
-  private async detectWebhooks(): Promise<boolean> {
-    try {
-      const sourceFiles = await this.scanFiles();
-      for (const file of sourceFiles) {
-        const content = fs.readFileSync(file, 'utf-8');
-        if (/webhook/i.test(content)) {
-          return true;
-        }
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Finds SQL files in the project
-   *
-   * @private
-   * @returns Promise<string[]> - Array of SQL file paths
-   */
-  private async findSQLFiles(): Promise<string[]> {
-    const { glob } = await import('glob');
-    const files = await glob('**/*.sql', {
-      cwd: this.config.projectRoot,
-      absolute: true,
-    });
-    return files;
-  }
-
-  /**
-   * Extracts table names from SQL content
-   *
-   * @private
-   * @param content - SQL content
-   * @returns string[] - Array of table names
-   */
-  private extractTables(content: string): string[] {
-    const tables: string[] = [];
-    const createTableRegex = /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/gi;
-    let match;
-
-    while ((match = createTableRegex.exec(content)) !== null) {
-      tables.push(match[1]);
-    }
-
-    return tables;
   }
 
   /**

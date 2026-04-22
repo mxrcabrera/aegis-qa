@@ -836,6 +836,7 @@ export class PhaseOrchestrator {
     try {
       const phase3Security = new Phase3Security({
         projectRoot: this.getEffectiveProjectRoot(),
+        thermalController: this.config.thermalController,
         statePersistence: this.config.statePersistence,
         currentState: this.config.currentState,
       });
