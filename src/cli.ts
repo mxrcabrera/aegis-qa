@@ -30,7 +30,9 @@ import { ErrorMessages } from './core/error-messages.js';
 import { ConfigLoader } from './core/config-loader.js';
 import { resolve, normalize } from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 import { FileSystem, setFileSystem, type WriteGuardMode } from './core/write-guard.js';
+import { ReportComparator } from './core/report-comparator.js';
 
 /**
  * Selects the appropriate database introspector based on available credentials/files
@@ -108,7 +110,7 @@ function parseHumanTime(timeStr: string): number {
 }
 
 interface CLIConfig {
-  command: 'review' | 'fix' | 'incremental' | 'help';
+  command: 'review' | 'fix' | 'incremental' | 'compare' | 'help';
   targetDir: string;
   skipThermal?: boolean;
   ciMode?: boolean;
@@ -154,7 +156,7 @@ class AegisCLI {
     yesMode: boolean
   ): void {
     // Validate command
-    const validCommands = ['review', 'fix', 'incremental', 'help'];
+    const validCommands = ['review', 'fix', 'incremental', 'compare', 'help'];
     if (!validCommands.includes(command)) {
       throw new Error(`[Security] Invalid command: ${command}. Valid commands: ${validCommands.join(', ')}`);
     }
@@ -216,8 +218,8 @@ class AegisCLI {
     }
 
     if (!this.config.ciMode) {
-      console.log('­ƒøí´©Å  Aegis QA - Advanced Quality Assurance Orchestrator');
-      console.log(`­ƒôé Target Directory: ${resolve(targetDir)}\n`);
+      console.log('ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½  Aegis QA - Advanced Quality Assurance Orchestrator');
+      console.log(`ï¿½ï¿½ï¿½ï¿½ Target Directory: ${resolve(targetDir)}\n`);
     }
 
     // Initialize core components
@@ -245,24 +247,24 @@ class AegisCLI {
 
     // Establish error baseline before running phases
     if (!this.config.ciMode) {
-      console.log('­ƒö¼ Establishing error baseline...');
+      console.log('ï¿½ï¿½ï¿½ï¿½ Establishing error baseline...');
     }
     await reportAggregator.establishBaseline();
     if (!this.config.ciMode) {
-      console.log('Ô£à Baseline established\n');
+      console.log('Ô£ï¿½ Baseline established\n');
     }
 
     // Run self-diagnostic stress test on startup
     if (!this.config.skipThermal) {
       if (!this.config.ciMode) {
-        console.log('­ƒö¼ Running self-diagnostic stress test...');
+        console.log('ï¿½ï¿½ï¿½ï¿½ Running self-diagnostic stress test...');
       }
       const diagnosticResult = await thermalController.runSelfDiagnostic(5000);
       if (!this.config.ciMode) {
         console.log(`  Diagnostic passed: ${diagnosticResult.pass}`);
-        console.log(`  Temperature rise rate: ${diagnosticResult.temperatureRiseRate.toFixed(2)}-¦C/s`);
+        console.log(`  Temperature rise rate: ${diagnosticResult.temperatureRiseRate.toFixed(2)}-ï¿½C/s`);
         console.log(`  Thresholds adjusted: ${diagnosticResult.adjustedThresholds}`);
-        console.log('Ô£à Self-diagnostic complete\n');
+        console.log('Ô£ï¿½ Self-diagnostic complete\n');
       }
     }
 
@@ -291,7 +293,7 @@ class AegisCLI {
 
     // Detect hardware capabilities
     if (!this.config.ciMode) {
-      console.log('­ƒöº Detecting hardware capabilities...');
+      console.log('ï¿½ï¿½ï¿½ï¿½ Detecting hardware capabilities...');
     }
     const hardwareProfile = await thermalController.detectHardwareCapabilities();
     if (!this.config.ciMode) {
@@ -301,7 +303,7 @@ class AegisCLI {
       console.log(`  RAM: ${hardwareProfile.ramTotal}GB`);
       console.log(`  Recommended Batch Size: ${hardwareProfile.recommendedBatchSize}`);
       console.log(`  Recommended Cooldown: ${hardwareProfile.recommendedCooldown}ms`);
-      console.log('Ô£à Hardware detection complete\n');
+      console.log('Ô£ï¿½ Hardware detection complete\n');
     }
 
     // Create phase orchestrator with execution hardening enabled
@@ -345,6 +347,9 @@ class AegisCLI {
         break;
       case 'incremental':
         await this.runIncremental(phaseOrchestrator, reportAggregator);
+        break;
+      case 'compare':
+        await this.runCompare();
         break;
       case 'help':
         this.printHelp();
@@ -390,7 +395,7 @@ class AegisCLI {
 
   private async runReview(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
     if (!this.config.ciMode) {
-      console.log('´+¢ Running Full Review (Phases 0-15)\n');
+      console.log('ï¿½+ï¿½ Running Full Review (Phases 0-15)\n');
     }
 
     // Create sandbox if sandbox mode is enabled
@@ -405,9 +410,9 @@ class AegisCLI {
       const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
 
       if (!this.config.ciMode) {
-        console.log('\nÔ£à Review Complete');
-        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
-        console.log(`ÔÅ¦´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log('\nÔ£ï¿½ Review Complete');
+        console.log(`ï¿½ï¿½ï¿½ï¿½ Total Findings: ${result.totalFindings}`);
+        console.log(`ï¿½Å¦ï¿½ï¿½ï¿½  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
 
       // Generate patch if sandbox mode is enabled
       if (this.config.sandboxMode) {
@@ -419,8 +424,8 @@ class AegisCLI {
         await phaseOrchestrator.cleanupSandbox();
       }
 
-        console.log(`­ƒå New Issues: ${newViolationCount}`);
-        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+        console.log(`ï¿½ï¿½ï¿½ New Issues: ${newViolationCount}`);
+        console.log(`ï¿½ï¿½ï¿½ Inherited Issues: ${inheritedViolationCount}`);
       } else {
         console.log(`Review Complete: ${result.totalFindings} findings, ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
         console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
@@ -428,21 +433,21 @@ class AegisCLI {
 
       // Smart exit code: success if only inherited errors, failure if new errors
       if (newViolationCount > 0) {
-        console.log('\nÔØî New issues detected');
+        console.log('\nï¿½ï¿½ï¿½ New issues detected');
         process.exit(1);
       } else if (inheritedViolationCount > 0) {
-        console.log('\nÔ£à No new issues (all errors inherited)');
+        console.log('\nÔ£ï¿½ No new issues (all errors inherited)');
         process.exit(0);
       }
     } else {
-      console.log('\nÔØî Review Failed');
+      console.log('\nï¿½ï¿½ï¿½ Review Failed');
       process.exit(1);
     }
   }
 
   private async runFix(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
     if (!this.config.ciMode) {
-      console.log('­ƒöº Running Atomic Fixes (Phases 16-18)\n');
+      console.log('ï¿½ï¿½ï¿½ï¿½ Running Atomic Fixes (Phases 16-18)\n');
     }
 
     // Create sandbox if sandbox mode is enabled
@@ -457,13 +462,13 @@ class AegisCLI {
       const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
 
       if (!this.config.ciMode) {
-        console.log('\nÔ£à Fixes Complete');
-        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
-        console.log(`Ô£à Fixed: ${result.fixedCount}`);
-        console.log(`ÔÜá´©Å  Needs Human Review: ${result.needsHumanReview}`);
-        console.log(`ÔØî Failed: ${result.failedCount}`);
-        console.log(`­ƒå New Issues: ${newViolationCount}`);
-        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+        console.log('\nÔ£ï¿½ Fixes Complete');
+        console.log(`ï¿½ï¿½ï¿½ï¿½ Total Findings: ${result.totalFindings}`);
+        console.log(`Ô£ï¿½ Fixed: ${result.fixedCount}`);
+        console.log(`ï¿½ï¿½á´©ï¿½  Needs Human Review: ${result.needsHumanReview}`);
+        console.log(`ï¿½ï¿½ï¿½ Failed: ${result.failedCount}`);
+        console.log(`ï¿½ï¿½ï¿½ New Issues: ${newViolationCount}`);
+        console.log(`ï¿½ï¿½ï¿½ Inherited Issues: ${inheritedViolationCount}`);
 
         // Generate patch if sandbox mode is enabled
         if (this.config.sandboxMode) {
@@ -491,21 +496,21 @@ class AegisCLI {
 
       // Smart exit code: success if only inherited errors, failure if new errors
       if (newViolationCount > 0) {
-        console.log('\nÔØî New issues detected');
+        console.log('\nï¿½ï¿½ï¿½ New issues detected');
         process.exit(1);
       } else if (inheritedViolationCount > 0) {
-        console.log('\nÔ£à No new issues (all errors inherited)');
+        console.log('\nÔ£ï¿½ No new issues (all errors inherited)');
         process.exit(0);
       }
     } else {
-      console.log('\nÔØî Fixes Failed');
+      console.log('\nï¿½ï¿½ï¿½ Fixes Failed');
       process.exit(1);
     }
   }
 
   private async runIncremental(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
     if (!this.config.ciMode) {
-      console.log('­ƒöä Running Incremental Review (Phase 19)\n');
+      console.log('ï¿½ï¿½ï¿½ï¿½ Running Incremental Review (Phase 19)\n');
     }
 
     // Create sandbox if sandbox mode is enabled
@@ -520,11 +525,11 @@ class AegisCLI {
       const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
 
       if (!this.config.ciMode) {
-        console.log('\nÔ£à Incremental Review Complete');
-        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
-        console.log(`ÔÅ¦´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
-        console.log(`­ƒå New Issues: ${newViolationCount}`);
-        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
+        console.log('\nÔ£ï¿½ Incremental Review Complete');
+        console.log(`ï¿½ï¿½ï¿½ï¿½ Total Findings: ${result.totalFindings}`);
+        console.log(`ï¿½Å¦ï¿½ï¿½ï¿½  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`ï¿½ï¿½ï¿½ New Issues: ${newViolationCount}`);
+        console.log(`ï¿½ï¿½ï¿½ Inherited Issues: ${inheritedViolationCount}`);
 
         // Generate patch if sandbox mode is enabled
         if (this.config.sandboxMode) {
@@ -552,17 +557,159 @@ class AegisCLI {
 
       // Smart exit code: success if only inherited errors, failure if new errors
       if (newViolationCount > 0) {
-        console.log('\nÔØî New issues detected');
+        console.log('\nï¿½ï¿½ï¿½ New issues detected');
         process.exit(1);
       } else if (inheritedViolationCount > 0) {
-        console.log('\nÔ£à No new issues (all errors inherited)');
+        console.log('\nÔ£ï¿½ No new issues (all errors inherited)');
         process.exit(0);
       }
     } else {
-      console.log('\nÔØî Incremental Review Failed');
+      console.log('\nï¿½ï¿½ï¿½ Incremental Review Failed');
       process.exit(1);
     }
   }
+
+    /**
+   * Runs the compare command
+   *
+   * @private
+   */
+  private async runCompare(): Promise<void> {
+    const args = process.argv.slice(2);
+    
+    // Check for --list option
+    if (args.includes('--list')) {
+      const reports = this.listReports();
+      
+      if (reports.length === 0) {
+        console.log('No timestamped reports found in .sentinel/reports/');
+        return;
+      }
+      
+      console.log('Available timestamped reports:');
+      for (const report of reports) {
+        const filename = path.basename(report);
+        const stat = fs.statSync(report);
+        const date = stat.mtime.toISOString();
+        console.log(`  ${filename} (${date})`);
+      }
+      return;
+    }
+    
+    // Get report paths from args
+    const compareIndex = args.indexOf('compare');
+    const report1Path = args[compareIndex + 1];
+    const report2Path = args[compareIndex + 2];
+    
+    if (!report1Path || !report2Path) {
+      console.error('Error: Two report paths are required for comparison.');
+      console.error('Usage: aegis-qa compare [report1] [report2]');
+      console.error('Use --list to see available reports.');
+      process.exit(1);
+    }
+    
+    // Resolve paths relative to target directory
+    const path = path;
+    const fs = fs;
+    
+    const resolvedReport1 = path.resolve(this.config.targetDir, report1Path);
+    const resolvedReport2 = path.resolve(this.config.targetDir, report2Path);
+    
+    // Validate report paths
+    if (!fs.existsSync(resolvedReport1)) {
+      console.error(`Error: Report not found: ${resolvedReport1}`);
+      process.exit(1);
+    }
+    
+    if (!fs.existsSync(resolvedReport2)) {
+      console.error(`Error: Report not found: ${resolvedReport2}`);
+      process.exit(1);
+    }
+    
+    try {
+      const comparator = new ReportComparator();
+      const comparison = comparator.compare(resolvedReport1, resolvedReport2);
+      const markdown = this.generateComparisonMarkdown(comparison);
+      console.log(markdown);
+    } catch (error) {
+      console.error('Error comparing reports:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  /**
+   * Lists all available timestamped reports in .sentinel/reports/
+   *
+   * @private
+   * @returns string[] - Array of report paths
+   */
+  private listReports(): string[] {
+    const reportsDir = path.join(this.config.targetDir, '.sentinel', 'reports');
+    
+    if (!fs.existsSync(reportsDir)) {
+      return [];
+    }
+
+    const files = fs.readdirSync(reportsDir);
+    return files
+      .filter((f: string) => f.startsWith('qa-report-') && f.endsWith('.md'))
+      .map((f: string) => path.join(reportsDir, f))
+      .sort();
+  }
+
+  /**
+   * Generates a markdown comparison report
+   *
+   * @private
+   * @param comparison - Comparison result
+   * @returns string - Markdown report
+   */
+  private generateComparisonMarkdown(comparison: import('./core/report-comparator.js').ComparisonResult): string {
+    const { summary, resolvedViolations, newViolations, unchangedViolations, trend } = comparison;
+
+    const trendEmoji = trend === 'improving' ? 'ðŸ“ˆ' : trend === 'degrading' ? 'ðŸ“‰' : 'âž¡ï¸';
+    const trendText = trend === 'improving' ? 'IMPROVING' : trend === 'degrading' ? 'DEGRADING' : 'STABLE';
+
+    const markdown = `# Report Comparison Analysis
+
+${trendEmoji} **Trend: ${trendText}**
+
+## Summary
+
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Total Violations | ${summary.totalBefore} | ${summary.totalAfter} | ${summary.delta > 0 ? '+' : ''}${summary.delta} |
+| Critical | ${summary.criticalDelta > 0 ? '+' : ''}${summary.criticalDelta} | ${summary.criticalDelta} | ${summary.criticalDelta} |
+| High | ${summary.highDelta > 0 ? '+' : ''}${summary.highDelta} | ${summary.highDelta} | ${summary.highDelta} |
+| Medium | ${summary.mediumDelta > 0 ? '+' : ''}${summary.mediumDelta} | ${summary.mediumDelta} | ${summary.mediumDelta} |
+| Low | ${summary.lowDelta > 0 ? '+' : ''}${summary.lowDelta} | ${summary.lowDelta} | ${summary.lowDelta} |
+
+## Resolved Violations (${resolvedViolations.length})
+
+${resolvedViolations.length === 0 ? 'No violations resolved.' : resolvedViolations.map(v => 
+  `- [${v.id}] **${v.severity.toUpperCase()}** ${v.filePath}${v.line ? `:${v.line}` : ''}\n  - ${v.description}`
+).join('\n')}
+
+## New Violations (${newViolations.length})
+
+${newViolations.length === 0 ? 'No new violations.' : newViolations.map(v => 
+  `- [${v.id}] **${v.severity.toUpperCase()}** ${v.filePath}${v.line ? `:${v.line}` : ''}\n  - ${v.description}`
+).join('\n')}
+
+## Unchanged Violations (${unchangedViolations.length})
+
+${unchangedViolations.length === 0 ? 'No unchanged violations.' : unchangedViolations.map(v => 
+  `- [${v.id}] **${v.severity.toUpperCase()}** ${v.filePath}${v.line ? `:${v.line}` : ''}\n  - ${v.description}`
+).join('\n')}
+
+---
+
+*Generated by Aegis QA Report Comparator*
+`;
+
+    return markdown;
+  }
+
 
   private printHelp(): void {
     console.log(`
@@ -604,7 +751,7 @@ For more information, visit: https://github.com/mxrcabrera/aegis-qa
 async function main() {
   const args = process.argv.slice(2);
 
-  const command = (args[0] || 'review') as 'review' | 'fix' | 'incremental' | 'help';
+  const command = (args[0] || 'review') as 'review' | 'fix' | 'incremental' | 'compare' | 'help';
   const targetDir = args[1] || '.';
   const ciMode = args.includes('--ci') || process.env.CI === 'true';
   const applyMode = args.includes('--apply');

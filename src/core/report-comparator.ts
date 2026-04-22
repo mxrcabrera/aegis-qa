@@ -96,7 +96,7 @@ export class ReportComparator {
       if (line.startsWith('- [') || line.startsWith('* [')) {
         const idMatch = line.match(/\[([^\]]+)\]/);
         const severityMatch = line.match(/\*\*([A-Z]+)\*\*/);
-        const pathMatch = line.match(/([^\s:]+\.ts(?:\:\d+)?)/);
+        const pathMatch = line.match(/([^\s:]+\.ts(?::\d+)?)/);
         const descMatch = line.match(/\s+-\s+(.+)/);
 
         if (idMatch && severityMatch) {

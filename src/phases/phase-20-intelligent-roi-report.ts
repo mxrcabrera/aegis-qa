@@ -16,6 +16,7 @@
  */
 
 import * as path from 'path';
+import * as fs from 'fs';
 import { getFileSystem } from '../core/write-guard.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
@@ -325,6 +326,16 @@ export class Phase20IntelligentROIReport {
 
     // Write report
     fileSystem.writeFileSync(reportPath, report, 'utf-8');
+
+    // Save timestamped copy to .sentinel/reports/ for longitudinal analysis
+    const sentinelDir = path.join(this.config.projectRoot, '.sentinel', 'reports');
+    if (!fs.existsSync(sentinelDir)) {
+      fs.mkdirSync(sentinelDir, { recursive: true });
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestampedPath = path.join(sentinelDir, `qa-report-${timestamp}.md`);
+    fs.copyFileSync(reportPath, timestampedPath);
+    console.log(`INFO Timestamped report saved to: ${timestampedPath}`);
 
     return reportPath;
   }
