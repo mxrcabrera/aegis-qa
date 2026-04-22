@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import * as _path from 'path';
+import { glob } from 'glob';
 
 /**
  * Cost detection result
@@ -334,7 +335,6 @@ export class CloudCostDetection {
 
     for (const pattern of patterns) {
       try {
-        const { glob } = require('glob');
         const files = glob.sync(pattern, {
           cwd: projectRoot,
           absolute: true,

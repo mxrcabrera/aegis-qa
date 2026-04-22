@@ -69,55 +69,55 @@ export class SecretSanitizer {
   private buildPatterns(): RegExp[] {
     const patterns: RegExp[] = [
       // API Keys (generic)
-      /(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key|private[_-]?key)[:\s=]+[a-zA-Z0-9_\-]{20,}/gi,
-      
+      /(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key|private[_-]?key)[:\s=]+[a-zA-Z0-9_-]{20,}/gi,
+
       // Stripe Keys
       /sk_[a-zA-Z0-9]{20,}/gi,
       /pk_[a-zA-Z0-9]{20,}/gi,
-      
+
       // JWT Tokens
       /eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/gi,
-      
+
       // Database URLs
-      /(?:postgres|mysql|mongodb|redis|mssql|sqlite):\/\/[^\s@]+:[^\s@]+@[^\s]+/gi,
-      
+      new RegExp('(?:postgres|mysql|mongodb|redis|mssql|sqlite)://[^\\s@]+:[^\\s@]+@[^\\s]+', 'gi'),
+
       // Emails
       /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
-      
+
       // Phone numbers (international format)
       /\+?\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/gi,
-      
+
       // Credit cards (basic pattern)
       /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/gi,
-      
+
       // AWS Access Keys
       /AKIA[0-9A-Z]{16}/gi,
-      
+
       // AWS Secret Keys
       /[a-zA-Z0-9/+]{40}/gi,
-      
+
       // Environment variables in code
       /process\.env\.[A-Z_]+/gi,
-      
+
       // GitHub Personal Access Tokens
       /ghp_[a-zA-Z0-9]{36}/gi,
       /gho_[a-zA-Z0-9]{36}/gi,
       /ghu_[a-zA-Z0-9]{36}/gi,
-      
+
       // Slack Tokens
       /xox[baprs]-[0-9]{12}-[0-9]{12}-[0-9]{12}-[a-zA-Z0-9]{32}/gi,
-      
+
       // Google API Keys
-      /AIza[a-zA-Z0-9_\-]{35}/gi,
-      
+      /AIza[a-zA-Z0-9_-]{35}/gi,
+
       // Local file patterns (.env, .env.local, etc.)
-      /[a-zA-Z0-9_\-]+=(?:[a-zA-Z0-9_\-]{20,}|[a-zA-Z0-9_\-\/@:\.]+)/gi,
+      /[a-zA-Z0-9_-]+=(?:[a-zA-Z0-9_-]{20,}|[a-zA-Z0-9_/@:.-]+)/gi,
       
       // Common environment variable names with values
       /(?:DATABASE_URL|API_KEY|SECRET_KEY|PRIVATE_KEY|ACCESS_KEY|AWS_SECRET|STRIPE_SECRET|JWT_SECRET|REDIS_URL|MONGODB_URI|POSTGRES_PASSWORD|MYSQL_PASSWORD|ADMIN_PASSWORD|AUTH_TOKEN|SESSION_SECRET|COOKIE_SECRET|ENCRYPTION_KEY)[:\s=]+[^\s]+/gi,
       
       // Local file paths with sensitive data
-      /(?:\.env|\.env\.local|\.env\.development|\.env\.production|config\/secrets\.json|secrets\.yml|\.secrets)/gi,
+      new RegExp('(?:\\.env|\\.env\\.local|\\.env\\.development|\\.env\\.production|config/secrets\\.json|secrets\\.yml|\\.secrets)', 'gi'),
       
       // Base64 encoded data (potentially secrets)
       /[A-Za-z0-9+/]{40,}={0,2}/gi,
@@ -131,10 +131,10 @@ export class SecretSanitizer {
         // IPv6
         /\[?[0-9a-fA-F:]+\]?/g,
         // URLs with potential PII
-        /https?:\/\/[^\s]+/gi,
+        new RegExp('https?://[^\\s]+', 'gi'),
         // File paths with user data
-        /\/home\/[^\/]+/gi,
-        /\/users\/[^\/]+/gi,
+        new RegExp('/home/[^/]+', 'gi'),
+        new RegExp('/users/[^/]+', 'gi'),
         // Localhost with ports
         /localhost:[0-9]{1,5}/gi,
         /127\.0\.0\.1:[0-9]{1,5}/gi,

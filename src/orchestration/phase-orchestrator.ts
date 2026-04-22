@@ -43,6 +43,7 @@ import { IgnoreHandler } from '../core/ignore-handler.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { MemoryMonitor } from '../core/memory-monitor.js';
 import * as fs from 'fs';
+import * as path from 'path';
 import type { DomainMap } from '../types/domain.js';
 
 /**
@@ -2586,15 +2587,15 @@ export class PhaseOrchestrator {
   private cleanupTemporaryFiles(): number {
     let cleaned = 0;
     try {
-      const cacheDir = require('path').join(this.config.projectRoot, '.aegis-cache');
-      const tempDir = require('path').join(cacheDir, 'temp');
+      const cacheDir = path.join(this.config.projectRoot, '.aegis-cache');
+      const tempDir = path.join(cacheDir, 'temp');
 
-      if (require('fs').existsSync(tempDir)) {
-        const files = require('fs').readdirSync(tempDir);
+      if (fs.existsSync(tempDir)) {
+        const files = fs.readdirSync(tempDir);
         for (const file of files) {
           if (file.endsWith('.tmp') || file.endsWith('.temp')) {
-            const filePath = require('path').join(tempDir, file);
-            require('fs').unlinkSync(filePath);
+            const filePath = path.join(tempDir, file);
+            fs.unlinkSync(filePath);
             cleaned++;
           }
         }

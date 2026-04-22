@@ -7,6 +7,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { spawn } from "child_process";
 import { execSafe } from "../core/command-sanitizer.js";
 import { RetryHelper } from "../core/retry-helper.js";
 
@@ -346,8 +347,6 @@ Devuelve el código optimizado:`;
           `Prompt truncado de ${prompt.length} a ${effectivePrompt.length} chars`,
         );
       }
-
-      const { spawn } = require("child_process");
 
       return new Promise<OllamaResponse>((resolve, reject) => {
         console.log(`Iniciando spawn de ollama run ${this.model}...`);

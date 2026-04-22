@@ -24,6 +24,7 @@
 
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
+import * as os from 'os';
 
 /**
  * Resource reading snapshot
@@ -318,7 +319,6 @@ export class SystemResourceMonitor extends EventEmitter {
    */
   private async getCPUUsage(): Promise<number> {
     try {
-      const os = require('os');
       const cpus = os.cpus();
       
       // Calculate average CPU usage across all cores
@@ -354,7 +354,6 @@ export class SystemResourceMonitor extends EventEmitter {
         return Math.round(this.dockerMemoryLimit / (1024 * 1024 * 1024));
       }
 
-      const os = require('os');
       const totalMemory = os.totalmem();
       return Math.round(totalMemory / (1024 * 1024 * 1024));
     } catch (error) {
@@ -437,7 +436,6 @@ export class SystemResourceMonitor extends EventEmitter {
    */
   private async getRAMUsage(): Promise<number> {
     try {
-      const os = require('os');
       let totalMemory: number;
       let freeMemory: number;
 
@@ -481,7 +479,6 @@ export class SystemResourceMonitor extends EventEmitter {
    */
   private async getRAMAvailable(): Promise<number> {
     try {
-      const os = require('os');
       let availableMemory: number;
 
       // Use Docker memory limit if in container

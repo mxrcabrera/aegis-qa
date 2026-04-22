@@ -400,7 +400,7 @@ export class ErrorBaseline {
 
     for (const line of lines) {
       // Match tsc error format: file.ts(line,col): error TSXXXX: message
-      const match = line.match(/^([^\(]+)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/);
+      const match = line.match(/^([^(]+)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/);
       if (match) {
         errors.push({
           file: match[1],

@@ -408,7 +408,7 @@ export class Phase3Security {
       },
       // Firebase
       {
-        pattern: /AIza[0-9A-Za-z\-_]{35}/g,
+        pattern: /AIza[0-9A-Za-z_-]{35}/g,
         name: 'Firebase API Key',
         severity: 'high' as const,
       },

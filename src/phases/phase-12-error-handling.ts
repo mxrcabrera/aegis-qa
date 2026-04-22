@@ -194,7 +194,6 @@ export class Phase12ErrorHandling {
         files,
         async (filePath) => {
           // Circuit Breaker Interno: Timeout por archivo (5 segundos)
-          let fileResult: ErrorHandlingFinding[];
           const fileTimeout = new Promise<ErrorHandlingFinding[]>((resolve) => {
             setTimeout(() => resolve([{ 
               id: this.generateFindingId(filePath, 1, 'timeout-review'),
@@ -209,7 +208,7 @@ export class Phase12ErrorHandling {
           });
 
           const fileAnalysis = this.analyzeFile(filePath, corePathFiles);
-          fileResult = await Promise.race([fileAnalysis, fileTimeout]);
+          const fileResult = await Promise.race([fileAnalysis, fileTimeout]);
           
           allFindings.push(...fileResult);
           
