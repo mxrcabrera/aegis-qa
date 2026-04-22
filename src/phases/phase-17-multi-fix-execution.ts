@@ -630,7 +630,7 @@ export class Phase17MultiFixExecution {
         // Check if linter succeeded (no output or no errors)
         // If eslint --fix succeeds, it returns exit code 0
         return { success: true };
-      } catch (error) {
+      } catch {
         console.warn(`WARNING Linter-Fix Loop attempt ${attempt} failed for ${filePath}`);
         if (attempt === maxAttempts) {
           return { success: false };
