@@ -645,7 +645,7 @@ export class StackDetector {
       }
 
       return false;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
