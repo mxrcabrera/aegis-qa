@@ -859,7 +859,7 @@ export async function checkReadPermission(filePath: string): Promise<PermissionC
     const fs = await import('fs');
     await fs.promises.access(filePath, fs.constants.R_OK);
     return { allowed: true, permission: 'read' };
-  } catch (error) {
+  } catch {
     return {
       allowed: false,
       reason: 'Read permission denied or file does not exist',
