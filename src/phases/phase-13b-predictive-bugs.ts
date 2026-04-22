@@ -20,7 +20,7 @@ import * as path from 'path';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
-import { PredictiveBugDetection, type BugPrediction } from '../lib/predictive-bug-detection.js';
+import { PredictiveBugDetection, type PredictiveIssue as BugPrediction } from '../modules/predictive-bug-detection.js';
 
 /**
  * Phase 13 result
@@ -72,7 +72,7 @@ export class Phase13PredictiveBugs {
 
   constructor(config: Phase13Config) {
     this.config = config;
-    this.predictiveBugDetection = new PredictiveBugDetection();
+    this.predictiveBugDetection = new PredictiveBugDetection(this.config.projectRoot);
   }
 
   /**
@@ -108,10 +108,11 @@ export class Phase13PredictiveBugs {
 
       console.log(`���� Analyzing ${files.length} source files...\n`);
 
-      const predictions = await this.predictiveBugDetection.analyzeFiles(files);
+      const predictiveResult = await this.predictiveBugDetection.detect();
+      const predictions = predictiveResult.issues;
 
-      const highRiskCount = predictions.filter((p: BugPrediction) => p.riskScore >= 0.7).length;
-      const mediumRiskCount = predictions.filter((p: BugPrediction) => p.riskScore >= 0.4 && p.riskScore < 0.7).length;
+      const highRiskCount = predictions.filter((p: BugPrediction) => p.severity === 'critical' || p.severity === 'high').length;
+      const mediumRiskCount = predictions.filter((p: BugPrediction) => p.severity === 'medium').length;
 
       const result: Phase13Result = {
         success: true,
@@ -211,6 +212,42 @@ export class Phase13PredictiveBugs {
   }
 
   /**
+   * Generates summary of predictions
+   *
+   * @private
+   * @param predictions - Array of bug predictions
+   * @returns string - Formatted summary
+   */
+  private generateSummary(predictions: BugPrediction[]): string {
+    if (predictions.length === 0) {
+      return 'No bug predictions found.\n';
+    }
+
+    let summary = '';
+
+    // Group by type
+    const byType = new Map<string, BugPrediction[]>();
+    for (const p of predictions) {
+      if (!byType.has(p.type)) {
+        byType.set(p.type, []);
+      }
+      byType.get(p.type)!.push(p);
+    }
+
+    for (const [type, items] of byType) {
+      summary += `\n### ${type} (${items.length})\n`;
+      for (const item of items.slice(0, 5)) { // Show top 5 per type
+        summary += `- ${item.file}:${item.line} - ${item.description}\n`;
+      }
+      if (items.length > 5) {
+        summary += `  ... and ${items.length - 5} more\n`;
+      }
+    }
+
+    return summary;
+  }
+
+  /**
    * Writes partial report for Phase 13
    *
    * @private
@@ -221,7 +258,7 @@ export class Phase13PredictiveBugs {
       const reportPath = path.join(this.config.projectRoot, 'qa-report.partial.md');
       const timestamp = new Date().toISOString();
 
-      const summary = this.predictiveBugDetection.generateSummary(result.predictions);
+      const summary = this.generateSummary(result.predictions);
 
       const reportContent = `
 ## Phase 13: Predictive Bugs - ԣ� PASSED
