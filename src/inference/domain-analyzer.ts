@@ -360,7 +360,7 @@ export class DomainAnalyzer {
 
         if (columns) {
           entity.fieldCount = columns.length;
-          entity.fields = columns.map((c: any) => c.column_name);
+          entity.fields = columns.map((c: { column_name: string }) => c.column_name);
         }
 
         entities.push(entity);
@@ -389,7 +389,7 @@ export class DomainAnalyzer {
             .eq('constraint_name', constraint.constraint_name);
 
           if (keyUsage && keyUsage.length > 0) {
-            const ku = keyUsage[0] as any;
+            const ku = keyUsage[0] as { referenced_table_name: string; column_name: string };
             relationships.push({
               from: constraint.table_name,
               to: ku.referenced_table_name,
