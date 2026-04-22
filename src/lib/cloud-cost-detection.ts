@@ -226,7 +226,7 @@ export class CloudCostDetection {
 
       return detections;
     } catch (error) {
-      console.warn(`��ᴩ�  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
+      console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
   }
@@ -339,7 +339,7 @@ export class CloudCostDetection {
           absolute: true,
         });
         allFiles.push(...files);
-      } catch (error) {
+      } catch {
         // glob not available, skip
       }
     }

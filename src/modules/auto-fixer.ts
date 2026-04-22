@@ -569,7 +569,7 @@ class AutoFixer {
       const closeParens = (content.match(/\)/g) || []).length;
 
       return openBraces === closeBraces && openParens === closeParens;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

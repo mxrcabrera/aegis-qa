@@ -425,7 +425,7 @@ export class CodeReader {
       }
 
       return actions;
-    } catch (error) {
+    } catch {
       console.warn(`[CodeReader] Failed to read file: ${filePath}`);
       return [];
     }
