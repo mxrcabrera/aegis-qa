@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 15: DevOps Suite - DevOps Infrastructure Analysis
  *
  * Purpose: Analyze DevOps infrastructure including CI/CD, SCA Security,
@@ -553,3 +553,4 @@ export class Phase15DevOpsSuite {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+

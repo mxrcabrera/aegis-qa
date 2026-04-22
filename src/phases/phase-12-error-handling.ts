@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED + HARDENED]
  *
  * Purpose: Evaluate error handling patterns, observability infrastructure, and resilience
@@ -226,9 +226,9 @@ export class Phase12ErrorHandling {
             console.log(`WARNING Memory leak detected (RAM increased ${ramIncrease}%). Attempting cleanup...`);
             
             // Intentar global.gc() si está disponible
-            if (typeof global !== 'undefined' && (global as any).gc) {
+            if (typeof global !== 'undefined' && (global as unknown).gc) {
               try {
-                (global as any).gc();
+                (global as unknown).gc();
                 console.log('INFO Garbage collection executed');
               } catch {
                 console.log('WARNING Garbage collection failed');
@@ -888,3 +888,4 @@ Generated: ${timestamp}
     }
   }
 }
+

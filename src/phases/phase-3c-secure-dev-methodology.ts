@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 3C: Secure Development Methodology
  *
  * Purpose: Analyze secure development practices including threat modeling,
@@ -500,3 +500,4 @@ export class Phase3CSecureDevMethodology {
     };
   }
 }
+

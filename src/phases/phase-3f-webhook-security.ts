@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 3F: Webhook & Integration Security
  *
  * Purpose: Analyze webhook and integration security including signature verification,
@@ -213,7 +213,7 @@ export class Phase3FWebhookSecurity {
               filePath,
               description: `Webhook handler without signature verification detected (${integrationType || 'custom'})`,
               suggestion: 'Always verify webhook signatures using HMAC or provider-specific signature verification to prevent spoofing attacks',
-              integrationType: integrationType as any,
+              integrationType: integrationType as unknown,
             });
           }
         }
@@ -268,7 +268,7 @@ export class Phase3FWebhookSecurity {
                 line: index + 1,
                 description: `Integration handler without idempotency (${integrationType || 'custom'})`,
                 suggestion: 'Implement idempotency using idempotency keys to prevent duplicate processing from retries',
-                integrationType: integrationType as any,
+                integrationType: integrationType as unknown,
               });
             }
           }
@@ -504,3 +504,4 @@ export class Phase3FWebhookSecurity {
     };
   }
 }
+

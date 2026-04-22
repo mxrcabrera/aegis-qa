@@ -1,4 +1,4 @@
-/**
+ï»¿/**
  * Phase 10: Environment & CI/CD
  *
  * Purpose: Audit environment configuration, variables, and pipelines for secure and repeatable deploys.
@@ -100,14 +100,14 @@ export class Phase10EnvCICD {
    */
   async execute(): Promise<Phase10Result> {
     const startTime = Date.now();
-    console.log('­ƒöº Phase 10: Environment & CI/CD\n');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 10: Environment & CI/CD\n');
 
     try {
       // Get Phase 3 results for Security Check cross-reference
       const phase3Results = this.config.statePersistence.getAnalysisResults(3, this.config.currentState);
       const securityFindings = phase3Results?.findings || [];
 
-      console.log(`­ƒöì Context: ${securityFindings.length} security findings from Phase 3\n`);
+      console.log(`ï¿½ï¿½ï¿½ï¿½ Context: ${securityFindings.length} security findings from Phase 3\n`);
 
       const findings: EnvCICDFinding[] = [];
 
@@ -146,16 +146,16 @@ export class Phase10EnvCICD {
       this.config.currentState.readyForAudit = true;
       await this.config.statePersistence.saveState(this.config.currentState);
 
-      console.log(`Ô£à Phase 10 Complete`);
-      console.log(`  ­ö¾ READY_FOR_AUDIT: TRUE - Report is ready for audit`);
-      console.log(`  ­ƒöì Total findings: ${findings.length}`);
-      console.log(`  ­ƒÜ¿ Critical findings: ${criticalFindings}`);
-      console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
+      console.log(`Ô£ï¿½ Phase 10 Complete`);
+      console.log(`  ï¿½ï¿½ï¿½ READY_FOR_AUDIT: TRUE - Report is ready for audit`);
+      console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${findings.length}`);
+      console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${criticalFindings}`);
+      console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`ÔØî Phase 10 failed: ${errorMessage}\n`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 10 failed: ${errorMessage}\n`);
 
       const result: Phase10Result = {
         success: false,
@@ -194,7 +194,7 @@ export class Phase10EnvCICD {
         type: 'missing-env-example',
         severity: 'critical',
         filePath: '.env',
-        description: '­ƒÜ¿ CRITICAL: .env exists but .env.example is missing - BLOCKING DEPLOY',
+        description: 'ï¿½ï¿½Ü¿ CRITICAL: .env exists but .env.example is missing - BLOCKING DEPLOY',
         suggestion: 'Create .env.example to document required environment variables. Without a map of cables, nobody touches the control panel. This is a blocking issue for deployment.',
       });
     }
@@ -237,7 +237,7 @@ export class Phase10EnvCICD {
           type: 'unconfigured-circuit',
           severity: 'high',
           filePath: envExamplePath,
-          description: `­ƒÜ¿ UNCONFIGURED_CIRCUIT: ${missingVars.length} environment variables used in code but not documented in .env.example - RISK OF PRODUCTION EXPLOSION`,
+          description: `ï¿½ï¿½Ü¿ UNCONFIGURED_CIRCUIT: ${missingVars.length} environment variables used in code but not documented in .env.example - RISK OF PRODUCTION EXPLOSION`,
           suggestion: `Add the following variables to .env.example: ${missingVars.slice(0, 5).join(', ')}${missingVars.length > 5 ? '...' : ''}. Ghost variables are a risk that the system will explode in production due to missing definitions.`,
         });
       }
@@ -316,7 +316,7 @@ export class Phase10EnvCICD {
    * @param securityFindings - Security findings from Phase 3
    * @returns EnvCICDFinding[] - Security check findings
    */
-  private analyzeSecurityCheck(securityFindings: any[]): EnvCICDFinding[] {
+  private analyzeSecurityCheck(securityFindings: unknown[]): EnvCICDFinding[] {
     const findings: EnvCICDFinding[] = [];
 
     // Check for secrets or private keys in repo (cross-reference with Phase 3)
@@ -330,7 +330,7 @@ export class Phase10EnvCICD {
         type: 'secret-leak',
         severity: 'critical',
         filePath: 'project',
-        description: `­ƒÜ¿ CRITICAL: ${secretFindings.length} secrets or private keys detected in repository (from Phase 3)`,
+        description: `ï¿½ï¿½Ü¿ CRITICAL: ${secretFindings.length} secrets or private keys detected in repository (from Phase 3)`,
         suggestion: 'Remove secrets from the repository immediately. Use environment variables and secret management services. Secrets in git are a critical security vulnerability.',
       });
     }
@@ -385,7 +385,7 @@ export class Phase10EnvCICD {
             type: 'infrastructure-drift',
             severity: 'high',
             filePath: packageLockPath,
-            description: '­ƒÜ¿ INFRASTRUCTURE_DRIFT: package-lock.json lockfileVersion mismatch - potential synchronization issue',
+            description: 'ï¿½ï¿½Ü¿ INFRASTRUCTURE_DRIFT: package-lock.json lockfileVersion mismatch - potential synchronization issue',
             suggestion: 'Run "npm install" to regenerate package-lock.json with correct version. Lockfile drift can cause inconsistent dependency resolution across environments.',
           });
         }
@@ -401,7 +401,7 @@ export class Phase10EnvCICD {
             type: 'infrastructure-drift',
             severity: 'high',
             filePath: packageLockPath,
-            description: `­ƒÜ¿ INFRASTRUCTURE_DRIFT: ${missingInLock.length} dependencies in package.json not found in package-lock.json - RUN NPM INSTALL`,
+            description: `ï¿½ï¿½Ü¿ INFRASTRUCTURE_DRIFT: ${missingInLock.length} dependencies in package.json not found in package-lock.json - RUN NPM INSTALL`,
             suggestion: `Run "npm install" to synchronize package-lock.json with package.json. Missing dependencies in lockfile will cause installation failures in production.`,
           });
         }
@@ -412,7 +412,7 @@ export class Phase10EnvCICD {
           type: 'infrastructure-drift',
           severity: 'high',
           filePath: packageLockPath,
-          description: '­ƒÜ¿ INFRASTRUCTURE_DRIFT: package-lock.json is invalid or corrupted - RUN NPM INSTALL',
+          description: 'ï¿½ï¿½Ü¿ INFRASTRUCTURE_DRIFT: package-lock.json is invalid or corrupted - RUN NPM INSTALL',
           suggestion: 'Delete package-lock.json and run "npm install" to regenerate. Corrupted lockfiles cause unpredictable dependency resolution.',
         });
       }
@@ -571,7 +571,7 @@ export class Phase10EnvCICD {
       }
 
       const reportContent = `
-## Phase 10: Environment & CI/CD - Ô£à PASSED
+## Phase 10: Environment & CI/CD - Ô£ï¿½ PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${result.executionTimeMs}ms
 
@@ -599,10 +599,11 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
       }
 
-      console.log(`­ƒôØ Partial report written: ${reportPath}`);
+      console.log(`ï¿½ï¿½ï¿½ï¿½ Partial report written: ${reportPath}`);
     } catch (error) {
-      console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
+      console.warn('ï¿½ï¿½á´©ï¿½  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 3E: BaaS/Platform Security
  *
  * Purpose: Analyze Backend-as-a-Service (BaaS) and platform security configurations,
@@ -546,3 +546,4 @@ export class Phase3EBaaSPlatformSecurity {
     };
   }
 }
+

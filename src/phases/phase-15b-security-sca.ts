@@ -1,4 +1,4 @@
-/**
+ï»¿/**
  * Phase 15: Security SCA (Software Composition Analysis)
  *
  * Purpose: Audit dependencies for known vulnerabilities and license compliance.
@@ -93,7 +93,7 @@ export class Phase15SecuritySCA {
    */
   async execute(): Promise<Phase15Result> {
     const startTime = Date.now();
-    console.log('­ƒöÆ Phase 15: Security SCA (Software Composition Analysis)\n');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 15: Security SCA (Software Composition Analysis)\n');
 
     try {
       const findings: SCAFinding[] = [];
@@ -104,7 +104,7 @@ export class Phase15SecuritySCA {
       const pnpmLockPath = path.join(this.config.projectRoot, 'pnpm-lock.yaml');
 
       if (!fs.existsSync(packageLockPath) && !fs.existsSync(yarnLockPath) && !fs.existsSync(pnpmLockPath)) {
-        console.log('ÔÜá´©Å  No lock file found (package-lock.json, yarn.lock, or pnpm-lock.yaml)');
+        console.log('ï¿½ï¿½á´©ï¿½  No lock file found (package-lock.json, yarn.lock, or pnpm-lock.yaml)');
         
         findings.push({
           id: this.generateFindingId('project', 'no-lock-file'),
@@ -144,15 +144,15 @@ export class Phase15SecuritySCA {
       await this.writePartialReport(result);
       await this.config.statePersistence.saveState(this.config.currentState);
 
-      console.log(`Ô£à Phase 15 Complete`);
-      console.log(`  ­ƒöì Total findings: ${findings.length}`);
-      console.log(`  ­ƒÜ¿ Critical findings: ${criticalFindings}`);
-      console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
+      console.log(`Ô£ï¿½ Phase 15 Complete`);
+      console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${findings.length}`);
+      console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${criticalFindings}`);
+      console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`ÔØî Phase 15 failed: ${errorMessage}\n`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 15 failed: ${errorMessage}\n`);
 
       const result: Phase15Result = {
         success: false,
@@ -183,7 +183,7 @@ export class Phase15SecuritySCA {
       const lockData = JSON.parse(content);
 
       if (!lockData.packages) {
-        console.log('ÔÜá´©Å  No packages found in lock file');
+        console.log('ï¿½ï¿½á´©ï¿½  No packages found in lock file');
         return findings;
       }
 
@@ -197,7 +197,7 @@ export class Phase15SecuritySCA {
 
         packageCount++;
 
-        const version = (packageData as any).version;
+        const version = (packageData as unknown).version;
 
         // Check for packages with known vulnerabilities (basic heuristic)
         // In a real implementation, this would use npm audit or a vulnerability database
@@ -219,10 +219,10 @@ export class Phase15SecuritySCA {
         }
       }
 
-      console.log(`­ƒôª Analyzed ${packageCount} packages from lock file`);
+      console.log(`ï¿½ï¿½ï¿½ Analyzed ${packageCount} packages from lock file`);
 
     } catch (error) {
-      console.warn(`ÔÜá´©Å  Failed to analyze lock file:`, error instanceof Error ? error.message : error);
+      console.warn(`ï¿½ï¿½á´©ï¿½  Failed to analyze lock file:`, error instanceof Error ? error.message : error);
     }
 
     return findings;
@@ -279,7 +279,7 @@ export class Phase15SecuritySCA {
       }
 
     } catch (error) {
-      console.warn(`ÔÜá´©Å  Failed to analyze licenses:`, error instanceof Error ? error.message : error);
+      console.warn(`ï¿½ï¿½á´©ï¿½  Failed to analyze licenses:`, error instanceof Error ? error.message : error);
     }
 
     return findings;
@@ -334,7 +334,7 @@ export class Phase15SecuritySCA {
       }
 
       const reportContent = `
-## Phase 15: Security SCA - Ô£à PASSED
+## Phase 15: Security SCA - Ô£ï¿½ PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${result.executionTimeMs}ms
 
@@ -363,9 +363,10 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
       }
 
-      console.log(`­ƒôØ Partial report written: ${reportPath}`);
+      console.log(`ï¿½ï¿½ï¿½ï¿½ Partial report written: ${reportPath}`);
     } catch (error) {
-      console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
+      console.warn('ï¿½ï¿½á´©ï¿½  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+

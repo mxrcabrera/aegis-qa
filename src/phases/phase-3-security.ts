@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 3: Security - Vulnerability & Secret Detection
  *
  * Purpose: Identify vulnerabilities and data leaks, using BusinessProfile as a risk multiplier.
@@ -653,7 +653,7 @@ export class Phase3Security {
         const severityOrder = ['low', 'medium', 'high', 'critical'];
         const currentIndex = severityOrder.indexOf(severity);
         if (currentIndex < severityOrder.length - 1) {
-          severity = severityOrder[currentIndex + 1] as any;
+          severity = severityOrder[currentIndex + 1] as unknown;
           escalationReasons.push(`Domain: ${domain}`);
         }
       }
@@ -1262,3 +1262,4 @@ Generated: ${timestamp}
     }
   }
 }
+

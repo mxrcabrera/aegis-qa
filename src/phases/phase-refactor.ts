@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase Refactor
  *
  * Purpose: Identify and execute code refactoring opportunities including
@@ -479,3 +479,4 @@ export class PhaseRefactor {
     };
   }
 }
+

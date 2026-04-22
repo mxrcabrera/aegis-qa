@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 14: Git, Repo & Documentation Hygiene
  *
  * Purpose: Audit the structural health of the repository including git hygiene,
@@ -927,3 +927,4 @@ Generated: ${timestamp}
     return hash.substring(0, 12);
   }
 }
+

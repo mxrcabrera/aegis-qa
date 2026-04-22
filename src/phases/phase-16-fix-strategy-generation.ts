@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 16: Fix Strategy Generation - Intelligent Fix Strategy Planning
  *
  * Purpose: Generate intelligent fix strategies for identified issues,
@@ -80,7 +80,7 @@ interface Phase16Config {
   /** Current execution state */
   currentState: ExecutionState;
   /** Findings from previous phases */
-  findings: any[];
+  findings: unknown[];
 }
 
 /**
@@ -454,3 +454,4 @@ export class Phase16FixStrategyGeneration {
     }
   }
 }
+

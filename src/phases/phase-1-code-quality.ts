@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 1: Code Quality - Technical Health Assessment
  *
  * Purpose: Evaluate the technical health of the code by detecting code smells,
@@ -774,3 +774,4 @@ Generated: ${timestamp}
     }
   }
 }
+

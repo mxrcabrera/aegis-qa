@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 9: Dead Code & Dependencies - Unused Code and Dependency Analysis
  *
  * Purpose: Identify unused code, unreachable code, and unused dependencies
@@ -500,3 +500,4 @@ export class Phase9DeadCodeDependencies {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+

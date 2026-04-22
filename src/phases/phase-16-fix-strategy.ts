@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 16: Fix Strategy Generation
  *
  * Purpose: Transform findings from phases 1-15 into precise instructions for AtomicFixer.
@@ -276,8 +276,8 @@ export class Phase16FixStrategyGeneration {
    * @param phaseData - Phase data
    * @returns Array of findings
    */
-  private extractFindingsFromPhaseData(phaseData: any): any[] {
-    const findings: any[] = [];
+  private extractFindingsFromPhaseData(phaseData: any): unknown[] {
+    const findings: unknown[] = [];
 
     // Handle different phase data structures
     if (Array.isArray(phaseData)) {
@@ -838,3 +838,4 @@ export class Phase16FixStrategyGeneration {
     console.log('INFO Strategy cache flushed');
   }
 }
+

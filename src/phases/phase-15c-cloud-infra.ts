@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 15B: Cloud Infrastructure
  *
  * Purpose: Audit Infrastructure as Code (IaC) files for security and cost issues.
@@ -657,3 +657,4 @@ Generated: ${timestamp}
     return hash.substring(0, 12);
   }
 }
+

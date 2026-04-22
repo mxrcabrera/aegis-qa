@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 20: Intelligent Report Comparison
  *
  * Purpose: Executive summary of Aegis QA.
@@ -333,7 +333,7 @@ export class Phase20IntelligentReportComparison {
     // Get strategy details from Phase 16 to determine complexity
     if (phase16Data && phase16Data.strategiesByPhase) {
       for (const strategies of Object.values(phase16Data.strategiesByPhase)) {
-        for (const strategy of strategies as any[]) {
+        for (const strategy of strategies as unknown[]) {
           if (strategy.applied) {
             fixesApplied++;
 
@@ -421,8 +421,8 @@ export class Phase20IntelligentReportComparison {
    * @private
    * @returns any[] - Current findings
    */
-  private getCurrentFindings(): any[] {
-    const findings: any[] = [];
+  private getCurrentFindings(): unknown[] {
+    const findings: unknown[] = [];
 
     // Aggregate findings from all phases
     const analysisResults = this.config.currentState.analysisResults || {};
@@ -441,7 +441,7 @@ export class Phase20IntelligentReportComparison {
    * @private
    * @returns any[] - Previous findings
    */
-  private getPreviousFindings(): any[] {
+  private getPreviousFindings(): unknown[] {
     // In real implementation, would retrieve from StatePersistence
     // For now, return empty array
     return [];
@@ -665,3 +665,4 @@ export class Phase20IntelligentReportComparison {
     this.thermalEvents.push('Phase 20 started');
   }
 }
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 3B: AI API Integration Security
  *
  * Purpose: Analyze AI API integrations for security vulnerabilities including
@@ -252,7 +252,7 @@ export class Phase3BAIAPIIntegration {
           line,
           description: `Potential prompt injection vulnerability: user input used directly in AI prompt without sanitization`,
           suggestion: 'Sanitize and validate user input before including in AI prompts. Use allow-lists and length limits.',
-          apiProvider: apiProvider as any,
+          apiProvider: apiProvider as unknown,
         });
       }
     });
@@ -283,7 +283,7 @@ export class Phase3BAIAPIIntegration {
           suggestion: isClientSide 
             ? 'Move API key calls to server actions or API routes. Never expose API keys in client code.'
             : 'Use environment variables and secret management. Never commit API keys to source code.',
-          apiProvider: apiProvider as any,
+          apiProvider: apiProvider as unknown,
         });
       }
     });
@@ -307,7 +307,7 @@ export class Phase3BAIAPIIntegration {
         line,
         description: `AI API call without cost limits (max_tokens) - potential for excessive costs`,
         suggestion: 'Always set max_tokens or equivalent cost limits to prevent runaway costs from long AI responses.',
-        apiProvider: apiProvider as any,
+        apiProvider: apiProvider as unknown,
       });
     }
 
@@ -334,7 +334,7 @@ export class Phase3BAIAPIIntegration {
           line,
           description: `AI output used directly without validation or sanitization`,
           suggestion: 'Always validate and sanitize AI output before using it. Check for malicious content, length limits, and expected format.',
-          apiProvider: apiProvider as any,
+          apiProvider: apiProvider as unknown,
         });
       }
     });
@@ -353,3 +353,4 @@ export class Phase3BAIAPIIntegration {
     };
   }
 }
+

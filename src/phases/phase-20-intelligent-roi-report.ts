@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 20: Intelligent ROI Report - Executive Report with Time Savings
  *
  * Purpose: Generate executive report with time savings weighted by complexity
@@ -45,9 +45,9 @@ interface Phase20Config {
   /** Current execution state */
   currentState: ExecutionState;
   /** All findings from phases 0-15 */
-  allFindings: any[];
+  allFindings: unknown[];
   /** Fix results from Phase 17 */
-  fixResults?: any[];
+  fixResults?: unknown[];
 }
 
 /**
@@ -395,3 +395,4 @@ This report provides a comprehensive analysis of code quality findings and the e
     return censoredContent;
   }
 }
+

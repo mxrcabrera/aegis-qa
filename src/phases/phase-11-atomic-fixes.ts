@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 11: Atomic Fixes
  *
  * Purpose: Transform findings from previous phases into applicable fixes (patches)
@@ -187,7 +187,7 @@ interface Phase11Config {
   /** Whether to skip confirmation prompts (for CI/CD) */
   yesMode?: boolean;
   /** Git checkpoint manager for auto-backup */
-  gitCheckpointManager?: any;
+  gitCheckpointManager?: unknown;
   /** Sandbox configuration for safe fix execution */
   sandboxConfig?: SandboxConfig;
   /** Operation guard configuration for limiting actions */
@@ -2138,3 +2138,4 @@ Generated: ${timestamp}
     }
   }
 }
+

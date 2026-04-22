@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 18: Post-Fix Validation & Quality Gate
  *
  * Purpose: Final inspection before concluding the work.
@@ -216,7 +216,7 @@ export class Phase18PostFixValidation {
       console.log(`INFO Pre-fix baseline captured: ${errors.length} type errors`);
       return { errorCount: errors.length, errors };
     } catch (error) {
-      const stderr = (error as any).stderr || '';
+      const stderr = (error as unknown).stderr || '';
       const errors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
       
       console.log(`INFO Pre-fix baseline captured: ${errors.length} type errors`);
@@ -272,7 +272,7 @@ export class Phase18PostFixValidation {
       console.log('SUCCESS No new type errors detected. Global integrity maintained');
       return { status: 'passed', errorCount: postFixErrorCount, newErrors: 0 };
     } catch (error) {
-      const stderr = (error as any).stderr || '';
+      const stderr = (error as unknown).stderr || '';
       const postFixErrors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
       const postFixErrorCount = postFixErrors.length;
       
@@ -401,7 +401,7 @@ export class Phase18PostFixValidation {
    * @param phaseData - Phase data
    * @returns Array of findings
    */
-  private extractFindingsFromPhaseData(phaseData: any): any[] {
+  private extractFindingsFromPhaseData(phaseData: any): unknown[] {
     if (Array.isArray(phaseData)) {
       return phaseData;
     }
@@ -762,3 +762,4 @@ export class Phase18PostFixValidation {
     return backupFiles;
   }
 }
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase API Contracts
  *
  * Purpose: Analyze API contracts for consistency in response format, status codes,
@@ -452,3 +452,4 @@ export class PhaseAPIContracts {
     };
   }
 }
+

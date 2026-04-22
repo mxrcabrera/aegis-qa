@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 5: Clean Code & Refactoring
  *
  * Purpose: Evaluate readability, maintainability, and adherence to SOLID/DRY principles.
@@ -638,3 +638,4 @@ Generated: ${timestamp}
     }
   }
 }
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 13: i18n & l10n - Internationalization & Localization
  *
  * Purpose: Detect hardcoded strings that should be in translation files,
@@ -206,9 +206,9 @@ export class Phase13I18nL10n {
           const ramIncrease = currentResources.ramUsage - previousRamUsage;
           if (ramIncrease > 10) {
             console.log(`WARNING Memory leak detected (RAM increased ${ramIncrease}%). Attempting cleanup...`);
-            if (typeof global !== 'undefined' && (global as any).gc) {
+            if (typeof global !== 'undefined' && (global as unknown).gc) {
               try {
-                (global as any).gc();
+                (global as unknown).gc();
                 console.log('INFO Garbage collection executed');
               } catch {
                 console.log('WARNING Garbage collection failed');
@@ -955,3 +955,4 @@ Generated: ${timestamp}
     }
   }
 }
+

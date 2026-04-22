@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 9: Internationalization & Accessibility (i18n & a11y)
  *
  * Purpose: Detect access barriers and localization problems before they affect real users.
@@ -683,3 +683,4 @@ Generated: ${timestamp}
     }
   }
 }
+

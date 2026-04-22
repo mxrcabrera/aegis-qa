@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase Compare Reports
  *
  * Purpose: Compare current audit report with previous reports to track progress,
@@ -429,3 +429,4 @@ export class PhaseCompareReports {
     };
   }
 }
+

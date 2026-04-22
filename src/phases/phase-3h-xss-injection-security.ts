@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 3H: XSS/Injection Security
  *
  * Purpose: Deep analysis of Cross-Site Scripting (XSS) and injection vulnerabilities
@@ -763,3 +763,4 @@ export class Phase3HXSSInjectionSecurity {
     };
   }
 }
+

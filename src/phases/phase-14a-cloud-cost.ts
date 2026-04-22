@@ -1,4 +1,4 @@
-/**
+ï»¿/**
  * Phase 14: Cloud Cost Detection
  *
  * Purpose: Analyzes infrastructure code to detect potential cost issues and optimization opportunities.
@@ -83,13 +83,13 @@ export class Phase14CloudCost {
    */
   async execute(): Promise<Phase14Result> {
     const startTime = Date.now();
-    console.log('­ƒÆ¦ Phase 14: Cloud Cost Detection\n');
+    console.log('ï¿½ï¿½Æ¦ Phase 14: Cloud Cost Detection\n');
 
     try {
       const files = await this.cloudCostDetection.scanInfrastructureFiles(this.config.projectRoot);
 
       if (files.length === 0) {
-        console.log('ÔÜá´©Å  No infrastructure files found for analysis\n');
+        console.log('ï¿½ï¿½á´©ï¿½  No infrastructure files found for analysis\n');
         
         const result: Phase14Result = {
           success: true,
@@ -108,7 +108,7 @@ export class Phase14CloudCost {
         return result;
       }
 
-      console.log(`­ƒôé Analyzing ${files.length} infrastructure files...\n`);
+      console.log(`ï¿½ï¿½ï¿½ï¿½ Analyzing ${files.length} infrastructure files...\n`);
 
       const detections = await this.cloudCostDetection.analyzeFiles(files);
 
@@ -130,16 +130,16 @@ export class Phase14CloudCost {
       await this.writePartialReport(result);
       await this.config.statePersistence.saveState(this.config.currentState);
 
-      console.log(`Ô£à Phase 14 Complete`);
-      console.log(`  ­ƒöì Total detections: ${detections.length}`);
-      console.log(`  ­ƒÜ¿ High impact: ${highImpactCount}`);
-      console.log(`  ÔÜá´©Å  Medium impact: ${mediumImpactCount}`);
-      console.log(`  ­ƒÆ¦ Estimated monthly savings: $${estimatedSavings.toFixed(2)}\n`);
+      console.log(`Ô£ï¿½ Phase 14 Complete`);
+      console.log(`  ï¿½ï¿½ï¿½ï¿½ Total detections: ${detections.length}`);
+      console.log(`  ï¿½ï¿½Ü¿ High impact: ${highImpactCount}`);
+      console.log(`  ï¿½ï¿½á´©ï¿½  Medium impact: ${mediumImpactCount}`);
+      console.log(`  ï¿½ï¿½Æ¦ Estimated monthly savings: $${estimatedSavings.toFixed(2)}\n`);
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`ÔØî Phase 14 failed: ${errorMessage}\n`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 14 failed: ${errorMessage}\n`);
 
       const result: Phase14Result = {
         success: false,
@@ -170,7 +170,7 @@ export class Phase14CloudCost {
       const summary = this.cloudCostDetection.generateSummary(result.detections);
 
       const reportContent = `
-## Phase 14: Cloud Cost Detection - Ô£à PASSED
+## Phase 14: Cloud Cost Detection - Ô£ï¿½ PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${result.executionTimeMs}ms
 
@@ -200,9 +200,10 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
       }
 
-      console.log(`­ƒôØ Partial report written: ${reportPath}`);
+      console.log(`ï¿½ï¿½ï¿½ï¿½ Partial report written: ${reportPath}`);
     } catch (error) {
-      console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
+      console.warn('ï¿½ï¿½á´©ï¿½  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+

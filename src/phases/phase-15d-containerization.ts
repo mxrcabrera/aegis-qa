@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 15C: Containerization
  *
  * Purpose: Audit Dockerfile and container configurations for security and cost issues.
@@ -705,3 +705,4 @@ Generated: ${timestamp}
     return hash.substring(0, 12);
   }
 }
+

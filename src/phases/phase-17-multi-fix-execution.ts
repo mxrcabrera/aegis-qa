@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Phase 17: Multi-Fix Execution
  *
  * Purpose: Convert AtomicFixer into a mass remediation machine but safe.
@@ -46,7 +46,7 @@ interface FileFixBatch {
   /** File path */
   filePath: string;
   /** Strategies to apply */
-  strategies: any[];
+  strategies: unknown[];
   /** Maximum safe level */
   maxSafeLevel: number;
   /** Is Core Path */
@@ -194,7 +194,7 @@ export class Phase17MultiFixExecution {
       return result;
     }
 
-    const allStrategies: any[] = [];
+    const allStrategies: unknown[] = [];
     const strategiesByPhase = phase16Data.strategiesByPhase as Map<number, any[]>;
     for (const strategies of strategiesByPhase.values()) {
       allStrategies.push(...strategies);
@@ -239,7 +239,7 @@ export class Phase17MultiFixExecution {
    * @param strategies - All strategies
    * @returns FileFixBatch[] - Array of file batches
    */
-  private groupStrategiesByFile(strategies: any[]): FileFixBatch[] {
+  private groupStrategiesByFile(strategies: unknown[]): FileFixBatch[] {
     const fileMap = new Map<string, any[]>();
 
     for (const strategy of strategies) {
@@ -643,3 +643,4 @@ export class Phase17MultiFixExecution {
     return { success: false };
   }
 }
+
