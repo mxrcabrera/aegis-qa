@@ -32,6 +32,9 @@ import type {
   DomainAnalyzerConfig,
   AnalysisResult,
 } from '../types/domain.js';
+import type {
+  DatabaseIntrospector,
+} from '../core/database-introspection.js';
 
 /**
  * DomainAnalyzer - Business domain inference
@@ -56,6 +59,7 @@ import type {
 export class DomainAnalyzer {
   private config: DomainAnalyzerConfig;
   private secretManager: SecretManager;
+  private databaseIntrospector: DatabaseIntrospector | null = null;
   private sourceFiles: string[] = [];
 
   /**
@@ -63,8 +67,13 @@ export class DomainAnalyzer {
    *
    * @param config - Configuration for domain analysis
    * @param secretManager - SecretManager instance for database connection
+   * @param databaseIntrospector - Optional DatabaseIntrospector for schema introspection
    */
-  constructor(config: DomainAnalyzerConfig, secretManager?: SecretManager) {
+  constructor(
+    config: DomainAnalyzerConfig,
+    secretManager?: SecretManager,
+    databaseIntrospector?: DatabaseIntrospector
+  ) {
     const defaultConfig: DomainAnalyzerConfig = {
       projectRoot: process.cwd(),
       useDatabase: true,
@@ -87,6 +96,7 @@ export class DomainAnalyzer {
 
     this.config = { ...defaultConfig, ...config };
     this.secretManager = secretManager || new SecretManager({ mockMode: true });
+    this.databaseIntrospector = databaseIntrospector || null;
   }
 
   /**
@@ -126,8 +136,14 @@ export class DomainAnalyzer {
       serverActions.push(...staticResult.serverActions);
       warnings.push(...staticResult.warnings);
 
-      // Perform database analysis if credentials available
-      if (this.config.useDatabase && !this.secretManager.isMockMode()) {
+      // Perform database analysis if introspector provided
+      if (this.config.useDatabase && this.databaseIntrospector) {
+        const dbResult = await this.performDatabaseAnalysis();
+        entities.push(...dbResult.entities);
+        relationships.push(...dbResult.relationships);
+        warnings.push(...dbResult.warnings);
+      } else if (this.config.useDatabase && !this.secretManager.isMockMode()) {
+        // Fallback to old Supabase logic if no introspector but useDatabase is true
         const dbResult = await this.performDatabaseAnalysis();
         entities.push(...dbResult.entities);
         relationships.push(...dbResult.relationships);
@@ -289,6 +305,17 @@ export class DomainAnalyzer {
     relationships: Relationship[];
     warnings: string[];
   }> {
+    // Use DatabaseIntrospector if provided
+    if (this.databaseIntrospector) {
+      const schema = await this.databaseIntrospector.getSchema();
+      return {
+        entities: schema.entities,
+        relationships: schema.relationships,
+        warnings: schema.warnings,
+      };
+    }
+
+    // Fallback to old Supabase logic for backward compatibility
     const entities: Entity[] = [];
     const relationships: Relationship[] = [];
     const warnings: string[] = [];

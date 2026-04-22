@@ -13,17 +13,69 @@
  */
 
 import { ThermalController } from './core/thermal-controller.js';
+import { GitCheckpointManager } from './core/git-checkpoint-manager.js';
 import { SecretManager } from './core/secret-manager.js';
-import { ReportAggregator } from './core/reporter.js';
 import { DomainAnalyzer } from './inference/domain-analyzer.js';
 import { PhaseOrchestrator } from './orchestration/phase-orchestrator.js';
+import { ReportAggregator } from './core/reporter.js';
 import { StatePersistence, type ExecutionState } from './core/state-persistence.js';
-import { GitCheckpointManager } from './core/git-checkpoint-manager.js';
+import {
+  NullDatabaseIntrospector,
+  SQLFileDatabaseIntrospector,
+  PrismaDatabaseIntrospector,
+  SupabaseDatabaseIntrospector,
+  type DatabaseIntrospector,
+} from './core/database-introspection.js';
 import { ErrorMessages } from './core/error-messages.js';
 import { ConfigLoader } from './core/config-loader.js';
 import { resolve, normalize } from 'path';
 import * as fs from 'fs';
 import { FileSystem, setFileSystem, type WriteGuardMode } from './core/write-guard.js';
+
+/**
+ * Selects the appropriate database introspector based on available credentials/files
+ *
+ * Priority order:
+ * 1. Supabase (if credentials available)
+ * 2. Prisma (if prisma/schema.prisma exists)
+ * 3. SQL files (if any .sql files exist)
+ * 4. Null (no database introspection)
+ *
+ * @param projectRoot - Project root directory
+ * @param secretManager - SecretManager instance for checking credentials
+ * @returns DatabaseIntrospector - Selected introspector
+ */
+function selectDatabaseIntrospector(
+  projectRoot: string,
+  secretManager: SecretManager
+): DatabaseIntrospector {
+  // Check if Supabase credentials are available
+  if (!secretManager.isMockMode()) {
+    return new SupabaseDatabaseIntrospector(secretManager);
+  }
+
+  // Check if Prisma schema exists
+  const prismaPath = resolve(projectRoot, 'prisma/schema.prisma');
+  if (fs.existsSync(prismaPath)) {
+    return new PrismaDatabaseIntrospector({ projectRoot });
+  }
+
+  // Check if SQL files exist
+  const sqlPaths = [
+    resolve(projectRoot, 'supabase/migrations'),
+    resolve(projectRoot, 'supabase/schema.sql'),
+    resolve(projectRoot, 'database/schema.sql'),
+  ];
+
+  for (const sqlPath of sqlPaths) {
+    if (fs.existsSync(sqlPath)) {
+      return new SQLFileDatabaseIntrospector({ projectRoot });
+    }
+  }
+
+  // Default to null introspector
+  return new NullDatabaseIntrospector();
+}
 
 /**
  * Parses human-readable time format to milliseconds
@@ -214,9 +266,12 @@ class AegisCLI {
       }
     }
 
+    // Select appropriate database introspector
+    const databaseIntrospector = selectDatabaseIntrospector(resolve(targetDir), secretManager);
+
     const domainAnalyzer = new DomainAnalyzer({
       projectRoot: resolve(targetDir),
-      useDatabase: false,
+      useDatabase: true,
       useAI: false,
       schemaPaths: [
         'supabase/migrations/*.sql',
@@ -232,7 +287,7 @@ class AegisCLI {
         'actions/*.ts',
         'lib/actions/*.ts',
       ],
-    }, secretManager);
+    }, secretManager, databaseIntrospector);
 
     // Detect hardware capabilities
     if (!this.config.ciMode) {
