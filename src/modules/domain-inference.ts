@@ -120,7 +120,7 @@ class DomainInference {
           ignore: ["**/node_modules/**", "**/.next/**", "**/dist/**"],
         });
         allFiles.push(...files);
-      } catch (error) {
+      } catch {
         // Continue with other patterns
       }
     }
