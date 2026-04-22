@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 14: Cloud Cost Detection
  *
  * Purpose: Analyzes infrastructure code to detect potential cost issues and optimization opportunities.
@@ -206,6 +207,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

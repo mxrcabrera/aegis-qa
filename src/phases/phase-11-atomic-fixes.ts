@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 11: Atomic Fixes
  *
  * Purpose: Transform findings from previous phases into applicable fixes (patches)
@@ -1036,8 +1037,8 @@ export class Phase11AtomicFixes {
     const corePathFiles = new Set<string>();
     
     const phase2Results = analysisResults['phase2'];
-    if (phase2Results && (phase2Results as unknown).corePathFiles) {
-      for (const file of (phase2Results as unknown).corePathFiles) {
+    if (phase2Results && (phase2Results as any).corePathFiles) {
+      for (const file of (phase2Results as any).corePathFiles) {
         corePathFiles.add(file);
       }
     }
@@ -2138,6 +2139,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

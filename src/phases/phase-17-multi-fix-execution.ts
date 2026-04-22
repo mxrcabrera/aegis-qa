@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 17: Multi-Fix Execution
  *
  * Purpose: Convert AtomicFixer into a mass remediation machine but safe.
@@ -189,13 +190,13 @@ export class Phase17MultiFixExecution {
 
     // Get strategies from Phase 16
     const phase16Data = this.config.currentState.analysisResults?.['16'];
-    if (!phase16Data || !(phase16Data as unknown).strategiesByPhase) {
+    if (!phase16Data || !(phase16Data as any).strategiesByPhase) {
       console.log('INFO No strategies from Phase 16 found');
       return result;
     }
 
     const allStrategies: unknown[] = [];
-    const strategiesByPhase = (phase16Data as unknown).strategiesByPhase as Map<number, unknown[]>;
+    const strategiesByPhase = (phase16Data as any).strategiesByPhase as Map<number, unknown[]>;
     for (const strategies of strategiesByPhase.values()) {
       allStrategies.push(...strategies);
     }
@@ -243,20 +244,20 @@ export class Phase17MultiFixExecution {
     const fileMap = new Map<string, unknown[]>();
 
     for (const strategy of strategies) {
-      if (!(strategy as unknown).filePath) continue;
+      if (!(strategy as any).filePath) continue;
 
-      if (!fileMap.has((strategy as unknown).filePath)) {
-        fileMap.set((strategy as unknown).filePath, []);
+      if (!fileMap.has((strategy as any).filePath)) {
+        fileMap.set((strategy as any).filePath, []);
       }
-      fileMap.get((strategy as unknown).filePath)!.push(strategy);
+      fileMap.get((strategy as any).filePath)!.push(strategy);
     }
 
     const batches: FileFixBatch[] = [];
 
     for (const [filePath, fileStrategies] of fileMap.entries()) {
-      const maxSafeLevel = Math.max(...fileStrategies.map((s: unknown) => s.safeLevel || 1));
-      const isCorePath = fileStrategies.some((s: unknown) => s.isCorePath);
-      const blastRadius = Math.max(...fileStrategies.map((s: unknown) => s.dependencies?.length || 0));
+      const maxSafeLevel = Math.max(...fileStrategies.map((s: any) => s.safeLevel || 1));
+      const isCorePath = fileStrategies.some((s: any) => s.isCorePath);
+      const blastRadius = Math.max(...fileStrategies.map((s: any) => s.dependencies?.length || 0));
 
       batches.push({
         filePath,
@@ -292,7 +293,7 @@ export class Phase17MultiFixExecution {
 
       // Apply all fixes in batch
       for (const strategy of batch.strategies) {
-        if ((strategy as unknown).conflictStatus === 'conflict-resolved') continue;
+        if ((strategy as any).conflictStatus === 'conflict-resolved') continue;
 
         const fixResult = this.applySingleFixToContent(modifiedContent, strategy);
         if (fixResult.success) {
@@ -357,7 +358,7 @@ export class Phase17MultiFixExecution {
     const filePath = path.join(this.config.projectRoot, batch.filePath);
 
     for (const strategy of batch.strategies) {
-      if ((strategy as unknown).conflictStatus === 'conflict-resolved') continue;
+      if ((strategy as any).conflictStatus === 'conflict-resolved') continue;
 
       // Hardware Guard (Disk I/O): Monitor write latency
       await this.checkDiskIO();
@@ -389,7 +390,7 @@ export class Phase17MultiFixExecution {
           result.failed++;
         }
       } catch {
-        console.error(`ERROR Individual fix failed for ${(strategy as unknown).strategyId}:`, error instanceof Error ? error.message : error);
+        console.error(`ERROR Individual fix failed for ${(strategy as any).strategyId}:`, error instanceof Error ? error.message : error);
         result.failed++;
       }
     }
@@ -405,13 +406,13 @@ export class Phase17MultiFixExecution {
    * @param strategy - Fix strategy
    * @returns { success: boolean; newContent: string } - Fix result
    */
-  private applySingleFixToContent(content: string, strategy: unknown): {
+  private applySingleFixToContent(content: string, strategy: any): {
     success: boolean;
     newContent: string;
   } {
     try {
       // Apply fix based on strategy type
-      switch ((strategy as unknown).findingType) {
+      switch ((strategy as any).findingType) {
         case 'hardcoded-string':
           return this.fixHardcodedString(content, strategy);
         case 'unused-var':
@@ -422,10 +423,10 @@ export class Phase17MultiFixExecution {
           return this.fixLatestImage(content, strategy);
         default:
           // Generic fix: replace line if line number is specified
-          if ((strategy as unknown).line) {
+          if ((strategy as any).line) {
             const lines = content.split('\n');
-            if ((strategy as unknown).line > 0 && (strategy as unknown).line <= lines.length) {
-              lines[(strategy as unknown).line - 1] = (strategy as unknown).suggestedAction;
+            if ((strategy as any).line > 0 && (strategy as any).line <= lines.length) {
+              lines[(strategy as any).line - 1] = (strategy as any).suggestedAction;
               return { success: true, newContent: lines.join('\n') };
             }
           }
@@ -444,7 +445,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixHardcodedString(content: string, _strategy: unknown): {
+  private fixHardcodedString(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -460,7 +461,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUnusedVariable(content: string, _strategy: unknown): {
+  private fixUnusedVariable(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -476,7 +477,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUserRoot(content: string, _strategy: unknown): {
+  private fixUserRoot(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -502,7 +503,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixLatestImage(content: string, _strategy: unknown): {
+  private fixLatestImage(content: string, _strategy: any): {
     success: boolean;
     newContent: string;
   } {
@@ -643,6 +644,12 @@ export class Phase17MultiFixExecution {
     return { success: false };
   }
 }
+
+
+
+
+
+
 
 
 

@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 16: Fix Strategy Generation - Intelligent Fix Strategy Planning
  *
  * Purpose: Generate intelligent fix strategies for identified issues,
@@ -387,7 +388,7 @@ export class Phase16FixStrategyGeneration {
     const strategies: FixStrategy[] = [];
 
     for (const finding of this.config.findings) {
-      const filePath = (finding as unknown).filePath;
+      const filePath = (finding as any).filePath;
       const fileDep = fileDependencies.find(f => f.filePath === filePath);
 
       if (!fileDep) {
@@ -395,12 +396,12 @@ export class Phase16FixStrategyGeneration {
       }
 
       const strategy: FixStrategy = {
-        findingId: (finding as unknown).id,
+        findingId: (finding as any).id,
         filePath,
         safetyLevel: fileDep.safetyLevel,
         approach: this.determineApproach(fileDep),
         risk: this.determineRisk(fileDep),
-        suggestedFix: (finding as unknown).suggestion || 'Review and fix issue',
+        suggestedFix: (finding as any).suggestion || 'Review and fix issue',
         blastRadius: fileDep.importCount,
       };
 
@@ -454,6 +455,12 @@ export class Phase16FixStrategyGeneration {
     }
   }
 }
+
+
+
+
+
+
 
 
 

@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 15B: Cloud Infrastructure
  *
  * Purpose: Audit Infrastructure as Code (IaC) files for security and cost issues.
@@ -603,17 +604,17 @@ export class Phase15BCloudInfra {
 `;
 
       for (const finding of findings) {
-        const severityIcon = (finding as unknown).severity === 'critical' ? 'CRITICAL' : (finding as unknown).severity === 'high' ? 'HIGH' : (finding as unknown).severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${(finding as unknown).type}** ${(finding as unknown).filePath}`;
-        if ((finding as unknown).line) {
-          reportContent += `:${(finding as unknown).line}`;
+        const severityIcon = (finding as any).severity === 'critical' ? 'CRITICAL' : (finding as any).severity === 'high' ? 'HIGH' : (finding as any).severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${(finding as any).type}** ${(finding as any).filePath}`;
+        if ((finding as any).line) {
+          reportContent += `:${(finding as any).line}`;
         }
         reportContent += `\n`;
-        reportContent += `  - ${(finding as unknown).description}\n`;
-        if ((finding as unknown).suggestion) {
-          reportContent += `  - Suggestion: ${(finding as unknown).suggestion}\n`;
+        reportContent += `  - ${(finding as any).description}\n`;
+        if ((finding as any).suggestion) {
+          reportContent += `  - Suggestion: ${(finding as any).suggestion}\n`;
         }
-        if ((finding as unknown).isCorePath) {
+        if ((finding as any).isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -657,6 +658,12 @@ Generated: ${timestamp}
     return hash.substring(0, 12);
   }
 }
+
+
+
+
+
+
 
 
 

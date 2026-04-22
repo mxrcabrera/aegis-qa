@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 19: Incremental Review
  *
  * Purpose: Make Aegis intelligent and only work on what's necessary.
@@ -723,6 +724,12 @@ export class Phase19IncrementalReview {
     return selectedFiles;
   }
 }
+
+
+
+
+
+
 
 
 

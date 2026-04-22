@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 10: Environment & CI/CD
  *
  * Purpose: Audit environment configuration, variables, and pipelines for secure and repeatable deploys.
@@ -320,7 +321,7 @@ export class Phase10EnvCICD {
     const findings: EnvCICDFinding[] = [];
 
     // Check for secrets or private keys in repo (cross-reference with Phase 3)
-    const secretFindings = securityFindings.filter((f: unknown) => 
+    const secretFindings = securityFindings.filter((f: any) => 
       f.type === 'secret-leak' || f.type === 'api-key-exposure' || f.type === 'hardcoded-secret'
     );
 
@@ -550,10 +551,10 @@ export class Phase10EnvCICD {
       // Group findings by type
       const findingsByType = new Map<string, EnvCICDFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as unknown).type)) {
-          findingsByType.set((finding as unknown).type, []);
+        if (!findingsByType.has((finding as any).type)) {
+          findingsByType.set((finding as any).type, []);
         }
-        findingsByType.get((finding as unknown).type)!.push(finding);
+        findingsByType.get((finding as any).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -562,11 +563,11 @@ export class Phase10EnvCICD {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}** ${(finding as unknown).filePath}`;
-          if ((finding as unknown).line) {
-            findingsContent += `:${(finding as unknown).line}`;
+          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
+          if ((finding as any).line) {
+            findingsContent += `:${(finding as any).line}`;
           }
-          findingsContent += `\n  - ${(finding as unknown).description}\n`;
+          findingsContent += `\n  - ${(finding as any).description}\n`;
         }
       }
 
@@ -605,6 +606,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

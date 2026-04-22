@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 13: i18n & l10n - Internationalization & Localization
  *
  * Purpose: Detect hardcoded strings that should be in translation files,
@@ -206,9 +207,9 @@ export class Phase13I18nL10n {
           const ramIncrease = currentResources.ramUsage - previousRamUsage;
           if (ramIncrease > 10) {
             console.log(`WARNING Memory leak detected (RAM increased ${ramIncrease}%). Attempting cleanup...`);
-            if (typeof global !== 'undefined' && (global as unknown).gc) {
+            if (typeof global !== 'undefined' && (global as any).gc) {
               try {
-                (global as unknown).gc();
+                (global as any).gc();
                 console.log('INFO Garbage collection executed');
               } catch {
                 console.log('WARNING Garbage collection failed');
@@ -866,20 +867,20 @@ export class Phase13I18nL10n {
 `;
 
       for (const finding of findings) {
-        const severityIcon = (finding as unknown).severity === 'critical' ? 'CRITICAL' : (finding as unknown).severity === 'high' ? 'HIGH' : (finding as unknown).severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${(finding as unknown).type}** ${(finding as unknown).filePath}`;
-        if ((finding as unknown).line) {
-          reportContent += `:${(finding as unknown).line}`;
+        const severityIcon = (finding as any).severity === 'critical' ? 'CRITICAL' : (finding as any).severity === 'high' ? 'HIGH' : (finding as any).severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${(finding as any).type}** ${(finding as any).filePath}`;
+        if ((finding as any).line) {
+          reportContent += `:${(finding as any).line}`;
         }
         reportContent += `\n`;
-        reportContent += `  - ${(finding as unknown).description}\n`;
-        if ((finding as unknown).stringValue) {
-          reportContent += `  - String: "${(finding as unknown).stringValue}"\n`;
+        reportContent += `  - ${(finding as any).description}\n`;
+        if ((finding as any).stringValue) {
+          reportContent += `  - String: "${(finding as any).stringValue}"\n`;
         }
-        if ((finding as unknown).suggestion) {
-          reportContent += `  - Suggestion: ${(finding as unknown).suggestion}\n`;
+        if ((finding as any).suggestion) {
+          reportContent += `  - Suggestion: ${(finding as any).suggestion}\n`;
         }
-        if ((finding as unknown).isCorePath) {
+        if ((finding as any).isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -955,6 +956,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

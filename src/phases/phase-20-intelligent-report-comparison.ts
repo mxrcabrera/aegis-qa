@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 20: Intelligent Report Comparison
  *
  * Purpose: Executive summary of Aegis QA.
@@ -331,15 +332,15 @@ export class Phase20IntelligentReportComparison {
     let fixesStandard = 0;
 
     // Get strategy details from Phase 16 to determine complexity
-    if (phase16Data && (phase16Data as unknown).strategiesByPhase) {
-      for (const strategies of Object.values((phase16Data as unknown).strategiesByPhase)) {
+    if (phase16Data && (phase16Data as any).strategiesByPhase) {
+      for (const strategies of Object.values((phase16Data as any).strategiesByPhase)) {
         for (const strategy of strategies as unknown[]) {
-          if ((strategy as unknown).applied) {
+          if ((strategy as any).applied) {
             fixesApplied++;
 
             // Determine fix complexity based on file characteristics
-            const isComplex = (strategy as unknown).blastRadius > 10 || (strategy as unknown).isCorePath;
-            const isSimple = (strategy as unknown).findingType === 'style' || (strategy as unknown).findingType === 'formatting';
+            const isComplex = (strategy as any).blastRadius > 10 || (strategy as any).isCorePath;
+            const isSimple = (strategy as any).findingType === 'style' || (strategy as any).findingType === 'formatting';
 
             if (isComplex) {
               totalTimeSavedMinutes += 30; // 30 minutes for complex fixes (Core Path or high Blast Radius)
@@ -392,21 +393,21 @@ export class Phase20IntelligentReportComparison {
 
     // Compare to detect regressions
     for (const previousFinding of previousFindings) {
-      if ((previousFinding as unknown).status === 'FIXED') {
+      if ((previousFinding as any).status === 'FIXED') {
         const currentFinding = currentFindings.find(
-          (f: unknown) => (f as unknown).filePath === (previousFinding as unknown).filePath && (f as unknown).type === (previousFinding as unknown).type
+          (f: any) => (f as any).filePath === (previousFinding as any).filePath && (f as any).type === (previousFinding as any).type
         );
 
-        if (currentFinding && (currentFinding as unknown).status !== 'FIXED') {
+        if (currentFinding && (currentFinding as any).status !== 'FIXED') {
           regressions.push({
             id: `regression-${Date.now()}`,
-            filePath: (previousFinding as unknown).filePath,
-            errorType: (previousFinding as unknown).type,
+            filePath: (previousFinding as any).filePath,
+            errorType: (previousFinding as any).type,
             previousStatus: 'FIXED',
             currentStatus: 'FOUND',
             description: `Error marked as FIXED in previous audit reappeared`,
           });
-          console.log(`WARNING [REGRESION-CRÍTICA] ${(previousFinding as unknown).type} in ${(previousFinding as unknown).filePath}`);
+          console.log(`WARNING [REGRESION-CRÍTICA] ${(previousFinding as any).type} in ${(previousFinding as any).filePath}`);
         }
       }
     }
@@ -427,8 +428,8 @@ export class Phase20IntelligentReportComparison {
     // Aggregate findings from all phases
     const analysisResults = this.config.currentState.analysisResults || {};
     for (const [, phaseData] of Object.entries(analysisResults)) {
-      if ((phaseData as unknown).findings) {
-        findings.push(...(phaseData as unknown).findings);
+      if ((phaseData as any).findings) {
+        findings.push(...(phaseData as any).findings);
       }
     }
 
@@ -665,6 +666,12 @@ export class Phase20IntelligentReportComparison {
     this.thermalEvents.push('Phase 20 started');
   }
 }
+
+
+
+
+
+
 
 
 

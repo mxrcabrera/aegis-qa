@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 3: Security - Vulnerability & Secret Detection
  *
  * Purpose: Identify vulnerabilities and data leaks, using BusinessProfile as a risk multiplier.
@@ -639,11 +640,11 @@ export class Phase3Security {
     const escalatedFindings: SecurityFinding[] = [];
 
     for (const finding of findings) {
-      let severity = (finding as unknown).severity;
+      let severity = (finding as any).severity;
       const escalationReasons: string[] = [];
 
       // Escalate if in critical module
-      if ((finding as unknown).inCriticalModule && severity !== 'critical') {
+      if ((finding as any).inCriticalModule && severity !== 'critical') {
         severity = 'critical';
         escalationReasons.push('Critical Module');
       }
@@ -662,8 +663,8 @@ export class Phase3Security {
         ...finding,
         severity,
         description: escalationReasons.length > 0
-          ? `${(finding as unknown).description} [ESCALATED: ${escalationReasons.join(', ')}]`
-          : (finding as unknown).description,
+          ? `${(finding as any).description} [ESCALATED: ${escalationReasons.join(', ')}]`
+          : (finding as any).description,
       });
     }
 
@@ -737,17 +738,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as unknown).id,
+            id: (finding as any).id,
             type: 'security',
-            severity: (finding as unknown).severity,
+            severity: (finding as any).severity,
             file: {
-              path: (finding as unknown).filePath,
-              extension: path.extname((finding as unknown).filePath).slice(1),
+              path: (finding as any).filePath,
+              extension: path.extname((finding as any).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as unknown).line || 1, column: 0 },
-            message: (finding as unknown).description,
+            location: { line: (finding as any).line || 1, column: 0 },
+            message: (finding as any).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -821,17 +822,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as unknown).id,
+            id: (finding as any).id,
             type: 'security',
-            severity: (finding as unknown).severity,
+            severity: (finding as any).severity,
             file: {
-              path: (finding as unknown).filePath,
-              extension: path.extname((finding as unknown).filePath).slice(1),
+              path: (finding as any).filePath,
+              extension: path.extname((finding as any).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as unknown).line || 1, column: 0 },
-            message: (finding as unknown).description,
+            location: { line: (finding as any).line || 1, column: 0 },
+            message: (finding as any).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.7,
@@ -905,17 +906,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as unknown).id,
+            id: (finding as any).id,
             type: 'security',
-            severity: (finding as unknown).severity,
+            severity: (finding as any).severity,
             file: {
-              path: (finding as unknown).filePath,
-              extension: path.extname((finding as unknown).filePath).slice(1),
+              path: (finding as any).filePath,
+              extension: path.extname((finding as any).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
             location: { line: 1, column: 0 },
-            message: (finding as unknown).description,
+            message: (finding as any).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.9,
@@ -988,17 +989,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as unknown).id,
+            id: (finding as any).id,
             type: 'security',
-            severity: (finding as unknown).severity,
+            severity: (finding as any).severity,
             file: {
-              path: (finding as unknown).filePath,
-              extension: path.extname((finding as unknown).filePath).slice(1),
+              path: (finding as any).filePath,
+              extension: path.extname((finding as any).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as unknown).line || 1, column: 0 },
-            message: (finding as unknown).description,
+            location: { line: (finding as any).line || 1, column: 0 },
+            message: (finding as any).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -1074,17 +1075,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: (finding as unknown).id,
+            id: (finding as any).id,
             type: 'security',
-            severity: (finding as unknown).severity,
+            severity: (finding as any).severity,
             file: {
-              path: (finding as unknown).filePath,
-              extension: path.extname((finding as unknown).filePath).slice(1),
+              path: (finding as any).filePath,
+              extension: path.extname((finding as any).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: (finding as unknown).line || 1, column: 0 },
-            message: (finding as unknown).description,
+            location: { line: (finding as any).line || 1, column: 0 },
+            message: (finding as any).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -1205,10 +1206,10 @@ export class Phase3Security {
       // Group findings by type
       const findingsByType = new Map<string, SecurityFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as unknown).type)) {
-          findingsByType.set((finding as unknown).type, []);
+        if (!findingsByType.has((finding as any).type)) {
+          findingsByType.set((finding as any).type, []);
         }
-        findingsByType.get((finding as unknown).type)!.push(finding);
+        findingsByType.get((finding as any).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -1217,11 +1218,11 @@ export class Phase3Security {
 ### ${type.charAt(0).toUpperCase() + type.slice(1)} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}** ${(finding as unknown).filePath}`;
-          if ((finding as unknown).line) {
-            findingsContent += `:${(finding as unknown).line}`;
+          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
+          if ((finding as any).line) {
+            findingsContent += `:${(finding as any).line}`;
           }
-          findingsContent += `\n  - ${(finding as unknown).description}\n`;
+          findingsContent += `\n  - ${(finding as any).description}\n`;
         }
       }
 
@@ -1262,6 +1263,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

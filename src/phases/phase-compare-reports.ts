@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase Compare Reports
  *
  * Purpose: Compare current audit report with previous reports to track progress,
@@ -237,7 +238,7 @@ export class PhaseCompareReports {
       const categoryMatch = line.match(/^##\s+(.+)/);
       if (categoryMatch) {
         currentCategory = categoryMatch[1].trim();
-        (reportData as unknown).categories[currentCategory] = {
+        (reportData as any).categories[currentCategory] = {
           critical: 0,
           high: 0,
           medium: 0,
@@ -253,34 +254,34 @@ export class PhaseCompareReports {
         const severity = severityMatch[1].toLowerCase();
         const count = parseInt(severityMatch[2], 10);
         
-        if ((reportData as unknown).categories[currentCategory]) {
-          (reportData as unknown).categories[currentCategory][severity] = count;
-          (reportData as unknown).categories[currentCategory].total += count;
-          (reportData as unknown).totalFindings += count;
+        if ((reportData as any).categories[currentCategory]) {
+          (reportData as any).categories[currentCategory][severity] = count;
+          (reportData as any).categories[currentCategory].total += count;
+          (reportData as any).totalFindings += count;
         }
       }
 
       // Detect total findings
       const totalMatch = line.match(/Total Findings:\s*(\d+)/);
       if (totalMatch) {
-        (reportData as unknown).totalFindings = parseInt(totalMatch[1], 10);
+        (reportData as any).totalFindings = parseInt(totalMatch[1], 10);
       }
     });
 
     return reportData;
   }
 
-  private compareIssueCategories(previousData: unknown, currentData: unknown): ReportComparisonFinding[] {
+  private compareIssueCategories(previousData: unknown, currentData: any): ReportComparisonFinding[] {
     const findings: ReportComparisonFinding[] = [];
     
     const allCategories = new Set([
-      ...Object.keys((previousData as unknown).categories || {}),
-      ...Object.keys((currentData as unknown).categories || {}),
+      ...Object.keys((previousData as any).categories || {}),
+      ...Object.keys((currentData as any).categories || {}),
     ]);
 
     allCategories.forEach((category) => {
-      const previous = (previousData as unknown).categories?.[category] || { total: 0 };
-      const current = (currentData as unknown).categories?.[category] || { total: 0 };
+      const previous = (previousData as any).categories?.[category] || { total: 0 };
+      const current = (currentData as any).categories?.[category] || { total: 0 };
       
       const change = current.total - previous.total;
 
@@ -312,17 +313,17 @@ export class PhaseCompareReports {
     return findings;
   }
 
-  private detectRegressions(previousData: unknown, currentData: unknown): ReportComparisonFinding[] {
+  private detectRegressions(previousData: unknown, currentData: any): ReportComparisonFinding[] {
     const findings: ReportComparisonFinding[] = [];
 
     const allCategories = new Set([
-      ...Object.keys((previousData as unknown).categories || {}),
-      ...Object.keys((currentData as unknown).categories || {}),
+      ...Object.keys((previousData as any).categories || {}),
+      ...Object.keys((currentData as any).categories || {}),
     ]);
 
     allCategories.forEach((category) => {
-      const previous = (previousData as unknown).categories?.[category] || {};
-      const current = (currentData as unknown).categories?.[category] || {};
+      const previous = (previousData as any).categories?.[category] || {};
+      const current = (currentData as any).categories?.[category] || {};
 
       // Check for severity regressions
       ['critical', 'high', 'medium', 'low'].forEach((severity) => {
@@ -348,17 +349,17 @@ export class PhaseCompareReports {
     return findings;
   }
 
-  private detectImprovements(previousData: unknown, currentData: unknown): ReportComparisonFinding[] {
+  private detectImprovements(previousData: unknown, currentData: any): ReportComparisonFinding[] {
     const findings: ReportComparisonFinding[] = [];
 
     const allCategories = new Set([
-      ...Object.keys((previousData as unknown).categories || {}),
-      ...Object.keys((currentData as unknown).categories || {}),
+      ...Object.keys((previousData as any).categories || {}),
+      ...Object.keys((currentData as any).categories || {}),
     ]);
 
     allCategories.forEach((category) => {
-      const previous = (previousData as unknown).categories?.[category] || {};
-      const current = (currentData as unknown).categories?.[category] || {};
+      const previous = (previousData as any).categories?.[category] || {};
+      const current = (currentData as any).categories?.[category] || {};
 
       // Check for severity improvements
       ['critical', 'high', 'medium', 'low'].forEach((severity) => {
@@ -385,8 +386,8 @@ export class PhaseCompareReports {
   }
 
   private calculateMetrics(previousData: unknown, currentData: unknown, findings: ReportComparisonFinding[]): ReportComparisonMetrics {
-    const totalPrevious = (previousData as unknown).totalFindings || 0;
-    const totalCurrent = (currentData as unknown).totalFindings || 0;
+    const totalPrevious = (previousData as any).totalFindings || 0;
+    const totalCurrent = (currentData as any).totalFindings || 0;
     const resolved = totalPrevious - totalCurrent;
     const newIssues = Math.max(0, totalCurrent - totalPrevious);
     
@@ -429,6 +430,13 @@ export class PhaseCompareReports {
     };
   }
 }
+
+
+
+
+
+
+
 
 
 

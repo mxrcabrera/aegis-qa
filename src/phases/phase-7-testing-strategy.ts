@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 7: Testing Strategy
  *
  * Purpose: Evaluate test infrastructure and detect testing blind spots.
@@ -645,10 +646,10 @@ export class Phase7TestingStrategy {
       // Group findings by type
       const findingsByType = new Map<string, TestingFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as unknown).type)) {
-          findingsByType.set((finding as unknown).type, []);
+        if (!findingsByType.has((finding as any).type)) {
+          findingsByType.set((finding as any).type, []);
         }
-        findingsByType.get((finding as unknown).type)!.push(finding);
+        findingsByType.get((finding as any).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -657,11 +658,11 @@ export class Phase7TestingStrategy {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}** ${(finding as unknown).filePath}`;
-          if ((finding as unknown).line) {
-            findingsContent += `:${(finding as unknown).line}`;
+          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
+          if ((finding as any).line) {
+            findingsContent += `:${(finding as any).line}`;
           }
-          findingsContent += `\n  - ${(finding as unknown).description}\n`;
+          findingsContent += `\n  - ${(finding as any).description}\n`;
         }
       }
 
@@ -703,6 +704,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

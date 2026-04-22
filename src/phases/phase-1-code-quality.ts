@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 1: Code Quality - Technical Health Assessment
  *
  * Purpose: Evaluate the technical health of the code by detecting code smells,
@@ -680,7 +681,7 @@ export class Phase1CodeQuality {
     let score = 100;
 
     for (const finding of findings) {
-      switch ((finding as unknown).severity) {
+      switch ((finding as any).severity) {
         case 'critical':
           score -= 25;
           break;
@@ -721,10 +722,10 @@ export class Phase1CodeQuality {
       // Group findings by file for cleaner report
       const findingsByFile = new Map<string, CodeQualityFinding[]>();
       for (const finding of allFindings) {
-        if (!findingsByFile.has((finding as unknown).filePath)) {
-          findingsByFile.set((finding as unknown).filePath, []);
+        if (!findingsByFile.has((finding as any).filePath)) {
+          findingsByFile.set((finding as any).filePath, []);
         }
-        findingsByFile.get((finding as unknown).filePath)!.push(finding);
+        findingsByFile.get((finding as any).filePath)!.push(finding);
       }
 
       let findingsContent = '';
@@ -733,9 +734,9 @@ export class Phase1CodeQuality {
 ### ${path.basename(filePath)}
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).type}** (${(finding as unknown).severity}): ${(finding as unknown).description}`;
-          if ((finding as unknown).line) {
-            findingsContent += ` (line ${(finding as unknown).line})`;
+          findingsContent += `- [${(finding as any).id}] **${(finding as any).type}** (${(finding as any).severity}): ${(finding as any).description}`;
+          if ((finding as any).line) {
+            findingsContent += ` (line ${(finding as any).line})`;
           }
           findingsContent += '\n';
         }
@@ -774,6 +775,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

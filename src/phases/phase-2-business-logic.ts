@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 2: Business Logic - Business Semantics & Core Path Detection
  *
  * Purpose: Deduce the business purpose of the repository to prioritize the subsequent 18 phases.
@@ -350,12 +351,12 @@ export class Phase2BusinessLogic {
       const executionTimeMs = Date.now() - startTime;
 
       console.log(`Ô£à Phase 2 Complete`);
-      console.log(`  ­ƒÄ» Domain: ${(businessProfile as unknown).domain}`);
-      console.log(`  ­ƒôè Confidence: ${(businessProfile as unknown).confidence}%`);
-      console.log(`  ­ƒôª Stack: ${(businessProfile as unknown).stack.length} dependencies`);
-      console.log(`  ­ƒöÆ Critical modules: ${(businessProfile as unknown).criticalModules.length}`);
-      console.log(`  ÔÜá´©Å  Risk findings: ${(businessProfile as unknown).riskFindings.length}`);
-      console.log(`  ­ƒÄ» Recommended focus: ${(businessProfile as unknown).recommendedFocus.join(', ')}\n`);
+      console.log(`  ­ƒÄ» Domain: ${(businessProfile as any).domain}`);
+      console.log(`  ­ƒôè Confidence: ${(businessProfile as any).confidence}%`);
+      console.log(`  ­ƒôª Stack: ${(businessProfile as any).stack.length} dependencies`);
+      console.log(`  ­ƒöÆ Critical modules: ${(businessProfile as any).criticalModules.length}`);
+      console.log(`  ÔÜá´©Å  Risk findings: ${(businessProfile as any).riskFindings.length}`);
+      console.log(`  ­ƒÄ» Recommended focus: ${(businessProfile as any).recommendedFocus.join(', ')}\n`);
 
       return {
         success: true,
@@ -586,12 +587,12 @@ export class Phase2BusinessLogic {
     // Get Phase 1 results from StatePersistence
     const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
 
-    if (!phase1Results || !(phase1Results as unknown).fileScores) {
+    if (!phase1Results || !(phase1Results as any).fileScores) {
       console.log('  ÔÜá´©Å  Phase 1 results not found, skipping cross-reference');
       return riskFindings;
     }
 
-    const fileScores = (phase1Results as unknown).fileScores;
+    const fileScores = (phase1Results as any).fileScores;
 
     for (const fileScore of fileScores) {
       // Check if file is in a core path
@@ -1004,7 +1005,7 @@ export class Phase2BusinessLogic {
       const timestamp = new Date().toISOString();
 
       let riskFindingsContent = '';
-      for (const risk of (businessProfile as unknown).riskFindings) {
+      for (const risk of (businessProfile as any).riskFindings) {
         riskFindingsContent += `- **[${risk.riskLevel.toUpperCase()}] ${risk.filePath}**\n`;
         riskFindingsContent += `  - Reason: ${risk.reason}\n`;
         riskFindingsContent += `  - Quality Score: ${risk.qualityScore}/100\n`;
@@ -1016,21 +1017,21 @@ export class Phase2BusinessLogic {
 - **Execution Time:** ${Date.now() - Date.now()}ms
 
 ### Business Understanding
-- **Domain:** ${(businessProfile as unknown).domain}
-- **Sensitivity Level:** ${(businessProfile as unknown).sensitivityLevel.toUpperCase()}
-- **Core Flow:** ${(businessProfile as unknown).coreFlow.length > 0 ? (businessProfile as unknown).coreFlow.join(', ') : 'No specific flow detected'}
-- **Aegis Assessment:** ${(businessProfile as unknown).businessUnderstanding}
+- **Domain:** ${(businessProfile as any).domain}
+- **Sensitivity Level:** ${(businessProfile as any).sensitivityLevel.toUpperCase()}
+- **Core Flow:** ${(businessProfile as any).coreFlow.length > 0 ? (businessProfile as any).coreFlow.join(', ') : 'No specific flow detected'}
+- **Aegis Assessment:** ${(businessProfile as any).businessUnderstanding}
 
 ### Business Domain Analysis
-- **Confidence:** ${(businessProfile as unknown).confidence}%
-- **Stack Dependencies:** ${(businessProfile as unknown).stack.length}
+- **Confidence:** ${(businessProfile as any).confidence}%
+- **Stack Dependencies:** ${(businessProfile as any).stack.length}
 
 ### Core Paths Identified
-${(businessProfile as unknown).corePaths.length > 0 ? (businessProfile as unknown).corePaths.map(p => `- ${p}`).join('\n') : 'None detected'}
+${(businessProfile as any).corePaths.length > 0 ? (businessProfile as any).corePaths.map(p => `- ${p}`).join('\n') : 'None detected'}
 
 ### Business Risk Findings
-- **Total Risk Findings:** ${(businessProfile as unknown).riskFindings.length}
-- **Critical Modules:** ${(businessProfile as unknown).criticalModules.length}
+- **Total Risk Findings:** ${(businessProfile as any).riskFindings.length}
+- **Critical Modules:** ${(businessProfile as any).criticalModules.length}
 
 ${riskFindingsContent ? `
 ### Risk Details
@@ -1038,15 +1039,15 @@ ${riskFindingsContent}
 ` : ''}
 
 ### Recommended Focus for Subsequent Phases
-${(businessProfile as unknown).recommendedFocus.map(f => `- ${f}`).join('\n')}
+${(businessProfile as any).recommendedFocus.map(f => `- ${f}`).join('\n')}
 
 ### Priority Phase
-- **Phase ${(businessProfile as unknown).priorityPhase}:** Most critical phase for this business domain
+- **Phase ${(businessProfile as any).priorityPhase}:** Most critical phase for this business domain
 
 ### Untouchable Folders (Atomic Fixer)
-${(businessProfile as unknown).untouchableFolders.length > 0 ? (businessProfile as unknown).untouchableFolders.map(f => `- ${f}`).join('\n') : 'None'}
+${(businessProfile as any).untouchableFolders.length > 0 ? (businessProfile as any).untouchableFolders.map(f => `- ${f}`).join('\n') : 'None'}
 
-${(businessProfile as unknown).isSelfAudit ? `### Self-Audit Mode
+${(businessProfile as any).isSelfAudit ? `### Self-Audit Mode
 - **Status:** Active - Aegis QA is auditing itself
 - **Adjusted Context:** Developer Tools / QA Infrastructure
 - **Core Focus:** Hardware Monitoring & Static Analysis
@@ -1074,6 +1075,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

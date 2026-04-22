@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 6: API & Contracts
  *
  * Purpose: Audit service exposure, endpoints, and data contract consistency.
@@ -125,15 +126,15 @@ export class Phase6APIContracts {
       const securityFindings = phase3Results?.findings || [];
       const sensitiveFields = new Set<string>(
         securityFindings
-          .filter((f: unknown) => f.type === 'sensitive-data' || f.type === 'secret')
-          .map((f: unknown) => f.description.toLowerCase())
+          .filter((f: any) => f.type === 'sensitive-data' || f.type === 'secret')
+          .map((f: any) => f.description.toLowerCase())
       );
 
       // Cross-Phase PII Leak Prevention: Track files with Sensitive Data Leak
       const piiLeakFiles = new Set<string>(
         securityFindings
-          .filter((f: unknown) => f.type === 'sensitive-data' && f.description.toLowerCase().includes('console.log'))
-          .map((f: unknown) => f.filePath)
+          .filter((f: any) => f.type === 'sensitive-data' && f.description.toLowerCase().includes('console.log'))
+          .map((f: any) => f.filePath)
       );
 
       console.log(`���� Context: ${sensitiveFields.size} sensitive fields from Phase 3`);
@@ -790,10 +791,10 @@ export class Phase6APIContracts {
       // Group findings by type
       const findingsByType = new Map<string, APIFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as unknown).type)) {
-          findingsByType.set((finding as unknown).type, []);
+        if (!findingsByType.has((finding as any).type)) {
+          findingsByType.set((finding as any).type, []);
         }
-        findingsByType.get((finding as unknown).type)!.push(finding);
+        findingsByType.get((finding as any).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -802,14 +803,14 @@ export class Phase6APIContracts {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}** ${(finding as unknown).filePath}`;
-          if ((finding as unknown).line) {
-            findingsContent += `:${(finding as unknown).line}`;
+          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
+          if ((finding as any).line) {
+            findingsContent += `:${(finding as any).line}`;
           }
-          if ((finding as unknown).endpoint) {
-            findingsContent += ` (${(finding as unknown).endpoint})`;
+          if ((finding as any).endpoint) {
+            findingsContent += ` (${(finding as any).endpoint})`;
           }
-          findingsContent += `\n  - ${(finding as unknown).description}\n`;
+          findingsContent += `\n  - ${(finding as any).description}\n`;
         }
       }
 
@@ -849,6 +850,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

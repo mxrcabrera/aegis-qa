@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 9: Internationalization & Accessibility (i18n & a11y)
  *
  * Purpose: Detect access barriers and localization problems before they affect real users.
@@ -628,10 +629,10 @@ export class Phase9I18nA11y {
       // Group findings by type
       const findingsByType = new Map<string, I18nA11yFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as unknown).type)) {
-          findingsByType.set((finding as unknown).type, []);
+        if (!findingsByType.has((finding as any).type)) {
+          findingsByType.set((finding as any).type, []);
         }
-        findingsByType.get((finding as unknown).type)!.push(finding);
+        findingsByType.get((finding as any).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -640,11 +641,11 @@ export class Phase9I18nA11y {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}** ${(finding as unknown).filePath}`;
-          if ((finding as unknown).line) {
-            findingsContent += `:${(finding as unknown).line}`;
+          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}** ${(finding as any).filePath}`;
+          if ((finding as any).line) {
+            findingsContent += `:${(finding as any).line}`;
           }
-          findingsContent += `\n  - ${(finding as unknown).description}\n`;
+          findingsContent += `\n  - ${(finding as any).description}\n`;
         }
       }
 
@@ -683,6 +684,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

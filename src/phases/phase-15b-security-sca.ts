@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 15: Security SCA (Software Composition Analysis)
  *
  * Purpose: Audit dependencies for known vulnerabilities and license compliance.
@@ -197,7 +198,7 @@ export class Phase15SecuritySCA {
 
         packageCount++;
 
-        const version = (packageData as unknown).version;
+        const version = (packageData as any).version;
 
         // Check for packages with known vulnerabilities (basic heuristic)
         // In a real implementation, this would use npm audit or a vulnerability database
@@ -313,10 +314,10 @@ export class Phase15SecuritySCA {
       // Group findings by type
       const findingsByType = new Map<string, SCAFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has((finding as unknown).type)) {
-          findingsByType.set((finding as unknown).type, []);
+        if (!findingsByType.has((finding as any).type)) {
+          findingsByType.set((finding as any).type, []);
         }
-        findingsByType.get((finding as unknown).type)!.push(finding);
+        findingsByType.get((finding as any).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -325,11 +326,11 @@ export class Phase15SecuritySCA {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}**`;
-          if ((finding as unknown).packageName) {
-            findingsContent += ` ${(finding as unknown).packageName}@${(finding as unknown).packageVersion}`;
+          findingsContent += `- [${(finding as any).id}] **${(finding as any).severity.toUpperCase()}**`;
+          if ((finding as any).packageName) {
+            findingsContent += ` ${(finding as any).packageName}@${(finding as any).packageVersion}`;
           }
-          findingsContent += `\n  - ${(finding as unknown).description}\n`;
+          findingsContent += `\n  - ${(finding as any).description}\n`;
         }
       }
 
@@ -369,6 +370,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 

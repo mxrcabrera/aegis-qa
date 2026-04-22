@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 20: Intelligent ROI Report - Executive Report with Time Savings
  *
  * Purpose: Generate executive report with time savings weighted by complexity
@@ -121,9 +122,9 @@ export class Phase20IntelligentROIReport {
       }
 
       // Calculate ROI
-      console.log('INFO Calculating (roi as unknown)...');
+      console.log('INFO Calculating (roi as any)...');
       const roi = this.calculateROI();
-      console.log(`INFO Total time saved: ${(roi as unknown).totalTimeSavedMinutes} minutes (${(roi as unknown).totalTimeSavedHours} hours)\n`);
+      console.log(`INFO Total time saved: ${(roi as any).totalTimeSavedMinutes} minutes (${(roi as any).totalTimeSavedHours} hours)\n`);
 
       // Generate report
       console.log('INFO Generating executive report...');
@@ -136,9 +137,9 @@ export class Phase20IntelligentROIReport {
         success: true,
         reportPath,
         totalFindings: this.config.allFindings.length,
-        totalTimeSavedMinutes: (roi as unknown).totalTimeSavedMinutes,
-        totalTimeSavedHours: (roi as unknown).totalTimeSavedHours,
-        fixesApplied: this.config.fixResults?.filter((r: unknown) => r.success).length || 0,
+        totalTimeSavedMinutes: (roi as any).totalTimeSavedMinutes,
+        totalTimeSavedHours: (roi as any).totalTimeSavedHours,
+        fixesApplied: this.config.fixResults?.filter((r: any) => r.success).length || 0,
         executionTimeMs,
       };
 
@@ -212,10 +213,10 @@ export class Phase20IntelligentROIReport {
    * @param finding - Finding object
    * @returns Finding complexity
    */
-  private determineComplexity(finding: unknown): FindingComplexity {
+  private determineComplexity(finding: any): FindingComplexity {
     // Determine complexity based on finding type and severity
-    const type = (finding as unknown).type || '';
-    const severity = (finding as unknown).severity || '';
+    const type = (finding as any).type || '';
+    const severity = (finding as any).severity || '';
 
     // Core issues (business logic, database)
     if (type.includes('business') || type.includes('database') || type.includes('api')) {
@@ -272,7 +273,7 @@ export class Phase20IntelligentROIReport {
    * @param roi - ROI calculation result
    * @returns string - Report file path
    */
-  private generateReport(roi: unknown): string {
+  private generateReport(roi: any): string {
     const reportPath = path.join(this.config.projectRoot, 'qa-report.md');
 
     // Generate report content
@@ -306,12 +307,12 @@ export class Phase20IntelligentROIReport {
    * @param roi - ROI calculation result
    * @returns string - Report content
    */
-  private generateReportContent(roi: unknown): string {
+  private generateReportContent(roi: any): string {
     const timestamp = new Date().toISOString();
     const totalFindings = this.config.allFindings.length;
-    const criticalFindings = this.config.allFindings.filter((f: unknown) => f.severity === 'critical').length;
-    const highSeverityFindings = this.config.allFindings.filter((f: unknown) => f.severity === 'high').length;
-    const fixesApplied = this.config.fixResults?.filter((r: unknown) => r.success).length || 0;
+    const criticalFindings = this.config.allFindings.filter((f: any) => f.severity === 'critical').length;
+    const highSeverityFindings = this.config.allFindings.filter((f: any) => f.severity === 'high').length;
+    const fixesApplied = this.config.fixResults?.filter((r: any) => r.success).length || 0;
 
     return `# Aegis QA - Executive ROI Report
 
@@ -328,17 +329,17 @@ This report provides a comprehensive analysis of code quality findings and the e
 - **Critical Findings:** ${criticalFindings}
 - **High Severity Findings:** ${highSeverityFindings}
 - **Fixes Applied:** ${fixesApplied}
-- **Total Time Saved:** ${(roi as unknown).totalTimeSavedHours.toFixed(2)} hours (${(roi as unknown).totalTimeSavedMinutes} minutes)
+- **Total Time Saved:** ${(roi as any).totalTimeSavedHours.toFixed(2)} hours (${(roi as any).totalTimeSavedMinutes} minutes)
 
 ## Complexity Breakdown
 
 | Complexity | Count | Time per Finding | Total Time Saved |
 |------------|-------|-----------------|------------------|
-| Core (Business Logic, Database) | ${(roi as unknown).complexityBreakdown.core} | 30 min | ${((roi as unknown).complexityBreakdown.core * 30).toFixed(0)} min |
-| Business (Domain, Logic) | ${(roi as unknown).complexityBreakdown.business} | 20 min | ${((roi as unknown).complexityBreakdown.business * 20).toFixed(0)} min |
-| Security | ${(roi as unknown).complexityBreakdown.security} | 15 min | ${((roi as unknown).complexityBreakdown.security * 15).toFixed(0)} min |
-| Style (Formatting, Low Severity) | ${(roi as unknown).complexityBreakdown.style} | 5 min | ${((roi as unknown).complexityBreakdown.style * 5).toFixed(0)} min |
-| Low | ${(roi as unknown).complexityBreakdown.low} | 2 min | ${((roi as unknown).complexityBreakdown.low * 2).toFixed(0)} min |
+| Core (Business Logic, Database) | ${(roi as any).complexityBreakdown.core} | 30 min | ${((roi as any).complexityBreakdown.core * 30).toFixed(0)} min |
+| Business (Domain, Logic) | ${(roi as any).complexityBreakdown.business} | 20 min | ${((roi as any).complexityBreakdown.business * 20).toFixed(0)} min |
+| Security | ${(roi as any).complexityBreakdown.security} | 15 min | ${((roi as any).complexityBreakdown.security * 15).toFixed(0)} min |
+| Style (Formatting, Low Severity) | ${(roi as any).complexityBreakdown.style} | 5 min | ${((roi as any).complexityBreakdown.style * 5).toFixed(0)} min |
+| Low | ${(roi as any).complexityBreakdown.low} | 2 min | ${((roi as any).complexityBreakdown.low * 2).toFixed(0)} min |
 
 ## Findings by Severity
 
@@ -346,8 +347,8 @@ This report provides a comprehensive analysis of code quality findings and the e
 |----------|-------|
 | Critical | ${criticalFindings} |
 | High | ${highSeverityFindings} |
-| Medium | ${this.config.allFindings.filter((f: unknown) => f.severity === 'medium').length} |
-| Low | ${this.config.allFindings.filter((f: unknown) => f.severity === 'low').length} |
+| Medium | ${this.config.allFindings.filter((f: any) => f.severity === 'medium').length} |
+| Low | ${this.config.allFindings.filter((f: any) => f.severity === 'low').length} |
 
 ## Recommendations
 
@@ -395,6 +396,12 @@ This report provides a comprehensive analysis of code quality findings and the e
     return censoredContent;
   }
 }
+
+
+
+
+
+
 
 
 

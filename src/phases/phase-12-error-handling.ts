@@ -1,4 +1,5 @@
-﻿/**
+﻿// eslint-disable @typescript-eslint/no-explicit-any
+/**
  * Phase 12: Error Handling, Observability & Resilience [CONSOLIDATED + HARDENED]
  *
  * Purpose: Evaluate error handling patterns, observability infrastructure, and resilience
@@ -226,9 +227,9 @@ export class Phase12ErrorHandling {
             console.log(`WARNING Memory leak detected (RAM increased ${ramIncrease}%). Attempting cleanup...`);
             
             // Intentar global.gc() si está disponible
-            if (typeof global !== 'undefined' && (global as unknown).gc) {
+            if (typeof global !== 'undefined' && (global as any).gc) {
               try {
-                (global as unknown).gc();
+                (global as any).gc();
                 console.log('INFO Garbage collection executed');
               } catch {
                 console.log('WARNING Garbage collection failed');
@@ -782,23 +783,23 @@ export class Phase12ErrorHandling {
 `;
 
       for (const finding of findings) {
-        const severityIcon = (finding as unknown).severity === 'critical' ? 'CRITICAL' : (finding as unknown).severity === 'high' ? 'HIGH' : (finding as unknown).severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${(finding as unknown).type}** ${(finding as unknown).filePath}`;
-        if ((finding as unknown).line) {
-          reportContent += `:${(finding as unknown).line}`;
+        const severityIcon = (finding as any).severity === 'critical' ? 'CRITICAL' : (finding as any).severity === 'high' ? 'HIGH' : (finding as any).severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${(finding as any).type}** ${(finding as any).filePath}`;
+        if ((finding as any).line) {
+          reportContent += `:${(finding as any).line}`;
         }
         reportContent += `\n`;
         
         // Sanitización de Logs de Auditoría: Usar descripción sanitizada si es sensitive-log
-        const descriptionToUse = (finding as unknown).type === 'sensitive-log' 
-          ? ((finding as unknown).sanitizedDescription || (finding as unknown).description)
-          : (finding as unknown).description;
+        const descriptionToUse = (finding as any).type === 'sensitive-log' 
+          ? ((finding as any).sanitizedDescription || (finding as any).description)
+          : (finding as any).description;
         
         reportContent += `  - ${descriptionToUse}\n`;
-        if ((finding as unknown).suggestion) {
-          reportContent += `  - Suggestion: ${(finding as unknown).suggestion}\n`;
+        if ((finding as any).suggestion) {
+          reportContent += `  - Suggestion: ${(finding as any).suggestion}\n`;
         }
-        if ((finding as unknown).isCorePath) {
+        if ((finding as any).isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -888,6 +889,12 @@ Generated: ${timestamp}
     }
   }
 }
+
+
+
+
+
+
 
 
 
