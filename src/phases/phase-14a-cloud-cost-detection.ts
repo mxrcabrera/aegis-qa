@@ -241,7 +241,7 @@ export class Phase14ACloudCostDetection {
               files.push(path.join(dir, item));
             }
           }
-        } catch (error) {
+        } catch {
           // Skip directories we can't read
         }
       }
