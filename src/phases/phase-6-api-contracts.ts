@@ -125,15 +125,15 @@ export class Phase6APIContracts {
       const securityFindings = phase3Results?.findings || [];
       const sensitiveFields = new Set<string>(
         securityFindings
-          .filter((f: any) => f.type === 'sensitive-data' || f.type === 'secret')
-          .map((f: any) => f.description.toLowerCase())
+          .filter((f: unknown) => f.type === 'sensitive-data' || f.type === 'secret')
+          .map((f: unknown) => f.description.toLowerCase())
       );
 
       // Cross-Phase PII Leak Prevention: Track files with Sensitive Data Leak
       const piiLeakFiles = new Set<string>(
         securityFindings
-          .filter((f: any) => f.type === 'sensitive-data' && f.description.toLowerCase().includes('console.log'))
-          .map((f: any) => f.filePath)
+          .filter((f: unknown) => f.type === 'sensitive-data' && f.description.toLowerCase().includes('console.log'))
+          .map((f: unknown) => f.filePath)
       );
 
       console.log(`���� Context: ${sensitiveFields.size} sensitive fields from Phase 3`);
@@ -849,4 +849,5 @@ Generated: ${timestamp}
     }
   }
 }
+
 

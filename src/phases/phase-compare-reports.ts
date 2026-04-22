@@ -202,7 +202,7 @@ export class PhaseCompareReports {
     }
   }
 
-  private loadReport(reportPath: string): any {
+  private loadReport(reportPath: string): unknown {
     try {
       if (!fs.existsSync(reportPath)) {
         return null;
@@ -216,14 +216,14 @@ export class PhaseCompareReports {
     }
   }
 
-  private loadCurrentReport(): any {
+  private loadCurrentReport(): unknown {
     const currentReportPath = this.config.currentReportPath || 
       path.join(this.config.projectRoot, '.aegis', 'reports', 'qa-report-latest.md');
     
     return this.loadReport(currentReportPath);
   }
 
-  private parseReportContent(content: string): any {
+  private parseReportContent(content: string): unknown {
     const reportData: any = {
       categories: {},
       totalFindings: 0,
@@ -270,7 +270,7 @@ export class PhaseCompareReports {
     return reportData;
   }
 
-  private compareIssueCategories(previousData: any, currentData: any): ReportComparisonFinding[] {
+  private compareIssueCategories(previousData: unknown, currentData: unknown): ReportComparisonFinding[] {
     const findings: ReportComparisonFinding[] = [];
     
     const allCategories = new Set([
@@ -312,7 +312,7 @@ export class PhaseCompareReports {
     return findings;
   }
 
-  private detectRegressions(previousData: any, currentData: any): ReportComparisonFinding[] {
+  private detectRegressions(previousData: unknown, currentData: unknown): ReportComparisonFinding[] {
     const findings: ReportComparisonFinding[] = [];
 
     const allCategories = new Set([
@@ -348,7 +348,7 @@ export class PhaseCompareReports {
     return findings;
   }
 
-  private detectImprovements(previousData: any, currentData: any): ReportComparisonFinding[] {
+  private detectImprovements(previousData: unknown, currentData: unknown): ReportComparisonFinding[] {
     const findings: ReportComparisonFinding[] = [];
 
     const allCategories = new Set([
@@ -384,7 +384,7 @@ export class PhaseCompareReports {
     return findings;
   }
 
-  private calculateMetrics(previousData: any, currentData: any, findings: ReportComparisonFinding[]): ReportComparisonMetrics {
+  private calculateMetrics(previousData: unknown, currentData: unknown, findings: ReportComparisonFinding[]): ReportComparisonMetrics {
     const totalPrevious = previousData.totalFindings || 0;
     const totalCurrent = currentData.totalFindings || 0;
     const resolved = totalPrevious - totalCurrent;
@@ -429,4 +429,6 @@ export class PhaseCompareReports {
     };
   }
 }
+
+
 

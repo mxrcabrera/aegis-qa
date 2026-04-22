@@ -254,9 +254,9 @@ export class Phase17MultiFixExecution {
     const batches: FileFixBatch[] = [];
 
     for (const [filePath, fileStrategies] of fileMap.entries()) {
-      const maxSafeLevel = Math.max(...fileStrategies.map((s: any) => s.safeLevel || 1));
-      const isCorePath = fileStrategies.some((s: any) => s.isCorePath);
-      const blastRadius = Math.max(...fileStrategies.map((s: any) => s.dependencies?.length || 0));
+      const maxSafeLevel = Math.max(...fileStrategies.map((s: unknown) => s.safeLevel || 1));
+      const isCorePath = fileStrategies.some((s: unknown) => s.isCorePath);
+      const blastRadius = Math.max(...fileStrategies.map((s: unknown) => s.dependencies?.length || 0));
 
       batches.push({
         filePath,
@@ -405,7 +405,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Fix strategy
    * @returns { success: boolean; newContent: string } - Fix result
    */
-  private applySingleFixToContent(content: string, strategy: any): {
+  private applySingleFixToContent(content: string, strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -444,7 +444,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixHardcodedString(content: string, _strategy: any): {
+  private fixHardcodedString(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -460,7 +460,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUnusedVariable(content: string, _strategy: any): {
+  private fixUnusedVariable(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -476,7 +476,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUserRoot(content: string, _strategy: any): {
+  private fixUserRoot(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -502,7 +502,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixLatestImage(content: string, _strategy: any): {
+  private fixLatestImage(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -643,4 +643,5 @@ export class Phase17MultiFixExecution {
     return { success: false };
   }
 }
+
 

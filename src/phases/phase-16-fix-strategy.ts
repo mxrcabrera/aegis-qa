@@ -276,7 +276,7 @@ export class Phase16FixStrategyGeneration {
    * @param phaseData - Phase data
    * @returns Array of findings
    */
-  private extractFindingsFromPhaseData(phaseData: any): unknown[] {
+  private extractFindingsFromPhaseData(phaseData: unknown): unknown[] {
     const findings: unknown[] = [];
 
     // Handle different phase data structures
@@ -323,7 +323,7 @@ export class Phase16FixStrategyGeneration {
    * @param phaseSource - Phase number
    * @returns FixStrategy | null - Generated strategy
    */
-  private generateStrategyForFinding(finding: any, phaseSource: number): FixStrategy | null {
+  private generateStrategyForFinding(finding: unknown, phaseSource: number): FixStrategy | null {
     const strategyId = crypto.createHash('sha1').update(
       `${finding.id || finding.type}${finding.filePath || ''}${finding.line || 0}`
     ).digest('hex').substring(0, 12);
@@ -444,7 +444,7 @@ export class Phase16FixStrategyGeneration {
    * @param finding - Finding object
    * @returns string[] - List of dependent files
    */
-  private analyzeDependencies(finding: any): string[] {
+  private analyzeDependencies(finding: unknown): string[] {
     const dependencies: string[] = [];
 
     if (!finding.filePath) {
@@ -838,4 +838,5 @@ export class Phase16FixStrategyGeneration {
     console.log('INFO Strategy cache flushed');
   }
 }
+
 

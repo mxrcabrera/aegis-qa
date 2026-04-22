@@ -138,7 +138,7 @@ export class Phase20IntelligentROIReport {
         totalFindings: this.config.allFindings.length,
         totalTimeSavedMinutes: roi.totalTimeSavedMinutes,
         totalTimeSavedHours: roi.totalTimeSavedHours,
-        fixesApplied: this.config.fixResults?.filter((r: any) => r.success).length || 0,
+        fixesApplied: this.config.fixResults?.filter((r: unknown) => r.success).length || 0,
         executionTimeMs,
       };
 
@@ -212,7 +212,7 @@ export class Phase20IntelligentROIReport {
    * @param finding - Finding object
    * @returns Finding complexity
    */
-  private determineComplexity(finding: any): FindingComplexity {
+  private determineComplexity(finding: unknown): FindingComplexity {
     // Determine complexity based on finding type and severity
     const type = finding.type || '';
     const severity = finding.severity || '';
@@ -272,7 +272,7 @@ export class Phase20IntelligentROIReport {
    * @param roi - ROI calculation result
    * @returns string - Report file path
    */
-  private generateReport(roi: any): string {
+  private generateReport(roi: unknown): string {
     const reportPath = path.join(this.config.projectRoot, 'qa-report.md');
 
     // Generate report content
@@ -306,12 +306,12 @@ export class Phase20IntelligentROIReport {
    * @param roi - ROI calculation result
    * @returns string - Report content
    */
-  private generateReportContent(roi: any): string {
+  private generateReportContent(roi: unknown): string {
     const timestamp = new Date().toISOString();
     const totalFindings = this.config.allFindings.length;
-    const criticalFindings = this.config.allFindings.filter((f: any) => f.severity === 'critical').length;
-    const highSeverityFindings = this.config.allFindings.filter((f: any) => f.severity === 'high').length;
-    const fixesApplied = this.config.fixResults?.filter((r: any) => r.success).length || 0;
+    const criticalFindings = this.config.allFindings.filter((f: unknown) => f.severity === 'critical').length;
+    const highSeverityFindings = this.config.allFindings.filter((f: unknown) => f.severity === 'high').length;
+    const fixesApplied = this.config.fixResults?.filter((r: unknown) => r.success).length || 0;
 
     return `# Aegis QA - Executive ROI Report
 
@@ -346,8 +346,8 @@ This report provides a comprehensive analysis of code quality findings and the e
 |----------|-------|
 | Critical | ${criticalFindings} |
 | High | ${highSeverityFindings} |
-| Medium | ${this.config.allFindings.filter((f: any) => f.severity === 'medium').length} |
-| Low | ${this.config.allFindings.filter((f: any) => f.severity === 'low').length} |
+| Medium | ${this.config.allFindings.filter((f: unknown) => f.severity === 'medium').length} |
+| Low | ${this.config.allFindings.filter((f: unknown) => f.severity === 'low').length} |
 
 ## Recommendations
 
@@ -395,4 +395,5 @@ This report provides a comprehensive analysis of code quality findings and the e
     return censoredContent;
   }
 }
+
 

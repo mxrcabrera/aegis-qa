@@ -394,7 +394,7 @@ export class Phase20IntelligentReportComparison {
     for (const previousFinding of previousFindings) {
       if (previousFinding.status === 'FIXED') {
         const currentFinding = currentFindings.find(
-          (f: any) => f.filePath === previousFinding.filePath && f.type === previousFinding.type
+          (f: unknown) => f.filePath === previousFinding.filePath && f.type === previousFinding.type
         );
 
         if (currentFinding && currentFinding.status !== 'FIXED') {
@@ -665,4 +665,5 @@ export class Phase20IntelligentReportComparison {
     this.thermalEvents.push('Phase 20 started');
   }
 }
+
 

@@ -293,7 +293,7 @@ export class Phase0Setup {
    * @private
    * @param setupResults - Setup phase results
    */
-  private async writePartialReport(setupResults: any): Promise<void> {
+  private async writePartialReport(setupResults: unknown): Promise<void> {
     try {
       const reportPath = path.join(this.config.projectRoot, 'qa-report.partial.md');
       const timestamp = new Date().toISOString();
@@ -692,4 +692,5 @@ Generated: ${timestamp}
     };
   }
 }
+
 

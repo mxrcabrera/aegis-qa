@@ -401,7 +401,7 @@ export class Phase18PostFixValidation {
    * @param phaseData - Phase data
    * @returns Array of findings
    */
-  private extractFindingsFromPhaseData(phaseData: any): unknown[] {
+  private extractFindingsFromPhaseData(phaseData: unknown): unknown[] {
     if (Array.isArray(phaseData)) {
       return phaseData;
     }
@@ -437,7 +437,7 @@ export class Phase18PostFixValidation {
    * @param postFixError - Post-fix error
    * @returns boolean - Whether it's a regression
    */
-  private isRegression(preFixFinding: any, postFixError: any): boolean {
+  private isRegression(preFixFinding: unknown, postFixError: unknown): boolean {
     // Check if they're in the same file and same line/zone
     if (preFixFinding.filePath !== postFixError.filePath) {
       return false;
@@ -531,7 +531,7 @@ export class Phase18PostFixValidation {
    * @param phase17Data - Phase 17 data
    * @returns string[] - Modified file paths
    */
-  private getModifiedFiles(phase17Data: any): string[] {
+  private getModifiedFiles(phase17Data: unknown): string[] {
     const modifiedFiles: string[] = [];
 
     if (phase17Data.executionResult) {
@@ -762,4 +762,5 @@ export class Phase18PostFixValidation {
     return backupFiles;
   }
 }
+
 
