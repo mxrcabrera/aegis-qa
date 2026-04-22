@@ -423,7 +423,7 @@ export class Phase18PostFixValidation {
    * @private
    * @returns Promise<any[]> - Post-fix findings
    */
-  private async runPhase1Scan(): Promise<any[]> {
+  private async runPhase1Scan(): Promise<unknown[]> {
     // Placeholder: In real implementation, would re-run Phase 1
     // For now, return empty array
     return [];
