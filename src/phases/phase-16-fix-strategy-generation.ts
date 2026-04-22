@@ -183,7 +183,7 @@ export class Phase16FixStrategyGeneration {
       console.log(`INFO Safe Level 4 files: ${safeLevel4Files}`);
 
       return result;
-    } catch (error) {
+    } catch {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -261,7 +261,7 @@ export class Phase16FixStrategyGeneration {
           }
           importMap.get(imp)!.add(filePath);
         }
-      } catch (error) {
+      } catch {
         // Skip files we can't read
       }
     }
@@ -370,7 +370,7 @@ export class Phase16FixStrategyGeneration {
       const exportPattern = /export\s+(?:default|const|let|var|function|class|interface|type)/g;
       const matches = sanitizedContent.match(exportPattern);
       return matches ? matches.length : 0;
-    } catch (error) {
+    } catch {
       console.warn(`Failed to count exports for ${filePath}:`, sanitizeError(error));
       return 0;
     }
@@ -454,5 +454,6 @@ export class Phase16FixStrategyGeneration {
     }
   }
 }
+
 
 

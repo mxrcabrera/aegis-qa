@@ -153,7 +153,7 @@ export class Phase10EnvCICD {
       console.log(`  ��ᴩ�  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 10 failed: ${errorMessage}\n`);
 
@@ -224,7 +224,7 @@ export class Phase10EnvCICD {
           while ((envMatch = processEnvPattern.exec(content)) !== null) {
             usedEnvVars.add(envMatch[1]);
           }
-        } catch (error) {
+        } catch {
           // Skip files that can't be read
         }
       }
@@ -363,7 +363,7 @@ export class Phase10EnvCICD {
             suggestion: 'Add "engines" field to package.json to specify required Node.js and npm versions. This ensures consistent behavior across environments.',
           });
         }
-      } catch (error) {
+      } catch {
         // Invalid package.json, skip
       }
     }
@@ -405,7 +405,7 @@ export class Phase10EnvCICD {
             suggestion: `Run "npm install" to synchronize package-lock.json with package.json. Missing dependencies in lockfile will cause installation failures in production.`,
           });
         }
-      } catch (error) {
+      } catch {
         // Invalid lockfile, mark as infrastructure drift
         findings.push({
           id: this.generateFindingId(packageLockPath, undefined, 'infrastructure-drift'),
@@ -514,7 +514,7 @@ export class Phase10EnvCICD {
           absolute: true,
         });
         allFiles.push(...files);
-      } catch (error) {
+      } catch {
         // glob not available, skip
       }
     }
@@ -600,11 +600,12 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
 
 
 

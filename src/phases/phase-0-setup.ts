@@ -264,7 +264,7 @@ export class Phase0Setup {
       await this.writePartialReport(setupResults);
 
       return setupResults;
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
@@ -341,7 +341,7 @@ Generated: ${timestamp}
       }
 
       console.log(` Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn(' Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
@@ -551,7 +551,7 @@ Generated: ${timestamp}
           filesChecked++;
         }
       }
-    } catch (error) {
+    } catch {
       // If tsc is not available, fall back to basic check
       console.warn('tsc not available, falling back to basic syntax check');
       return this.basicSyntaxCheckFallback();
@@ -605,7 +605,7 @@ Generated: ${timestamp}
               errorFiles.push({ path: file, error: 'Basic syntax check failed' });
             }
           }
-        } catch (error) {
+        } catch {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           errorFiles.push({ path: file, error: errorMessage });
         }
@@ -692,5 +692,8 @@ Generated: ${timestamp}
     };
   }
 }
+
+
+
 
 

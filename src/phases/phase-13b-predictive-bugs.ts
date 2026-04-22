@@ -131,7 +131,7 @@ export class Phase13PredictiveBugs {
       console.log(`  ��ᴩ�  Medium risk: ${mediumRiskCount}\n`);
 
       return result;
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 13 failed: ${errorMessage}\n`);
 
@@ -201,7 +201,7 @@ export class Phase13PredictiveBugs {
             allFiles.push(file);
           }
         }
-      } catch (error) {
+      } catch {
         // glob not available, skip
       }
     }
@@ -253,10 +253,11 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
 
 
