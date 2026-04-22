@@ -397,7 +397,7 @@ export class GitCheckpointManager {
     }
 
     // Restore files from snapshot
-    const snapshot = new Map<string, any>(Object.entries(metadata.snapshot));
+    const snapshot = new Map<string, unknown>(Object.entries(metadata.snapshot));
     
     for (const [filePath, checksum] of snapshot.entries()) {
       const fullPath = path.join(this.projectRoot, filePath);
