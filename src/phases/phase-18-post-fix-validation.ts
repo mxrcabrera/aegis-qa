@@ -262,7 +262,7 @@ export class Phase18PostFixValidation {
       
       console.log(`INFO Pre-fix baseline captured: ${errors.length} type errors`);
       return { errorCount: errors.length, errors };
-    } catch (error: unknown) {
+    } catch {
       const execError = error as ExecError;
       const stderr = execError.stderr || '';
       const errors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
@@ -319,7 +319,7 @@ export class Phase18PostFixValidation {
 
       console.log('SUCCESS No new type errors detected. Global integrity maintained');
       return { status: 'passed', errorCount: postFixErrorCount, newErrors: 0 };
-    } catch (error: unknown) {
+    } catch {
       const execError = error as ExecError;
       const stderr = execError.stderr || '';
       const postFixErrors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];

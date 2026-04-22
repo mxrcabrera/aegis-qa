@@ -264,7 +264,7 @@ export class Phase15CICDDevOps {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
         const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
         isNextJs = !!dependencies['next'];
-      } catch (error: unknown) {
+      } catch {
         // Invalid package.json
       }
     }
@@ -327,7 +327,7 @@ export class Phase15CICDDevOps {
       } else if (hasTest || hasBuild) {
         result.healthyWorkflows.push(filePath);
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to read workflow file
     }
   }
@@ -363,7 +363,7 @@ export class Phase15CICDDevOps {
       } else {
         result.checkoutOnlyWorkflows.push(filePath);
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to read GitLab CI file
     }
   }
@@ -399,7 +399,7 @@ export class Phase15CICDDevOps {
       } else {
         result.checkoutOnlyWorkflows.push(filePath);
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to read CircleCI file
     }
   }
@@ -483,7 +483,7 @@ export class Phase15CICDDevOps {
           }
         }
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to read file
     }
 

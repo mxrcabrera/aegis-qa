@@ -706,7 +706,7 @@ export class Phase2BusinessLogic {
         this.config.projectRoot.includes('qa-orchestrator');
 
       return isAegisQA;
-    } catch (error: unknown) {
+    } catch {
       return false;
     }
   }
@@ -824,7 +824,7 @@ export class Phase2BusinessLogic {
       };
 
       walkDir(projectRoot);
-    } catch (error: unknown) {
+    } catch {
       // If scanning fails, return empty array
     }
 
@@ -903,7 +903,7 @@ export class Phase2BusinessLogic {
             coreFlow.push('Database Layer');
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // Skip files that can't be read
       }
     }

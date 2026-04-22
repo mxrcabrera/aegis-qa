@@ -230,7 +230,7 @@ export class Phase13I18nL10n {
               try {
                 globalWithGC.gc();
                 console.log('INFO Garbage collection executed');
-              } catch (error: unknown) {
+              } catch {
                 console.log('WARNING Garbage collection failed');
               }
             }
@@ -379,7 +379,7 @@ export class Phase13I18nL10n {
             break;
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // Invalid package.json, skip
       }
     }

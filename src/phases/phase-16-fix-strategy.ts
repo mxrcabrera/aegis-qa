@@ -494,13 +494,13 @@ export class Phase16FixStrategyGeneration {
                   break;
                 }
               }
-            } catch (error: unknown) {
+            } catch {
               // Failed to read source file
             }
           }
         }
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to analyze dependencies
     }
 
@@ -770,7 +770,7 @@ export class Phase16FixStrategyGeneration {
             }
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // Failed to read file
       }
     }

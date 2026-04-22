@@ -237,7 +237,7 @@ export class Phase10EnvCICD {
           while ((envMatch = processEnvPattern.exec(content)) !== null) {
             usedEnvVars.add(envMatch[1]);
           }
-        } catch (error: unknown) {
+        } catch {
           // Skip files that can't be read
         }
       }
@@ -313,7 +313,7 @@ export class Phase10EnvCICD {
               suggestion: `Add the following variables to deployment configuration: ${missingInDeploy.slice(0, 5).join(', ')}${missingInDeploy.length > 5 ? '...' : ''}. Critical variables must be configured in deployment environment.`,
             });
           }
-        } catch (error: unknown) {
+        } catch {
           // Skip files that can't be read
         }
       }
@@ -333,7 +333,7 @@ export class Phase10EnvCICD {
     const findings: EnvCICDFinding[] = [];
 
     // Check for secrets or private keys in repo (cross-reference with Phase 3)
-    const secretFindings = securityFindings.filter((f: any) => 
+    const secretFindings = securityFindings.filter((f: { type: string }) =>
       f.type === 'secret-leak' || f.type === 'api-key-exposure' || f.type === 'hardcoded-secret'
     );
 
@@ -376,7 +376,7 @@ export class Phase10EnvCICD {
             suggestion: 'Add "engines" field to package.json to specify required Node.js and npm versions. This ensures consistent behavior across environments.',
           });
         }
-      } catch (error: unknown) {
+      } catch {
         // Invalid package.json, skip
       }
     }
@@ -418,7 +418,7 @@ export class Phase10EnvCICD {
             suggestion: `Run "npm install" to synchronize package-lock.json with package.json. Missing dependencies in lockfile will cause installation failures in production.`,
           });
         }
-      } catch (error: unknown) {
+      } catch {
         // Invalid lockfile, mark as infrastructure drift
         findings.push({
           id: this.generateFindingId(packageLockPath, undefined, 'infrastructure-drift'),
@@ -462,7 +462,7 @@ export class Phase10EnvCICD {
         while ((match = processEnvPattern.exec(content)) !== null) {
           criticalVars.add(match[1]);
         }
-      } catch (error: unknown) {
+      } catch {
         // Skip files that can't be read
       }
     }
@@ -493,7 +493,7 @@ export class Phase10EnvCICD {
           absolute: true,
         });
         files.push(...matchedFiles);
-      } catch (error: unknown) {
+      } catch {
         // glob not available, skip
       }
     }
@@ -527,7 +527,7 @@ export class Phase10EnvCICD {
           absolute: true,
         });
         allFiles.push(...files);
-      } catch (error: unknown) {
+      } catch {
         // glob not available, skip
       }
     }

@@ -912,7 +912,7 @@ export class Phase3Security {
               });
             }
           });
-        } catch (error: unknown) {
+        } catch {
           console.warn(`    Failed to analyze ${filePath}`);
         }
       }
@@ -1130,7 +1130,7 @@ export class Phase3Security {
         }
       }
       return false;
-    } catch (error: unknown) {
+    } catch {
       return false;
     }
   }
@@ -1145,7 +1145,7 @@ export class Phase3Security {
     try {
       const supabasePath = path.join(this.config.projectRoot, 'supabase');
       return fs.existsSync(supabasePath);
-    } catch (error: unknown) {
+    } catch {
       return false;
     }
   }
@@ -1166,7 +1166,7 @@ export class Phase3Security {
         }
       }
       return false;
-    } catch (error: unknown) {
+    } catch {
       return false;
     }
   }

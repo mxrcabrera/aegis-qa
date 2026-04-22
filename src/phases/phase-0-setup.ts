@@ -439,7 +439,7 @@ Generated: ${timestamp}
       const hasDependencies = packageJson.dependencies || packageJson.devDependencies;
 
       return !!hasDependencies;
-    } catch (error: unknown) {
+    } catch {
       return false;
     }
   }
@@ -556,7 +556,7 @@ Generated: ${timestamp}
           filesChecked++;
         }
       }
-    } catch (error: unknown) {
+    } catch {
       // If tsc is not available, fall back to basic check
       console.warn('tsc not available, falling back to basic syntax check');
       return this.basicSyntaxCheckFallback();

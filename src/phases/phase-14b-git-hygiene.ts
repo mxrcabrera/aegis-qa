@@ -443,7 +443,7 @@ export class Phase14GitHygiene {
               result.largeFiles.push({ path: relativePath, sizeMB: Math.round(sizeMB * 100) / 100 });
             }
           }
-        } catch (error: unknown) {
+        } catch {
           // File might not be accessible
         }
       }
@@ -466,7 +466,7 @@ export class Phase14GitHygiene {
           }
         }
       }
-    } catch (error: unknown) {
+    } catch {
       // Not a git repository or git not available
     }
 
@@ -480,7 +480,7 @@ export class Phase14GitHygiene {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
         const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
         isNextJs = !!dependencies['next'];
-      } catch (error: unknown) {
+      } catch {
         // Invalid package.json
       }
     }
@@ -567,7 +567,7 @@ export class Phase14GitHygiene {
             }
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // Invalid package.json
       }
     }

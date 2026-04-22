@@ -414,7 +414,7 @@ export class Phase19IncrementalReview {
             }
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // Failed to read file
       }
     }
@@ -542,7 +542,7 @@ export class Phase19IncrementalReview {
               }
             }
           }
-        } catch (error: unknown) {
+        } catch {
           // Failed to read file
         }
         
@@ -625,7 +625,7 @@ export class Phase19IncrementalReview {
       const fullPath = path.join(this.config.projectRoot, filePath);
       const content = fs.readFileSync(fullPath, 'utf-8');
       return crypto.createHash('sha256').update(content).digest('hex');
-    } catch (error: unknown) {
+    } catch {
       return '';
     }
   }

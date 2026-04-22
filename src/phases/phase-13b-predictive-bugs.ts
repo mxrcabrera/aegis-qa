@@ -202,7 +202,7 @@ export class Phase13PredictiveBugs {
             allFiles.push(file);
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // glob not available, skip
       }
     }

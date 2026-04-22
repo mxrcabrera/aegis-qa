@@ -241,7 +241,7 @@ export class Phase16FixStrategyGeneration {
             files.push(fullPath);
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // Skip directories we can't read
       }
     };
@@ -273,7 +273,7 @@ export class Phase16FixStrategyGeneration {
           }
           importMap.get(imp)!.add(filePath);
         }
-      } catch (error: unknown) {
+      } catch {
         // Skip files we can't read
       }
     }

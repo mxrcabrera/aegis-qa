@@ -236,7 +236,7 @@ export class Phase11CICD {
               files.push(path.join(dir, item));
             }
           }
-        } catch (error: unknown) {
+        } catch {
           // Skip directories we can't read
         }
       }

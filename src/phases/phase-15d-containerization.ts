@@ -321,7 +321,7 @@ export class Phase15CContainerization {
         dependencies['aws-sdk'];
       
       return hasProductionScripts || hasProductionDeps;
-    } catch (error: unknown) {
+    } catch {
       return false;
     }
   }
@@ -377,7 +377,7 @@ export class Phase15CContainerization {
       }
 
       return { passed: true };
-    } catch (error: unknown) {
+    } catch {
       // Failed to read Dockerfile, consider as pass (cannot audit)
       return { passed: true };
     }
@@ -509,7 +509,7 @@ export class Phase15CContainerization {
           value: `Single-stage build with heavy base image (${fromCount} FROM instruction)`,
         });
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to read Dockerfile
     }
   }

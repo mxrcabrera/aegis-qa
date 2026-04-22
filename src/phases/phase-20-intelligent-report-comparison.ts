@@ -621,7 +621,7 @@ export class Phase20IntelligentReportComparison {
           (historyData.severityComparison?.medium || 0);
         
         errorCounts.push(totalErrors);
-      } catch (error: unknown) {
+      } catch {
         // Failed to read history file
       }
     }

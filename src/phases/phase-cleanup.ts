@@ -239,7 +239,7 @@ export class PhaseCleanup {
       const allContent = sourceFiles.map((file) => {
         try {
           return fs.readFileSync(file, 'utf-8');
-        } catch (error: unknown) {
+        } catch {
           return '';
         }
       }).join('\n');

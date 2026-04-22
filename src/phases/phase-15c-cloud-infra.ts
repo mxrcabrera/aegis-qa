@@ -343,7 +343,7 @@ export class Phase15BCloudInfra {
           if (regex.test(relativePath) || regex.test(fileName)) {
             return true;
           }
-        } catch (error: unknown) {
+        } catch {
           // Invalid regex pattern, skip
         }
       }
@@ -432,7 +432,7 @@ export class Phase15BCloudInfra {
           }
         }
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to read Terraform file
     }
   }
@@ -483,7 +483,7 @@ export class Phase15BCloudInfra {
           });
         }
       }
-    } catch (error: unknown) {
+    } catch {
       // Failed to read CloudFormation file
     }
   }

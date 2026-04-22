@@ -599,7 +599,7 @@ export class Phase7TestingStrategy {
         } else {
           hasUnitTests = true;
         }
-      } catch (error: unknown) {
+      } catch {
         // Skip files that can't be read
       }
     }

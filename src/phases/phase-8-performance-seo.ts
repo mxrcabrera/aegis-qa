@@ -226,7 +226,7 @@ export class Phase8PerformanceSEO {
             files.push(fullPath);
           }
         }
-      } catch (error: unknown) {
+      } catch {
         // Skip directories we can't read
       }
     };

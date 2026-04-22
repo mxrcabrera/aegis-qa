@@ -741,7 +741,7 @@ export class Phase11AtomicFixes {
 
       getFileSystem().writeFileSync(auditFilePath, JSON.stringify(auditData, null, 2), 'utf-8');
       console.log(`[AUDIT] Audit log written to: ${auditFilePath}`);
-    } catch (error: unknown) {
+    } catch {
       console.error(`[AUDIT] Failed to write audit log: ${error}`);
     }
   }
@@ -767,7 +767,7 @@ export class Phase11AtomicFixes {
 
       await this.config.gitCheckpointManager.createCheckpoint(tagName);
       console.log('✅ Backup Git creado exitosamente\n');
-    } catch (error: unknown) {
+    } catch {
       console.log('⚠️  Git backup falló, creando backup físico...\n');
       await this.createPhysicalBackup(filePaths);
     }
@@ -1808,7 +1808,7 @@ export class Phase11AtomicFixes {
         }
 
         return stack.length === 0;
-      } catch (error: unknown) {
+      } catch {
         return false;
       }
     }
@@ -2009,7 +2009,7 @@ export class Phase11AtomicFixes {
           fixResult.rolledBack = true;
           fixResult.applied = false;
           console.log(`INFO Emergency rollback for ${fixId}`);
-        } catch (error: unknown) {
+        } catch {
           console.error(`ERROR Emergency rollback failed for ${fixId}`);
         }
       }

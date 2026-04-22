@@ -469,7 +469,7 @@ export class Phase17MultiFixExecution {
           }
           return { success: false, newContent: content };
       }
-    } catch (error: unknown) {
+    } catch {
       return { success: false, newContent: content };
     }
   }
@@ -482,7 +482,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixHardcodedString(content: string, _strategy: any): {
+  private fixHardcodedString(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -498,7 +498,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUnusedVariable(content: string, _strategy: any): {
+  private fixUnusedVariable(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -514,7 +514,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixUserRoot(content: string, _strategy: any): {
+  private fixUserRoot(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -540,7 +540,7 @@ export class Phase17MultiFixExecution {
    * @param strategy - Strategy
    * @returns Fix result
    */
-  private fixLatestImage(content: string, _strategy: any): {
+  private fixLatestImage(content: string, _strategy: unknown): {
     success: boolean;
     newContent: string;
   } {
@@ -668,7 +668,7 @@ export class Phase17MultiFixExecution {
         // Check if linter succeeded (no output or no errors)
         // If eslint --fix succeeds, it returns exit code 0
         return { success: true };
-      } catch (error: unknown) {
+      } catch {
         console.warn(`WARNING Linter-Fix Loop attempt ${attempt} failed for ${filePath}`);
         if (attempt === maxAttempts) {
           return { success: false };
