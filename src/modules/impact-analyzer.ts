@@ -161,7 +161,7 @@ export class ImpactAnalyzer {
             }
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories that can't be read (permission issues, etc.)
         return;
       }

@@ -365,7 +365,7 @@ export class SecurityScanner {
           }
         }
       }
-    } catch (error) {
+    } catch {
       console.warn(`[SecurityScanner] Failed to scan SQL file: ${filePath}`);
     }
   }
