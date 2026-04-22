@@ -204,8 +204,8 @@ export class CommandSanitizer {
       const { stdout, stderr } = await execAsync(sanitized.command, options);
       
       return { stdout: String(stdout), stderr: String(stderr) };
-    } catch (error: any) {
-      throw new Error(`Command execution failed: ${sanitized.command}\n${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Command execution failed: ${sanitized.command}\n${(error as Error).message}`);
     }
   }
 
