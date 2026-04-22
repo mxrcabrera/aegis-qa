@@ -130,7 +130,7 @@ export async function validatePathStrict(
     }
 
     return { valid: true };
-  } catch (error) {
+  } catch {
     return { valid: false, reason: 'Validation error occurred' };
   }
 }

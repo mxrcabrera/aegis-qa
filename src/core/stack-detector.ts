@@ -228,7 +228,7 @@ export class StackDetector {
       // Check for .ts or .tsx files
       const hasTsFiles = await this.hasFilesWithExtension(['.ts', '.tsx']);
       return hasTsFiles;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
