@@ -154,11 +154,19 @@ Generated: 2024-01-02T10:00:00
 - [CRIT-002] **CRITICAL** src/other.ts:20
   - Another critical issue
 
-- [CRIT-003] **CRITICAL** src/new-file.ts:30
-  - New critical issue
+- [CRIT-003] **CRITICAL** src/third-file.ts:30
+  - Third critical issue
 
-- [CRIT-004] **CRITICAL** src/another-file.ts:40
-  - Another new critical issue
+- [CRIT-004] **CRITICAL** src/fourth-file.ts:40
+  - Fourth critical issue
+
+- [CRIT-005] **CRITICAL** src/fifth-file.ts:50
+  - Fifth critical issue
+
+## High Severity
+
+- [HIGH-002] **HIGH** src/new-high-file.ts:60
+  - New high severity issue
 `,
         'utf-8'
       );
