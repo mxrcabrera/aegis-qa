@@ -960,7 +960,7 @@ export async function checkFileWritable(filePath: string): Promise<PermissionChe
     await fs.promises.access(dirPath, fs.constants.R_OK | fs.constants.W_OK);
 
     return { allowed: true, permission: 'write' };
-  } catch (error) {
+  } catch {
     return {
       allowed: false,
       reason: 'Directory not writable or does not exist',
