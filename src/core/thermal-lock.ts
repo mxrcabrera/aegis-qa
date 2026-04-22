@@ -113,7 +113,7 @@ export class ThermalLock {
         ),
       ]);
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

@@ -156,7 +156,7 @@ export class SecureLogger {
       const fs = await import('fs');
       const logLine = JSON.stringify(entry) + '\n';
       await fs.promises.appendFile(this.config.logFilePath, logLine, 'utf-8');
-    } catch (error) {
+    } catch {
       // Silently fail to avoid infinite loops
     }
   }

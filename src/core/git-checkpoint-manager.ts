@@ -497,7 +497,7 @@ export class GitCheckpointManager {
     try {
       await execSafe('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
