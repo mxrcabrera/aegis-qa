@@ -1,4 +1,4 @@
-/**
+ï»¿/**
  * PhaseOrchestrator - QA Phase Orchestration Engine
  *
  * Purpose: Orchestrate the 20 phases of the qa-orchestrator review process,
@@ -115,7 +115,7 @@ interface PhaseOrchestratorConfig {
   /** Current execution state */
   currentState: ExecutionState;
   /** Business profile from Phase 2 */
-  businessProfile?: any;
+  businessProfile?: unknown;
   /** Whether to run all phases or specific phases */
   runAllPhases?: boolean;
   /** Specific phases to run (if not running all) */
@@ -193,7 +193,7 @@ export class PhaseOrchestrator {
     this.errorBaseline = new ErrorBaseline(config.projectRoot);
     this.thermalLock = new ThermalLock();
     this.memoryMonitor = new MemoryMonitor({ maxMemoryBytes: this.memoryThreshold });
-    this.gcAvailable = typeof (global as any).gc === 'function';
+    this.gcAvailable = typeof (global as typeof globalThis & { gc?: () => void }).gc === 'function';
     this.globalRuntimeLimitMs = config.maxRuntimeMs;
 
     // Initialize sandbox manager if sandbox mode is enabled
@@ -379,7 +379,7 @@ export class PhaseOrchestrator {
       const beforeGC = process.memoryUsage();
 
       // Trigger GC
-      (global as any).gc();
+      (global as typeof globalThis & { gc?: () => void }).gc();
 
       // Get memory after GC
       const afterGC = process.memoryUsage();
@@ -431,7 +431,7 @@ export class PhaseOrchestrator {
       
       if (isCritical) {
         console.log('?? Thermal status is CRITICAL - Acquiring thermal lock...');
-        console.log(`   Temperature: ${tempReading.current}°C (${tempReading.category})`);
+        console.log(`   Temperature: ${tempReading.current}ï¿½C (${tempReading.category})`);
         console.log(`   CPU: ${resourceReading.cpuUsage}%, RAM: ${resourceReading.ramUsage}%`);
         
         await this.thermalLock.acquire();
@@ -450,7 +450,7 @@ export class PhaseOrchestrator {
           
           if (nowSafe) {
             console.log(`? Thermal conditions improved - Releasing lock`);
-            console.log(`   Temperature: ${currentTemp.current}°C (${currentTemp.category})`);
+            console.log(`   Temperature: ${currentTemp.current}ï¿½C (${currentTemp.category})`);
             console.log(`   CPU: ${currentResources.cpuUsage}%, RAM: ${currentResources.ramUsage}%`);
             this.thermalLock.release();
             return;
@@ -479,8 +479,8 @@ export class PhaseOrchestrator {
    * @returns Promise<ReviewResult> - Complete review results
    */
   async runFullReview(): Promise<ReviewResult> {
-    console.log('­ƒøí´©Å  Aegis QA - Full Review Mode');
-    console.log(`­ƒôé Project Root: ${this.config.projectRoot}\n`);
+    console.log('ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½  Aegis QA - Full Review Mode');
+    console.log(`ï¿½ï¿½ï¿½ï¿½ Project Root: ${this.config.projectRoot}\n`);
 
     // Start global execution timer
     this.globalExecutionStartTime = Date.now();
@@ -502,7 +502,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 0: Setup - Hotel Check-in
-    console.log('­ƒÅ¿ Phase 0: Setup - Hotel Check-in');
+    console.log('ï¿½ï¿½Å¿ Phase 0: Setup - Hotel Check-in');
     const phase0StartTime = Date.now();
     
     try {
@@ -526,7 +526,7 @@ export class PhaseOrchestrator {
       );
 
       if (!phase0Result.success) {
-        console.error(`ÔØî Phase 0 failed: ${phase0Result.error}`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 0 failed: ${phase0Result.error}`);
         console.error('Setup failed - project cannot proceed. Fix the issues above and try again.');
         
         if (this.config.enablePartialReports) {
@@ -554,7 +554,7 @@ export class PhaseOrchestrator {
         };
       }
 
-      console.log('Ô£à Phase 0: Setup passed\n');
+      console.log('Ô£ï¿½ Phase 0: Setup passed\n');
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -577,7 +577,7 @@ export class PhaseOrchestrator {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 0 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 0 failed with exception: ${errorMessage}`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -610,7 +610,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 1: Code Quality
-    console.log('­ƒöì Phase 1: Code Quality - Technical Health Assessment');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 1: Code Quality - Technical Health Assessment');
     const phase1StartTime = Date.now();
     
     try {
@@ -634,8 +634,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase1Result.success) {
-        console.error(`ÔØî Phase 1 failed: ${phase1Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 1 failed: ${phase1Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -656,11 +656,11 @@ export class PhaseOrchestrator {
           error: phase1Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 1: Code Quality passed`);
-        console.log(`  ­ƒôè Files analyzed: ${phase1Result.totalFiles}`);
-        console.log(`  ­ƒöì Total findings: ${phase1Result.totalFindings}`);
-        console.log(`  ÔÜá´©Å  Critical files: ${phase1Result.criticalFiles.length}`);
-        console.log(`  ­ƒôê Average quality score: ${phase1Result.averageScore.toFixed(1)}/100\n`);
+        console.log(`Ô£ï¿½ Phase 1: Code Quality passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Files analyzed: ${phase1Result.totalFiles}`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase1Result.totalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  Critical files: ${phase1Result.criticalFiles.length}`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Average quality score: ${phase1Result.averageScore.toFixed(1)}/100\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -687,8 +687,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 1 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 1 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -716,7 +716,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 2: Business Logic (MOST IMPORTANT)
-    console.log('­ƒÄ» Phase 2: Business Logic - Business Semantics & Core Path Detection');
+    console.log('ï¿½ï¿½Ä» Phase 2: Business Logic - Business Semantics & Core Path Detection');
     const phase2StartTime = Date.now();
     
     try {
@@ -734,8 +734,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase2Result.success) {
-        console.error(`ÔØî Phase 2 failed: ${phase2Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 2 failed: ${phase2Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -756,11 +756,11 @@ export class PhaseOrchestrator {
           error: phase2Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 2: Business Logic passed`);
-        console.log(`  ­ƒÄ» Domain: ${phase2Result.businessProfile.domain}`);
-        console.log(`  ­ƒôè Confidence: ${phase2Result.businessProfile.confidence}%`);
-        console.log(`  ­ƒöÆ Critical modules: ${phase2Result.businessProfile.criticalModules.length}`);
-        console.log(`  ÔÜá´©Å  Risk findings: ${phase2Result.businessProfile.riskFindings.length}\n`);
+        console.log(`Ô£ï¿½ Phase 2: Business Logic passed`);
+        console.log(`  ï¿½ï¿½Ä» Domain: ${phase2Result.businessProfile.domain}`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Confidence: ${phase2Result.businessProfile.confidence}%`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Critical modules: ${phase2Result.businessProfile.criticalModules.length}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  Risk findings: ${phase2Result.businessProfile.riskFindings.length}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -798,8 +798,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 2 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 2 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -827,7 +827,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 3: Security
-    console.log('­ƒöÆ Phase 3: Security - Vulnerability & Secret Detection');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 3: Security - Vulnerability & Secret Detection');
     const phase3StartTime = Date.now();
     
     try {
@@ -845,8 +845,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase3Result.success) {
-        console.error(`ÔØî Phase 3 failed: ${phase3Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 3 failed: ${phase3Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -867,10 +867,10 @@ export class PhaseOrchestrator {
           error: phase3Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 3: Security passed`);
-        console.log(`  ­ƒöì Total findings: ${phase3Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase3Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase3Result.highSeverityFindings}\n`);
+        console.log(`Ô£ï¿½ Phase 3: Security passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase3Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${phase3Result.criticalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${phase3Result.highSeverityFindings}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -887,7 +887,7 @@ export class PhaseOrchestrator {
         
         // Check for highRiskBlocker flag
         if (this.config.currentState.highRiskBlocker) {
-          console.error(`­ƒÜ¿­ƒÜ¿­ƒÜ¿ HIGH RISK BLOCKER ACTIVE ­ƒÜ¿­ƒÜ¿­ƒÜ¿`);
+          console.error(`ï¿½ï¿½Ü¿ï¿½ï¿½Ü¿ï¿½ï¿½Ü¿ HIGH RISK BLOCKER ACTIVE ï¿½ï¿½Ü¿ï¿½ï¿½Ü¿ï¿½ï¿½Ü¿`);
           console.error(`CRITICAL security findings detected. Commits should be blocked until resolved.`);
           console.error(`This is a security risk that must be addressed before deployment.\n`);
         }
@@ -905,8 +905,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 3 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 3 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -934,7 +934,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 4: Database
-    console.log('­ƒùä´©Å  Phase 4: Database - Schema & Query Audit');
+    console.log('ï¿½ï¿½ï¿½ä´©ï¿½  Phase 4: Database - Schema & Query Audit');
     const phase4StartTime = Date.now();
     
     try {
@@ -953,8 +953,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase4Result.success) {
-        console.error(`ÔØî Phase 4 failed: ${phase4Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 4 failed: ${phase4Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -975,11 +975,11 @@ export class PhaseOrchestrator {
           error: phase4Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 4: Database passed`);
-        console.log(`  ­ƒöì Total findings: ${phase4Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase4Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase4Result.highSeverityFindings}`);
-        console.log(`  ­ƒôª Detected ORM: ${phase4Result.ormType}\n`);
+        console.log(`Ô£ï¿½ Phase 4: Database passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase4Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${phase4Result.criticalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${phase4Result.highSeverityFindings}`);
+        console.log(`  ï¿½ï¿½ï¿½ Detected ORM: ${phase4Result.ormType}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1007,8 +1007,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 4 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 4 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1036,7 +1036,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 5: Clean Code
-    console.log('Ô£¿ Phase 5: Clean Code & Refactoring');
+    console.log('Ô£ï¿½ Phase 5: Clean Code & Refactoring');
     const phase5StartTime = Date.now();
     
     try {
@@ -1055,8 +1055,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase5Result.success) {
-        console.error(`ÔØî Phase 5 failed: ${phase5Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 5 failed: ${phase5Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1077,11 +1077,11 @@ export class PhaseOrchestrator {
           error: phase5Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 5: Clean Code passed`);
-        console.log(`  ­ƒöì Total findings: ${phase5Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ High severity findings: ${phase5Result.highSeverityFindings}`);
-        console.log(`  ÔÜá´©Å  Medium severity findings: ${phase5Result.mediumSeverityFindings}`);
-        console.log(`  ­ƒôè Files analyzed: ${phase5Result.filesAnalyzed}\n`);
+        console.log(`Ô£ï¿½ Phase 5: Clean Code passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase5Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ High severity findings: ${phase5Result.highSeverityFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  Medium severity findings: ${phase5Result.mediumSeverityFindings}`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Files analyzed: ${phase5Result.filesAnalyzed}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1108,8 +1108,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 5 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 5 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1137,7 +1137,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 6: API & Contracts
-    console.log('­ƒîÉ Phase 6: API & Contracts');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 6: API & Contracts');
     const phase6StartTime = Date.now();
     
     try {
@@ -1155,8 +1155,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase6Result.success) {
-        console.error(`ÔØî Phase 6 failed: ${phase6Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 6 failed: ${phase6Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1177,11 +1177,11 @@ export class PhaseOrchestrator {
           error: phase6Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 6: API & Contracts passed`);
-        console.log(`  ­ƒöì Total findings: ${phase6Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase6Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase6Result.highSeverityFindings}`);
-        console.log(`  ­ƒôè Files analyzed: ${phase6Result.filesAnalyzed}\n`);
+        console.log(`Ô£ï¿½ Phase 6: API & Contracts passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase6Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${phase6Result.criticalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${phase6Result.highSeverityFindings}`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Files analyzed: ${phase6Result.filesAnalyzed}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1208,8 +1208,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 6 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 6 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1237,7 +1237,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 7: Testing Strategy
-    console.log('­ƒº¬ Phase 7: Testing Strategy');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 7: Testing Strategy');
     const phase7StartTime = Date.now();
     
     try {
@@ -1255,8 +1255,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase7Result.success) {
-        console.error(`ÔØî Phase 7 failed: ${phase7Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 7 failed: ${phase7Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1277,11 +1277,11 @@ export class PhaseOrchestrator {
           error: phase7Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 7: Testing Strategy passed`);
-        console.log(`  ­ƒöì Total findings: ${phase7Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase7Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase7Result.highSeverityFindings}`);
-        console.log(`  ­ƒôè Source files: ${phase7Result.filesAnalyzed}, Test files: ${phase7Result.testFilesFound}\n`);
+        console.log(`Ô£ï¿½ Phase 7: Testing Strategy passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase7Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${phase7Result.criticalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${phase7Result.highSeverityFindings}`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Source files: ${phase7Result.filesAnalyzed}, Test files: ${phase7Result.testFilesFound}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1308,8 +1308,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 7 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 7 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1337,7 +1337,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 8: Performance & Scalability
-    console.log('ÔÜí Phase 8: Performance & Scalability');
+    console.log('ï¿½ï¿½ï¿½ Phase 8: Performance & Scalability');
     const phase8StartTime = Date.now();
     
     try {
@@ -1355,8 +1355,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase8Result.success) {
-        console.error(`ÔØî Phase 8 failed: ${phase8Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 8 failed: ${phase8Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1377,10 +1377,10 @@ export class PhaseOrchestrator {
           error: phase8Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 8: Performance & Scalability passed`);
-        console.log(`  ­ƒöì Total findings: ${phase8Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase8Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase8Result.highSeverityFindings}\n`);
+        console.log(`Ô£ï¿½ Phase 8: Performance & Scalability passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase8Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${phase8Result.criticalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${phase8Result.highSeverityFindings}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1407,8 +1407,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 8 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 8 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1436,7 +1436,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 9: Internationalization & Accessibility (i18n & a11y)
-    console.log('­ƒîì Phase 9: Internationalization & Accessibility (i18n & a11y)');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 9: Internationalization & Accessibility (i18n & a11y)');
     const phase9StartTime = Date.now();
     
     try {
@@ -1454,8 +1454,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase9Result.success) {
-        console.error(`ÔØî Phase 9 failed: ${phase9Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 9 failed: ${phase9Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1476,10 +1476,10 @@ export class PhaseOrchestrator {
           error: phase9Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 9: Internationalization & Accessibility passed`);
-        console.log(`  ­ƒöì Total findings: ${phase9Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase9Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase9Result.highSeverityFindings}\n`);
+        console.log(`Ô£ï¿½ Phase 9: Internationalization & Accessibility passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase9Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${phase9Result.criticalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${phase9Result.highSeverityFindings}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1506,8 +1506,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 9 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 9 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1535,7 +1535,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 10: Environment & CI/CD
-    console.log('­ƒî¬ Phase 10: Environment & CI/CD');
+    console.log('ï¿½ï¿½ï¿½ Phase 10: Environment & CI/CD');
     const phase10StartTime = Date.now();
     
     try {
@@ -1553,8 +1553,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase10Result.success) {
-        console.error(`ÔØî Phase 10 failed: ${phase10Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 10 failed: ${phase10Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1575,10 +1575,10 @@ export class PhaseOrchestrator {
           error: phase10Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 10: Environment & CI/CD passed`);
-        console.log(`  ­ƒöì Total findings: ${phase10Result.findings.length}`);
-        console.log(`  ­ƒÜ¿ Critical findings: ${phase10Result.criticalFindings}`);
-        console.log(`  ÔÜá´©Å  High severity findings: ${phase10Result.highSeverityFindings}\n`);
+        console.log(`Ô£ï¿½ Phase 10: Environment & CI/CD passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total findings: ${phase10Result.findings.length}`);
+        console.log(`  ï¿½ï¿½Ü¿ Critical findings: ${phase10Result.criticalFindings}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  High severity findings: ${phase10Result.highSeverityFindings}\n`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1605,8 +1605,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 10 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 10 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1634,7 +1634,7 @@ export class PhaseOrchestrator {
     }
 
     // Phase 11: Testing Deep Audit
-    console.log('­ƒº¬ Phase 11: Testing Deep Audit');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Phase 11: Testing Deep Audit');
     const phase11StartTime = Date.now();
     
     try {
@@ -1642,23 +1642,23 @@ export class PhaseOrchestrator {
       await this.checkThermalLock();
       
       // Pre-flight Check: Establish error baseline before fixes
-      console.log('ÔÜá´©Å  Pre-flight Check: Establishing error baseline...');
+      console.log('ï¿½ï¿½á´©ï¿½  Pre-flight Check: Establishing error baseline...');
       await this.errorBaseline.establishBaseline();
       
       // Git Checkpointing: Create checkpoint before applying fixes
-      console.log('ÔÜá´©Å  Git Checkpointing: Creating safety checkpoint...');
+      console.log('ï¿½ï¿½á´©ï¿½  Git Checkpointing: Creating safety checkpoint...');
       const isInGitRepo = await this.gitCheckpointManager.isInGitRepository();
       
       if (isInGitRepo) {
         try {
           const checkpoint = await this.gitCheckpointManager.createCheckpoint('aegis-pre-fix');
-          console.log(`Ô£à Checkpoint created: ${checkpoint.tagName} (${checkpoint.commitHash})`);
+          console.log(`Ô£ï¿½ Checkpoint created: ${checkpoint.tagName} (${checkpoint.commitHash})`);
         } catch (error) {
-          console.warn('ÔÜá´©Å  Failed to create git checkpoint, proceeding without rollback capability');
-          console.warn('ÔÜá´©Å  Error:', error instanceof Error ? error.message : String(error));
+          console.warn('ï¿½ï¿½á´©ï¿½  Failed to create git checkpoint, proceeding without rollback capability');
+          console.warn('ï¿½ï¿½á´©ï¿½  Error:', error instanceof Error ? error.message : String(error));
         }
       } else {
-        console.warn('ÔÜá´©Å  Not in a git repository, skipping checkpoint');
+        console.warn('ï¿½ï¿½á´©ï¿½  Not in a git repository, skipping checkpoint');
       }
 
       // Safe Level 4: Check if dry-run is required for high-risk files
@@ -1666,10 +1666,10 @@ export class PhaseOrchestrator {
       
       // If not in dry-run mode, check for high-risk files and block auto-fixes
       if (!isDryRunMode) {
-        console.log('ÔÜá´©Å  Safe Level 4: Checking for high-risk files...');
+        console.log('ï¿½ï¿½á´©ï¿½  Safe Level 4: Checking for high-risk files...');
         // TODO: Implement dependency graph analysis here
         // For now, force dry-run mode for safety
-        console.warn('ÔÜá´©Å  Auto-fix mode not yet implemented. Running in dry-run mode for safety.');
+        console.warn('ï¿½ï¿½á´©ï¿½  Auto-fix mode not yet implemented. Running in dry-run mode for safety.');
       }
 
       // Enforce dry-run before any fix operations
@@ -1704,8 +1704,8 @@ export class PhaseOrchestrator {
       );
 
       if (!phase11Result.success) {
-        console.error(`ÔØî Phase 11 failed: ${phase11Result.error}`);
-        console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+        console.error(`ï¿½ï¿½ï¿½ Phase 11 failed: ${phase11Result.error}`);
+        console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
         
         if (this.config.enablePartialReports) {
           await this.writePartialReport(
@@ -1726,13 +1726,13 @@ export class PhaseOrchestrator {
           error: phase11Result.error,
         });
       } else {
-        console.log(`Ô£à Phase 11: Atomic Fixes passed`);
-        console.log(`  ­ƒöì Total fixes attempted: ${phase11Result.remediationResult.totalFixesAttempted}`);
-        console.log(`  ­ƒÜ¿ Fixes applied: ${phase11Result.remediationResult.fixesApplied}`);
-        console.log(`  ÔÜá´©Å  Fixes skipped: ${phase11Result.remediationResult.fixesSkipped}\n`);
+        console.log(`Ô£ï¿½ Phase 11: Atomic Fixes passed`);
+        console.log(`  ï¿½ï¿½ï¿½ï¿½ Total fixes attempted: ${phase11Result.remediationResult.totalFixesAttempted}`);
+        console.log(`  ï¿½ï¿½Ü¿ Fixes applied: ${phase11Result.remediationResult.fixesApplied}`);
+        console.log(`  ï¿½ï¿½á´©ï¿½  Fixes skipped: ${phase11Result.remediationResult.fixesSkipped}\n`);
         
         // Post-fix validation: Run tsc --noEmit to check if fixes broke the build
-        console.log('ÔÜá´©Å  Post-fix validation: Running tsc --noEmit...');
+        console.log('ï¿½ï¿½á´©ï¿½  Post-fix validation: Running tsc --noEmit...');
         const { exec } = await import('child_process');
         const { promisify } = await import('util');
         const execAsync = promisify(exec);
@@ -1744,13 +1744,13 @@ export class PhaseOrchestrator {
           });
           
           if (stderr && stderr.trim().length > 0) {
-            console.error('ÔØî Post-fix validation failed: tsc --noEmit found errors');
-            console.error('ÔØî Rolling back to checkpoint...');
+            console.error('ï¿½ï¿½ï¿½ Post-fix validation failed: tsc --noEmit found errors');
+            console.error('ï¿½ï¿½ï¿½ Rolling back to checkpoint...');
             
             // Rollback to checkpoint
             try {
               await this.gitCheckpointManager.rollbackToLastCheckpoint();
-              console.log('Ô£à Successfully rolled back to checkpoint');
+              console.log('Ô£ï¿½ Successfully rolled back to checkpoint');
               
               // Mark phase as failed
               phaseResults.push({
@@ -1781,14 +1781,14 @@ export class PhaseOrchestrator {
                 domainMap,
               };
             } catch (rollbackError) {
-              console.error('ÔØî Failed to rollback to checkpoint:', rollbackError);
-              console.error('ÔØî Manual intervention may be required to restore repository state');
+              console.error('ï¿½ï¿½ï¿½ Failed to rollback to checkpoint:', rollbackError);
+              console.error('ï¿½ï¿½ï¿½ Manual intervention may be required to restore repository state');
             }
           } else {
-            console.log('Ô£à Post-fix validation passed');
+            console.log('Ô£ï¿½ Post-fix validation passed');
           }
         } catch {
-          console.warn('ÔÜá´©Å  Could not run tsc --noEmit for validation, skipping post-fix check');
+          console.warn('ï¿½ï¿½á´©ï¿½  Could not run tsc --noEmit for validation, skipping post-fix check');
         }
         
         if (this.config.enablePartialReports) {
@@ -1817,8 +1817,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 11 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 11 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -1922,8 +1922,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 12 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 12 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -2028,8 +2028,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 13 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 13 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -2129,8 +2129,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 14 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to next phase (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 14 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to next phase (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -2230,8 +2230,8 @@ export class PhaseOrchestrator {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`ÔØî Phase 15 failed with exception: ${errorMessage}`);
-      console.error(`ÔÜá´©Å  Continuing to final summary (system resilience)`);
+      console.error(`ï¿½ï¿½ï¿½ Phase 15 failed with exception: ${errorMessage}`);
+      console.error(`ï¿½ï¿½á´©ï¿½  Continuing to final summary (system resilience)`);
       
       if (this.config.enablePartialReports) {
         await this.writePartialReport(
@@ -2450,9 +2450,9 @@ export class PhaseOrchestrator {
 
     const overallSuccess = phaseResults.every(result => result.success);
 
-    console.log(`\nÔ£à Full Review Complete`);
-    console.log(`­ƒôè Total Findings: ${totalFindings}`);
-    console.log(`ÔÅ¦´©Å  Total Time: ${(executionTimeMs / 1000).toFixed(2)}s\n`);
+    console.log(`\nÔ£ï¿½ Full Review Complete`);
+    console.log(`ï¿½ï¿½ï¿½ï¿½ Total Findings: ${totalFindings}`);
+    console.log(`ï¿½Å¦ï¿½ï¿½ï¿½  Total Time: ${(executionTimeMs / 1000).toFixed(2)}s\n`);
 
     return {
       success: overallSuccess,
@@ -2536,7 +2536,7 @@ export class PhaseOrchestrator {
     this.memoryMonitor.checkMemory();
     if (this.gcAvailable) {
       try {
-        (global as any).gc();
+        (global as typeof globalThis & { gc?: () => void }).gc();
         console.log('  ?? Garbage collection triggered during timeout cleanup');
       } catch (error) {
         console.warn('  ?? Failed to trigger GC during cleanup:', error);
@@ -2640,15 +2640,15 @@ export class PhaseOrchestrator {
       // Try to force garbage collection if available
       if (typeof global.gc === 'function') {
         global.gc();
-        console.log('  ­ƒº¦ Memory flushed (global.gc())');
+        console.log('  ï¿½ï¿½ï¿½ï¿½ Memory flushed (global.gc())');
       } else {
         // Fallback: clear large objects from DomainAnalyzer
         // This is a simplified approach - in production, you'd have more sophisticated cleanup
-        console.log('  ­ƒº¦ Memory cleanup (object clearing)');
+        console.log('  ï¿½ï¿½ï¿½ï¿½ Memory cleanup (object clearing)');
       }
     } catch (error) {
       // Memory flush failure should not halt execution
-      console.warn('  ÔÜá´©Å  Memory flush failed:', error instanceof Error ? error.message : error);
+      console.warn('  ï¿½ï¿½á´©ï¿½  Memory flush failed:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -2672,7 +2672,7 @@ export class PhaseOrchestrator {
     try {
       const reportPath = `${this.config.projectRoot}/qa-report.partial.md`;
       const timestamp = new Date().toISOString();
-      const status = error ? 'ÔØî FAILED' : 'Ô£à PASSED';
+      const status = error ? 'ï¿½ï¿½ï¿½ FAILED' : 'Ô£ï¿½ PASSED';
 
       const reportEntry = `
 ## Phase ${phaseNumber}: ${phaseName} - ${status}
@@ -2694,10 +2694,10 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportEntry, 'utf-8');
       }
 
-      console.log(`  ­ƒôØ Partial report updated: ${reportPath}`);
+      console.log(`  ï¿½ï¿½ï¿½ï¿½ Partial report updated: ${reportPath}`);
     } catch (reportError) {
       // Report write failure should not halt execution
-      console.warn('  ÔÜá´©Å  Failed to write partial report:', reportError instanceof Error ? reportError.message : reportError);
+      console.warn('  ï¿½ï¿½á´©ï¿½  Failed to write partial report:', reportError instanceof Error ? reportError.message : reportError);
     }
   }
 
@@ -2707,7 +2707,7 @@ Generated: ${timestamp}
    * @returns Promise<FixResult> - Fix execution result
    */
   async runFixes(): Promise<FixResult> {
-    console.log('­ƒöº Aegis QA - Atomic Fixes Mode\n');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Aegis QA - Atomic Fixes Mode\n');
 
     // Start global execution timer
     this.globalExecutionStartTime = Date.now();
@@ -2780,7 +2780,7 @@ Generated: ${timestamp}
 
     // TODO: Implement atomic fixes
     // For now, this is a skeleton
-    console.log('ÔÜá´©Å  Atomic fixes not yet implemented (skeleton)');
+    console.log('ï¿½ï¿½á´©ï¿½  Atomic fixes not yet implemented (skeleton)');
 
     // Check global timeout before returning
     if (this.hasGlobalTimeoutExceeded()) {
@@ -2805,8 +2805,8 @@ Generated: ${timestamp}
    * @returns Promise<ReviewResult> - Incremental review results
    */
   async runIncrementalReview(): Promise<ReviewResult> {
-    console.log('­ƒöä Aegis QA - Incremental Review Mode');
-    console.log(`­ƒôé Project Root: ${this.config.projectRoot}\n`);
+    console.log('ï¿½ï¿½ï¿½ï¿½ Aegis QA - Incremental Review Mode');
+    console.log(`ï¿½ï¿½ï¿½ï¿½ Project Root: ${this.config.projectRoot}\n`);
 
     // Start global execution timer
     this.globalExecutionStartTime = Date.now();
@@ -2818,7 +2818,7 @@ Generated: ${timestamp}
 
     // TODO: Implement incremental review
     // For now, this is a skeleton
-    console.log('ÔÜá´©Å  Incremental review not yet implemented (skeleton)');
+    console.log('ï¿½ï¿½á´©ï¿½  Incremental review not yet implemented (skeleton)');
 
     // Check global timeout before returning
     if (this.hasGlobalTimeoutExceeded()) {
@@ -2841,7 +2841,7 @@ Generated: ${timestamp}
    * @returns Promise<void> - Comparison results
    */
   async compareReports(): Promise<void> {
-    console.log('­ƒôè Aegis QA - Compare Reports Mode\n');
+    console.log('ï¿½ï¿½ï¿½ï¿½ Aegis QA - Compare Reports Mode\n');
 
     // TODO: Implement report comparison
     // For now, this is a skeleton
@@ -2925,3 +2925,4 @@ Generated: ${timestamp}
     console.log('[PhaseOrchestrator] Sandbox cleaned up');
   }
 }
+
