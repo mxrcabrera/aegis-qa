@@ -304,7 +304,7 @@ export class SecurityScanner {
         const serviceRoleViolations = this.checkServiceRoleKey(line, lineNumber, metadata, content);
         violations.push(...serviceRoleViolations);
       }
-    } catch (error) {
+    } catch {
       console.warn(`[SecurityScanner] Failed to analyze file: ${relativePath}`);
     }
 
