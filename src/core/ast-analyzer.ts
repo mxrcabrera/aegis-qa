@@ -372,7 +372,7 @@ export class ASTAnalyzer {
       }
       
       return relative;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -386,8 +386,8 @@ export class ASTAnalyzer {
    */
   private getFilesThatImport(filePath: string): string[] {
     const importers: string[] = [];
-    
-    for (const [_file, imports] of this.importMap) {
+
+    for (const [, imports] of this.importMap) {
       for (const imp of imports) {
         if (imp.sourceFilePath === filePath) {
           importers.push(imp.targetFilePath);
