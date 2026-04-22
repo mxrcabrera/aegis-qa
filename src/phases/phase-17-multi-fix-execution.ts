@@ -195,7 +195,7 @@ export class Phase17MultiFixExecution {
     }
 
     const allStrategies: unknown[] = [];
-    const strategiesByPhase = phase16Data.strategiesByPhase as Map<number, any[]>;
+    const strategiesByPhase = phase16Data.strategiesByPhase as Map<number, unknown[]>;
     for (const strategies of strategiesByPhase.values()) {
       allStrategies.push(...strategies);
     }
@@ -240,7 +240,7 @@ export class Phase17MultiFixExecution {
    * @returns FileFixBatch[] - Array of file batches
    */
   private groupStrategiesByFile(strategies: unknown[]): FileFixBatch[] {
-    const fileMap = new Map<string, any[]>();
+    const fileMap = new Map<string, unknown[]>();
 
     for (const strategy of strategies) {
       if (!strategy.filePath) continue;
