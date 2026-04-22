@@ -123,7 +123,7 @@ interface AuditLogEntry {
   /** Description of the event */
   description: string;
   /** Additional metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -666,7 +666,7 @@ export class Phase11AtomicFixes {
     description: string,
     fixId?: string,
     filePath?: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): void {
     if (!this.config.auditOnly) {
       return;
@@ -1032,7 +1032,7 @@ export class Phase11AtomicFixes {
    * @param analysisResults - Analysis results from previous phases
    * @returns Set<string> - Core Path files
    */
-  private getCorePathFiles(analysisResults: Record<string, any>): Set<string> {
+  private getCorePathFiles(analysisResults: Record<string, unknown>): Set<string> {
     const corePathFiles = new Set<string>();
     
     const phase2Results = analysisResults['phase2'];
@@ -1363,7 +1363,7 @@ export class Phase11AtomicFixes {
    */
   private async applyEnvironmentFixes(
     remediationResult: RemediationResult,
-    analysisResults: Record<string, any>
+    analysisResults: Record<string, unknown>
   ): Promise<void> {
     console.log('🔧 Applying Environment fixes...');
 
