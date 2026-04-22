@@ -301,28 +301,28 @@ export class Phase0Setup {
       const reportContent = `
 ## Phase 0: Setup - PASSED
 - **Timestamp:** ${timestamp}
-- **Execution Time:** ${setupResults.executionTimeMs}ms
+- **Execution Time:** ${(setupResults as unknown).executionTimeMs}ms
 
 ### Environment Validation
 - **Project Type:** ${this.config.currentState.projectType || 'unknown'}
-- **Dependencies:** ${setupResults.dependencies.valid ? ' Valid' : ' Invalid'}
-  - node_modules: ${setupResults.dependencies.hasNodeModules ? ' Present' : ' Missing'}
-  - Lockfile: ${setupResults.dependencies.lockfileType || 'none'}
-  - Warnings: ${setupResults.dependencies.warnings.length}
-- **Critical Files:** ${setupResults.criticalFiles.complete ? ' Complete' : ' Incomplete'}
-  - Present: ${setupResults.criticalFiles.present.join(', ')}
-  - Missing: ${setupResults.criticalFiles.missing.join(', ') || 'None'}
-- **Syntax Check:** ${setupResults.syntax.valid ? ' Valid' : ' Errors found'}
-  - Files Checked: ${setupResults.syntax.filesChecked}
-  - Error Files: ${setupResults.syntax.errorFiles.length}
+- **Dependencies:** ${(setupResults as unknown).dependencies.valid ? ' Valid' : ' Invalid'}
+  - node_modules: ${(setupResults as unknown).dependencies.hasNodeModules ? ' Present' : ' Missing'}
+  - Lockfile: ${(setupResults as unknown).dependencies.lockfileType || 'none'}
+  - Warnings: ${(setupResults as unknown).dependencies.warnings.length}
+- **Critical Files:** ${(setupResults as unknown).criticalFiles.complete ? ' Complete' : ' Incomplete'}
+  - Present: ${(setupResults as unknown).criticalFiles.present.join(', ')}
+  - Missing: ${(setupResults as unknown).criticalFiles.missing.join(', ') || 'None'}
+- **Syntax Check:** ${(setupResults as unknown).syntax.valid ? ' Valid' : ' Errors found'}
+  - Files Checked: ${(setupResults as unknown).syntax.filesChecked}
+  - Error Files: ${(setupResults as unknown).syntax.errorFiles.length}
 
 ### Hardware Diagnostic
-- **Status:** ${setupResults.hardware.passed ? ' Passed' : ' Failed'}
-- **Temperature Rise Rate:** ${setupResults.hardware.temperatureRiseRate}-�C/min
+- **Status:** ${(setupResults as unknown).hardware.passed ? ' Passed' : ' Failed'}
+- **Temperature Rise Rate:** ${(setupResults as unknown).hardware.temperatureRiseRate}-�C/min
 
 ### Hardware Profile
-- **Recommended Batch Size:** ${setupResults.hardware.recommendedBatchSize || 20}
-- **Recommended Cooldown:** ${setupResults.hardware.recommendedCooldown || 15000}ms
+- **Recommended Batch Size:** ${(setupResults as unknown).hardware.recommendedBatchSize || 20}
+- **Recommended Cooldown:** ${(setupResults as unknown).hardware.recommendedCooldown || 15000}ms
 
 ---
 
@@ -692,6 +692,9 @@ Generated: ${timestamp}
     };
   }
 }
+
+
+
 
 
 

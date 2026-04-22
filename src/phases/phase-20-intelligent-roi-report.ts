@@ -121,9 +121,9 @@ export class Phase20IntelligentROIReport {
       }
 
       // Calculate ROI
-      console.log('INFO Calculating ROI...');
+      console.log('INFO Calculating (roi as unknown)...');
       const roi = this.calculateROI();
-      console.log(`INFO Total time saved: ${roi.totalTimeSavedMinutes} minutes (${roi.totalTimeSavedHours} hours)\n`);
+      console.log(`INFO Total time saved: ${(roi as unknown).totalTimeSavedMinutes} minutes (${(roi as unknown).totalTimeSavedHours} hours)\n`);
 
       // Generate report
       console.log('INFO Generating executive report...');
@@ -136,8 +136,8 @@ export class Phase20IntelligentROIReport {
         success: true,
         reportPath,
         totalFindings: this.config.allFindings.length,
-        totalTimeSavedMinutes: roi.totalTimeSavedMinutes,
-        totalTimeSavedHours: roi.totalTimeSavedHours,
+        totalTimeSavedMinutes: (roi as unknown).totalTimeSavedMinutes,
+        totalTimeSavedHours: (roi as unknown).totalTimeSavedHours,
         fixesApplied: this.config.fixResults?.filter((r: unknown) => r.success).length || 0,
         executionTimeMs,
       };
@@ -149,7 +149,7 @@ export class Phase20IntelligentROIReport {
       console.log(`INFO Report: ${result.reportPath}`);
 
       return result;
-    } catch (error) {
+    } catch {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -214,8 +214,8 @@ export class Phase20IntelligentROIReport {
    */
   private determineComplexity(finding: unknown): FindingComplexity {
     // Determine complexity based on finding type and severity
-    const type = finding.type || '';
-    const severity = finding.severity || '';
+    const type = (finding as unknown).type || '';
+    const severity = (finding as unknown).severity || '';
 
     // Core issues (business logic, database)
     if (type.includes('business') || type.includes('database') || type.includes('api')) {
@@ -328,17 +328,17 @@ This report provides a comprehensive analysis of code quality findings and the e
 - **Critical Findings:** ${criticalFindings}
 - **High Severity Findings:** ${highSeverityFindings}
 - **Fixes Applied:** ${fixesApplied}
-- **Total Time Saved:** ${roi.totalTimeSavedHours.toFixed(2)} hours (${roi.totalTimeSavedMinutes} minutes)
+- **Total Time Saved:** ${(roi as unknown).totalTimeSavedHours.toFixed(2)} hours (${(roi as unknown).totalTimeSavedMinutes} minutes)
 
 ## Complexity Breakdown
 
 | Complexity | Count | Time per Finding | Total Time Saved |
 |------------|-------|-----------------|------------------|
-| Core (Business Logic, Database) | ${roi.complexityBreakdown.core} | 30 min | ${(roi.complexityBreakdown.core * 30).toFixed(0)} min |
-| Business (Domain, Logic) | ${roi.complexityBreakdown.business} | 20 min | ${(roi.complexityBreakdown.business * 20).toFixed(0)} min |
-| Security | ${roi.complexityBreakdown.security} | 15 min | ${(roi.complexityBreakdown.security * 15).toFixed(0)} min |
-| Style (Formatting, Low Severity) | ${roi.complexityBreakdown.style} | 5 min | ${(roi.complexityBreakdown.style * 5).toFixed(0)} min |
-| Low | ${roi.complexityBreakdown.low} | 2 min | ${(roi.complexityBreakdown.low * 2).toFixed(0)} min |
+| Core (Business Logic, Database) | ${(roi as unknown).complexityBreakdown.core} | 30 min | ${((roi as unknown).complexityBreakdown.core * 30).toFixed(0)} min |
+| Business (Domain, Logic) | ${(roi as unknown).complexityBreakdown.business} | 20 min | ${((roi as unknown).complexityBreakdown.business * 20).toFixed(0)} min |
+| Security | ${(roi as unknown).complexityBreakdown.security} | 15 min | ${((roi as unknown).complexityBreakdown.security * 15).toFixed(0)} min |
+| Style (Formatting, Low Severity) | ${(roi as unknown).complexityBreakdown.style} | 5 min | ${((roi as unknown).complexityBreakdown.style * 5).toFixed(0)} min |
+| Low | ${(roi as unknown).complexityBreakdown.low} | 2 min | ${((roi as unknown).complexityBreakdown.low * 2).toFixed(0)} min |
 
 ## Findings by Severity
 
@@ -395,5 +395,8 @@ This report provides a comprehensive analysis of code quality findings and the e
     return censoredContent;
   }
 }
+
+
+
 
 

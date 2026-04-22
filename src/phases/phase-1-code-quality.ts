@@ -228,7 +228,7 @@ export class Phase1CodeQuality {
         averageScore,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 1 failed: ${errorMessage}\n`);
 
@@ -419,7 +419,7 @@ export class Phase1CodeQuality {
         findings,
         isCritical: score < 50, // Files with score < 50 are critical
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.warn(`  ÔÜá´©Å  Failed to analyze ${filePath}: ${errorMessage}`);
 
@@ -680,7 +680,7 @@ export class Phase1CodeQuality {
     let score = 100;
 
     for (const finding of findings) {
-      switch (finding.severity) {
+      switch ((finding as unknown).severity) {
         case 'critical':
           score -= 25;
           break;
@@ -721,10 +721,10 @@ export class Phase1CodeQuality {
       // Group findings by file for cleaner report
       const findingsByFile = new Map<string, CodeQualityFinding[]>();
       for (const finding of allFindings) {
-        if (!findingsByFile.has(finding.filePath)) {
-          findingsByFile.set(finding.filePath, []);
+        if (!findingsByFile.has((finding as unknown).filePath)) {
+          findingsByFile.set((finding as unknown).filePath, []);
         }
-        findingsByFile.get(finding.filePath)!.push(finding);
+        findingsByFile.get((finding as unknown).filePath)!.push(finding);
       }
 
       let findingsContent = '';
@@ -733,9 +733,9 @@ export class Phase1CodeQuality {
 ### ${path.basename(filePath)}
 `;
         for (const finding of findings) {
-          findingsContent += `- [${finding.id}] **${finding.type}** (${finding.severity}): ${finding.description}`;
-          if (finding.line) {
-            findingsContent += ` (line ${finding.line})`;
+          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).type}** (${(finding as unknown).severity}): ${(finding as unknown).description}`;
+          if ((finding as unknown).line) {
+            findingsContent += ` (line ${(finding as unknown).line})`;
           }
           findingsContent += '\n';
         }
@@ -769,10 +769,13 @@ Generated: ${timestamp}
       }
 
       console.log(`  ­ƒôØ Partial report updated: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('  ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 

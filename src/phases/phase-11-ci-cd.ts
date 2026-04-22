@@ -172,7 +172,7 @@ export class Phase11CICD {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch (error) {
+    } catch {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -289,7 +289,7 @@ export class Phase11CICD {
         
         const fileFindings = this.analyzeCICDFile(filePath, sanitizedContent);
         findings.push(...fileFindings);
-      } catch (error) {
+      } catch {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -530,5 +530,8 @@ export class Phase11CICD {
     return `${type}-${hash}-${Date.now()}`;
   }
 }
+
+
+
 
 

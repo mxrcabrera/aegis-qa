@@ -164,7 +164,7 @@ export class Phase16FixStrategyGeneration {
         strategyResult,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 16 failed: ${errorMessage}\n`);
 
@@ -213,10 +213,10 @@ export class Phase16FixStrategyGeneration {
 
       for (const finding of findings) {
         // AST-Preflight Check: Verify file has no syntax errors before generating strategy
-        if (finding.filePath) {
-          const preflightCheck = this.performASTPreflightCheck(finding.filePath);
+        if ((finding as unknown).filePath) {
+          const preflightCheck = this.performASTPreflightCheck((finding as unknown).filePath);
           if (!preflightCheck.passed) {
-            console.log(`WARNING AST-Preflight Check failed for ${finding.filePath}. Manual Fix First required.`);
+            console.log(`WARNING AST-Preflight Check failed for ${(finding as unknown).filePath}. Manual Fix First required.`);
             continue; // Skip this finding, refuse to propose automatic fixes
           }
         }
@@ -237,7 +237,7 @@ export class Phase16FixStrategyGeneration {
         const strategy = this.generateStrategyForFinding(finding, phaseNum);
         if (strategy) {
           phaseStrategies.push(strategy);
-          this.strategyCache.set(strategy.strategyId, strategy);
+          this.strategyCache.set((strategy as unknown).strategyId, strategy);
         }
       }
 
@@ -260,7 +260,7 @@ export class Phase16FixStrategyGeneration {
     // Count strategies requiring human intervention
     for (const strategies of result.strategiesByPhase.values()) {
       for (const strategy of strategies) {
-        if (strategy.requiresHumanIntervention) {
+        if ((strategy as unknown).requiresHumanIntervention) {
           result.humanInterventionRequired++;
         }
       }
@@ -284,32 +284,32 @@ export class Phase16FixStrategyGeneration {
       return phaseData;
     }
 
-    if (phaseData.findings && Array.isArray(phaseData.findings)) {
-      return phaseData.findings;
+    if ((phaseData as unknown).findings && Array.isArray((phaseData as unknown).findings)) {
+      return (phaseData as unknown).findings;
     }
 
-    if (phaseData.codeFindings && Array.isArray(phaseData.codeFindings)) {
-      return phaseData.codeFindings;
+    if ((phaseData as unknown).codeFindings && Array.isArray((phaseData as unknown).codeFindings)) {
+      return (phaseData as unknown).codeFindings;
     }
 
-    if (phaseData.securityFindings && Array.isArray(phaseData.securityFindings)) {
-      return phaseData.securityFindings;
+    if ((phaseData as unknown).securityFindings && Array.isArray((phaseData as unknown).securityFindings)) {
+      return (phaseData as unknown).securityFindings;
     }
 
-    if (phaseData.gitHygieneFindings && Array.isArray(phaseData.gitHygieneFindings)) {
-      return phaseData.gitHygieneFindings;
+    if ((phaseData as unknown).gitHygieneFindings && Array.isArray((phaseData as unknown).gitHygieneFindings)) {
+      return (phaseData as unknown).gitHygieneFindings;
     }
 
-    if (phaseData.cicdFindings && Array.isArray(phaseData.cicdFindings)) {
-      return phaseData.cicdFindings;
+    if ((phaseData as unknown).cicdFindings && Array.isArray((phaseData as unknown).cicdFindings)) {
+      return (phaseData as unknown).cicdFindings;
     }
 
-    if (phaseData.cloudInfraFindings && Array.isArray(phaseData.cloudInfraFindings)) {
-      return phaseData.cloudInfraFindings;
+    if ((phaseData as unknown).cloudInfraFindings && Array.isArray((phaseData as unknown).cloudInfraFindings)) {
+      return (phaseData as unknown).cloudInfraFindings;
     }
 
-    if (phaseData.containerizationFindings && Array.isArray(phaseData.containerizationFindings)) {
-      return phaseData.containerizationFindings;
+    if ((phaseData as unknown).containerizationFindings && Array.isArray((phaseData as unknown).containerizationFindings)) {
+      return (phaseData as unknown).containerizationFindings;
     }
 
     return findings;
@@ -325,10 +325,10 @@ export class Phase16FixStrategyGeneration {
    */
   private generateStrategyForFinding(finding: unknown, phaseSource: number): FixStrategy | null {
     const strategyId = crypto.createHash('sha1').update(
-      `${finding.id || finding.type}${finding.filePath || ''}${finding.line || 0}`
+      `${(finding as unknown).id || (finding as unknown).type}${(finding as unknown).filePath || ''}${(finding as unknown).line || 0}`
     ).digest('hex').substring(0, 12);
 
-    const findingType = finding.type || 'unknown';
+    const findingType = (finding as unknown).type || 'unknown';
     const strategyMapping = this.getStrategyMapping(findingType);
 
     if (!strategyMapping) {
@@ -340,16 +340,16 @@ export class Phase16FixStrategyGeneration {
 
     const strategy: FixStrategy = {
       strategyId,
-      findingId: finding.id || strategyId,
+      findingId: (finding as unknown).id || strategyId,
       findingType,
-      filePath: finding.filePath || '',
-      line: finding.line,
+      filePath: (finding as unknown).filePath || '',
+      line: (finding as unknown).line,
       description: strategyMapping.description,
       suggestedAction: strategyMapping.action,
       safeLevel: strategyMapping.safeLevel,
       requiresHumanIntervention: strategyMapping.safeLevel === 5,
       phaseSource,
-      severity: finding.severity || 'medium',
+      severity: (finding as unknown).severity || 'medium',
       dependencies,
       conflictStatus: 'no-conflict',
       conflictingStrategies: [],
@@ -447,12 +447,12 @@ export class Phase16FixStrategyGeneration {
   private analyzeDependencies(finding: unknown): string[] {
     const dependencies: string[] = [];
 
-    if (!finding.filePath) {
+    if (!(finding as unknown).filePath) {
       return dependencies;
     }
 
     try {
-      const filePath = finding.filePath;
+      const filePath = (finding as unknown).filePath;
       const fileExtension = path.extname(filePath);
 
       // For TypeScript/JavaScript files, analyze variable/function references
@@ -548,9 +548,9 @@ export class Phase16FixStrategyGeneration {
     // Group strategies by (filePath, line)
     for (const strategies of strategiesByPhase.values()) {
       for (const strategy of strategies) {
-        if (!strategy.filePath || strategy.line === undefined) continue;
+        if (!(strategy as unknown).filePath || (strategy as unknown).line === undefined) continue;
 
-        const key = `${strategy.filePath}:${strategy.line}`;
+        const key = `${(strategy as unknown).filePath}:${(strategy as unknown).line}`;
         if (!lineMap.has(key)) {
           lineMap.set(key, []);
         }
@@ -690,16 +690,16 @@ export class Phase16FixStrategyGeneration {
 
     for (const strategies of strategiesByPhase.values()) {
       for (const strategy of strategies) {
-        if (!strategy.filePath) continue;
+        if (!(strategy as unknown).filePath) continue;
 
-        const importCount = importMap.get(strategy.filePath) || 0;
+        const importCount = importMap.get((strategy as unknown).filePath) || 0;
         
         // If file is imported by >10 files, elevate Safe Level to 4
         if (importCount > 10) {
-          console.log(`INFO High-Traffic File detected: ${strategy.filePath} (${importCount} imports). Elevating Safe Level to 4.`);
-          strategy.safeLevel = Math.max(strategy.safeLevel, 4);
-          if (strategy.safeLevel === 5) {
-            strategy.requiresHumanIntervention = true;
+          console.log(`INFO High-Traffic File detected: ${(strategy as unknown).filePath} (${importCount} imports). Elevating Safe Level to 4.`);
+          (strategy as unknown).safeLevel = Math.max((strategy as unknown).safeLevel, 4);
+          if ((strategy as unknown).safeLevel === 5) {
+            (strategy as unknown).requiresHumanIntervention = true;
           }
         }
       }
@@ -798,7 +798,7 @@ export class Phase16FixStrategyGeneration {
       }
 
       return { passed: true };
-    } catch (error) {
+    } catch {
       return { passed: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -822,7 +822,7 @@ export class Phase16FixStrategyGeneration {
       fs.writeFileSync(tempFile, serialized, 'utf-8');
       
       console.log(`INFO Strategies serialized to disk: ${tempFile}`);
-    } catch (error) {
+    } catch {
       console.warn('WARNING Failed to serialize strategies to disk:', error instanceof Error ? error.message : error);
     }
   }
@@ -838,5 +838,8 @@ export class Phase16FixStrategyGeneration {
     console.log('INFO Strategy cache flushed');
   }
 }
+
+
+
 
 

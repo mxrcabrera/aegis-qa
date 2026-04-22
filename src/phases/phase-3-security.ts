@@ -214,7 +214,7 @@ export class Phase3Security {
       console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 3 failed: ${errorMessage}\n`);
 
@@ -320,7 +320,7 @@ export class Phase3Security {
       }
 
       return findings;
-    } catch (error) {
+    } catch {
       console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -639,11 +639,11 @@ export class Phase3Security {
     const escalatedFindings: SecurityFinding[] = [];
 
     for (const finding of findings) {
-      let severity = finding.severity;
+      let severity = (finding as unknown).severity;
       const escalationReasons: string[] = [];
 
       // Escalate if in critical module
-      if (finding.inCriticalModule && severity !== 'critical') {
+      if ((finding as unknown).inCriticalModule && severity !== 'critical') {
         severity = 'critical';
         escalationReasons.push('Critical Module');
       }
@@ -662,8 +662,8 @@ export class Phase3Security {
         ...finding,
         severity,
         description: escalationReasons.length > 0
-          ? `${finding.description} [ESCALATED: ${escalationReasons.join(', ')}]`
-          : finding.description,
+          ? `${(finding as unknown).description} [ESCALATED: ${escalationReasons.join(', ')}]`
+          : (finding as unknown).description,
       });
     }
 
@@ -737,17 +737,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
+            id: (finding as unknown).id,
             type: 'security',
-            severity: finding.severity,
+            severity: (finding as unknown).severity,
             file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
+              path: (finding as unknown).filePath,
+              extension: path.extname((finding as unknown).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
+            location: { line: (finding as unknown).line || 1, column: 0 },
+            message: (finding as unknown).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -756,7 +756,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} AI API security issues`);
-    } catch (error) {
+    } catch {
       console.warn(`    AI API security check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -821,17 +821,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
+            id: (finding as unknown).id,
             type: 'security',
-            severity: finding.severity,
+            severity: (finding as unknown).severity,
             file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
+              path: (finding as unknown).filePath,
+              extension: path.extname((finding as unknown).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
+            location: { line: (finding as unknown).line || 1, column: 0 },
+            message: (finding as unknown).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.7,
@@ -840,7 +840,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} secure development issues`);
-    } catch (error) {
+    } catch {
       console.warn(`    Secure development methodology check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -905,17 +905,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
+            id: (finding as unknown).id,
             type: 'security',
-            severity: finding.severity,
+            severity: (finding as unknown).severity,
             file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
+              path: (finding as unknown).filePath,
+              extension: path.extname((finding as unknown).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
             location: { line: 1, column: 0 },
-            message: finding.description,
+            message: (finding as unknown).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.9,
@@ -924,7 +924,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} RLS security issues`);
-    } catch (error) {
+    } catch {
       console.warn(`    BaaS/RLS security check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -988,17 +988,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
+            id: (finding as unknown).id,
             type: 'security',
-            severity: finding.severity,
+            severity: (finding as unknown).severity,
             file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
+              path: (finding as unknown).filePath,
+              extension: path.extname((finding as unknown).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
+            location: { line: (finding as unknown).line || 1, column: 0 },
+            message: (finding as unknown).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -1007,7 +1007,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} webhook security issues`);
-    } catch (error) {
+    } catch {
       console.warn(`    Webhook security check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -1074,17 +1074,17 @@ export class Phase3Security {
       if (this.config.reportAggregator && findings.length > 0) {
         for (const finding of findings) {
           this.config.reportAggregator.addViolation(auditorName, {
-            id: finding.id,
+            id: (finding as unknown).id,
             type: 'security',
-            severity: finding.severity,
+            severity: (finding as unknown).severity,
             file: {
-              path: finding.filePath,
-              extension: path.extname(finding.filePath).slice(1),
+              path: (finding as unknown).filePath,
+              extension: path.extname((finding as unknown).filePath).slice(1),
               lineCount: 0,
               inCriticalPath: false,
             },
-            location: { line: finding.line || 1, column: 0 },
-            message: finding.description,
+            location: { line: (finding as unknown).line || 1, column: 0 },
+            message: (finding as unknown).description,
             rule: auditorName,
             autoFixable: false,
             confidence: 0.8,
@@ -1093,7 +1093,7 @@ export class Phase3Security {
       }
 
       console.log(`    Found ${findings.length} PII privacy issues`);
-    } catch (error) {
+    } catch {
       console.warn(`    Data privacy PII check failed: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -1205,10 +1205,10 @@ export class Phase3Security {
       // Group findings by type
       const findingsByType = new Map<string, SecurityFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has(finding.type)) {
-          findingsByType.set(finding.type, []);
+        if (!findingsByType.has((finding as unknown).type)) {
+          findingsByType.set((finding as unknown).type, []);
         }
-        findingsByType.get(finding.type)!.push(finding);
+        findingsByType.get((finding as unknown).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -1217,11 +1217,11 @@ export class Phase3Security {
 ### ${type.charAt(0).toUpperCase() + type.slice(1)} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
-          if (finding.line) {
-            findingsContent += `:${finding.line}`;
+          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}** ${(finding as unknown).filePath}`;
+          if ((finding as unknown).line) {
+            findingsContent += `:${(finding as unknown).line}`;
           }
-          findingsContent += `\n  - ${finding.description}\n`;
+          findingsContent += `\n  - ${(finding as unknown).description}\n`;
         }
       }
 
@@ -1257,10 +1257,13 @@ Generated: ${timestamp}
       }
 
       console.log(`­ƒôØ Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 

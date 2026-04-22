@@ -214,7 +214,7 @@ export class Phase19IncrementalReview {
         selectedFiles,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 19 failed: ${errorMessage}\n`);
 
@@ -262,7 +262,7 @@ export class Phase19IncrementalReview {
       const uniqueFiles = Array.from(new Set(modifiedFiles));
 
       return uniqueFiles;
-    } catch (error) {
+    } catch {
       console.warn('WARNING Failed to get modified files from git:', error instanceof Error ? error.message : error);
       return [];
     }
@@ -675,7 +675,7 @@ export class Phase19IncrementalReview {
           }
         }
       }
-    } catch (error) {
+    } catch {
       console.warn('WARNING Failed to get untracked Core Path files:', error instanceof Error ? error.message : error);
     }
 
@@ -723,5 +723,8 @@ export class Phase19IncrementalReview {
     return selectedFiles;
   }
 }
+
+
+
 
 

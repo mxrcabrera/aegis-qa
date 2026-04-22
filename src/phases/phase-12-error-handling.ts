@@ -296,7 +296,7 @@ export class Phase12ErrorHandling {
         highSeverityFindings,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 12 failed: ${errorMessage}\n`);
 
@@ -782,23 +782,23 @@ export class Phase12ErrorHandling {
 `;
 
       for (const finding of findings) {
-        const severityIcon = finding.severity === 'critical' ? 'CRITICAL' : finding.severity === 'high' ? 'HIGH' : finding.severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${finding.type}** ${finding.filePath}`;
-        if (finding.line) {
-          reportContent += `:${finding.line}`;
+        const severityIcon = (finding as unknown).severity === 'critical' ? 'CRITICAL' : (finding as unknown).severity === 'high' ? 'HIGH' : (finding as unknown).severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${(finding as unknown).type}** ${(finding as unknown).filePath}`;
+        if ((finding as unknown).line) {
+          reportContent += `:${(finding as unknown).line}`;
         }
         reportContent += `\n`;
         
         // Sanitización de Logs de Auditoría: Usar descripción sanitizada si es sensitive-log
-        const descriptionToUse = finding.type === 'sensitive-log' 
-          ? (finding.sanitizedDescription || finding.description)
-          : finding.description;
+        const descriptionToUse = (finding as unknown).type === 'sensitive-log' 
+          ? ((finding as unknown).sanitizedDescription || (finding as unknown).description)
+          : (finding as unknown).description;
         
         reportContent += `  - ${descriptionToUse}\n`;
-        if (finding.suggestion) {
-          reportContent += `  - Suggestion: ${finding.suggestion}\n`;
+        if ((finding as unknown).suggestion) {
+          reportContent += `  - Suggestion: ${(finding as unknown).suggestion}\n`;
         }
-        if (finding.isCorePath) {
+        if ((finding as unknown).isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -823,7 +823,7 @@ Generated: ${timestamp}
       }
 
       console.log(`INFO Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('WARNING Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
@@ -883,10 +883,13 @@ Generated: ${timestamp}
       } else {
         console.log('SUCCESS Self-Audit: No empty catch blocks found in phase-12-error-handling.ts');
       }
-    } catch (error) {
+    } catch {
       console.log('WARNING Self-Audit failed:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 

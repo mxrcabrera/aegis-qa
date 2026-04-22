@@ -866,20 +866,20 @@ export class Phase13I18nL10n {
 `;
 
       for (const finding of findings) {
-        const severityIcon = finding.severity === 'critical' ? 'CRITICAL' : finding.severity === 'high' ? 'HIGH' : finding.severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${finding.type}** ${finding.filePath}`;
-        if (finding.line) {
-          reportContent += `:${finding.line}`;
+        const severityIcon = (finding as unknown).severity === 'critical' ? 'CRITICAL' : (finding as unknown).severity === 'high' ? 'HIGH' : (finding as unknown).severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${(finding as unknown).type}** ${(finding as unknown).filePath}`;
+        if ((finding as unknown).line) {
+          reportContent += `:${(finding as unknown).line}`;
         }
         reportContent += `\n`;
-        reportContent += `  - ${finding.description}\n`;
-        if (finding.stringValue) {
-          reportContent += `  - String: "${finding.stringValue}"\n`;
+        reportContent += `  - ${(finding as unknown).description}\n`;
+        if ((finding as unknown).stringValue) {
+          reportContent += `  - String: "${(finding as unknown).stringValue}"\n`;
         }
-        if (finding.suggestion) {
-          reportContent += `  - Suggestion: ${finding.suggestion}\n`;
+        if ((finding as unknown).suggestion) {
+          reportContent += `  - Suggestion: ${(finding as unknown).suggestion}\n`;
         }
-        if (finding.isCorePath) {
+        if ((finding as unknown).isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -950,10 +950,13 @@ Generated: ${timestamp}
       } else {
         console.log('SUCCESS Self-Audit: No Aegis log strings reported as translatable in phase-13-i18n-l10n.ts');
       }
-    } catch (error) {
+    } catch {
       console.log('WARNING Self-Audit failed:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 

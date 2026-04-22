@@ -149,7 +149,7 @@ export class Phase17MultiFixExecution {
         executionResult,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 17 failed: ${errorMessage}\n`);
 
@@ -189,13 +189,13 @@ export class Phase17MultiFixExecution {
 
     // Get strategies from Phase 16
     const phase16Data = this.config.currentState.analysisResults?.['16'];
-    if (!phase16Data || !phase16Data.strategiesByPhase) {
+    if (!phase16Data || !(phase16Data as unknown).strategiesByPhase) {
       console.log('INFO No strategies from Phase 16 found');
       return result;
     }
 
     const allStrategies: unknown[] = [];
-    const strategiesByPhase = phase16Data.strategiesByPhase as Map<number, unknown[]>;
+    const strategiesByPhase = (phase16Data as unknown).strategiesByPhase as Map<number, unknown[]>;
     for (const strategies of strategiesByPhase.values()) {
       allStrategies.push(...strategies);
     }
@@ -243,12 +243,12 @@ export class Phase17MultiFixExecution {
     const fileMap = new Map<string, unknown[]>();
 
     for (const strategy of strategies) {
-      if (!strategy.filePath) continue;
+      if (!(strategy as unknown).filePath) continue;
 
-      if (!fileMap.has(strategy.filePath)) {
-        fileMap.set(strategy.filePath, []);
+      if (!fileMap.has((strategy as unknown).filePath)) {
+        fileMap.set((strategy as unknown).filePath, []);
       }
-      fileMap.get(strategy.filePath)!.push(strategy);
+      fileMap.get((strategy as unknown).filePath)!.push(strategy);
     }
 
     const batches: FileFixBatch[] = [];
@@ -292,7 +292,7 @@ export class Phase17MultiFixExecution {
 
       // Apply all fixes in batch
       for (const strategy of batch.strategies) {
-        if (strategy.conflictStatus === 'conflict-resolved') continue;
+        if ((strategy as unknown).conflictStatus === 'conflict-resolved') continue;
 
         const fixResult = this.applySingleFixToContent(modifiedContent, strategy);
         if (fixResult.success) {
@@ -335,7 +335,7 @@ export class Phase17MultiFixExecution {
       }
 
       return result;
-    } catch (error) {
+    } catch {
       console.error(`ERROR Batch fix failed for ${batch.filePath}:`, error instanceof Error ? error.message : error);
       result.failed = batch.strategies.length;
       return result;
@@ -357,7 +357,7 @@ export class Phase17MultiFixExecution {
     const filePath = path.join(this.config.projectRoot, batch.filePath);
 
     for (const strategy of batch.strategies) {
-      if (strategy.conflictStatus === 'conflict-resolved') continue;
+      if ((strategy as unknown).conflictStatus === 'conflict-resolved') continue;
 
       // Hardware Guard (Disk I/O): Monitor write latency
       await this.checkDiskIO();
@@ -388,8 +388,8 @@ export class Phase17MultiFixExecution {
           fs.writeFileSync(filePath, originalContent, 'utf-8');
           result.failed++;
         }
-      } catch (error) {
-        console.error(`ERROR Individual fix failed for ${strategy.strategyId}:`, error instanceof Error ? error.message : error);
+      } catch {
+        console.error(`ERROR Individual fix failed for ${(strategy as unknown).strategyId}:`, error instanceof Error ? error.message : error);
         result.failed++;
       }
     }
@@ -411,7 +411,7 @@ export class Phase17MultiFixExecution {
   } {
     try {
       // Apply fix based on strategy type
-      switch (strategy.findingType) {
+      switch ((strategy as unknown).findingType) {
         case 'hardcoded-string':
           return this.fixHardcodedString(content, strategy);
         case 'unused-var':
@@ -422,10 +422,10 @@ export class Phase17MultiFixExecution {
           return this.fixLatestImage(content, strategy);
         default:
           // Generic fix: replace line if line number is specified
-          if (strategy.line) {
+          if ((strategy as unknown).line) {
             const lines = content.split('\n');
-            if (strategy.line > 0 && strategy.line <= lines.length) {
-              lines[strategy.line - 1] = strategy.suggestedAction;
+            if ((strategy as unknown).line > 0 && (strategy as unknown).line <= lines.length) {
+              lines[(strategy as unknown).line - 1] = (strategy as unknown).suggestedAction;
               return { success: true, newContent: lines.join('\n') };
             }
           }
@@ -550,7 +550,7 @@ export class Phase17MultiFixExecution {
       try {
         console.log(`INFO Running eslint --fix on ${filePath}`);
         await execSafe('npx', ['eslint', '--fix', fullPath], { cwd: this.config.projectRoot });
-      } catch (error) {
+      } catch {
         console.warn(`WARNING eslint --fix failed for ${filePath}:`, error instanceof Error ? error.message : error);
       }
 
@@ -559,7 +559,7 @@ export class Phase17MultiFixExecution {
         try {
           console.log(`INFO Running tsc --noEmit on ${filePath}`);
           await execSafe('npx', ['tsc', '--noEmit', fullPath], { cwd: this.config.projectRoot });
-        } catch (error) {
+        } catch {
           console.warn(`WARNING tsc --noEmit failed for ${filePath}:`, error instanceof Error ? error.message : error);
           return { passed: false, timeSaved: 0 };
         }
@@ -570,7 +570,7 @@ export class Phase17MultiFixExecution {
         console.log(`INFO File is Core Path or has high Blast Radius (${blastRadius}). Running full build...`);
         try {
           await execSafe('npm', ['run', 'build'], { cwd: this.config.projectRoot });
-        } catch (error) {
+        } catch {
           console.warn(`WARNING Full build failed:`, error instanceof Error ? error.message : error);
           return { passed: false, timeSaved: 0 };
         }
@@ -580,7 +580,7 @@ export class Phase17MultiFixExecution {
       const timeSaved = isCorePath || blastRadius > 10 ? 0 : 30000 - verificationTime; // Assume full build takes 30s
 
       return { passed: true, timeSaved: Math.max(0, timeSaved) };
-    } catch (error) {
+    } catch {
       console.error(`ERROR Smart verification failed for ${filePath}:`, error instanceof Error ? error.message : error);
       return { passed: false, timeSaved: 0 };
     }
@@ -643,5 +643,8 @@ export class Phase17MultiFixExecution {
     return { success: false };
   }
 }
+
+
+
 
 

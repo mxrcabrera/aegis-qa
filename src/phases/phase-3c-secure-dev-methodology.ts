@@ -134,7 +134,7 @@ export class Phase3CSecureDevMethodology {
       console.log(`INFO High severity findings: ${highSeverityFindings}`);
 
       return result;
-    } catch (error) {
+    } catch {
       const executionTimeMs = Date.now() - startTime;
       const sanitizedError = sanitizeError(error);
 
@@ -207,7 +207,7 @@ export class Phase3CSecureDevMethodology {
         if (content.toLowerCase().includes('threat') || content.toLowerCase().includes('attack vector')) {
           hasThreatComments++;
         }
-      } catch (error) {
+      } catch {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -279,7 +279,7 @@ export class Phase3CSecureDevMethodology {
             suggestion: 'Commit package-lock.json to ensure reproducible dependency installations',
           });
         }
-      } catch (error) {
+      } catch {
         console.warn(`Failed to analyze package.json:`, sanitizeError(error));
       }
     }
@@ -335,7 +335,7 @@ export class Phase3CSecureDevMethodology {
             }
           });
         });
-      } catch (error) {
+      } catch {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -401,7 +401,7 @@ export class Phase3CSecureDevMethodology {
             }
           }
         });
-      } catch (error) {
+      } catch {
         console.warn(`Failed to analyze ${filePath}:`, sanitizeError(error));
       }
     }
@@ -480,7 +480,7 @@ export class Phase3CSecureDevMethodology {
             sourceFiles.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         console.warn(`Failed to scan directory ${dir}:`, sanitizeError(error));
       }
     };
@@ -500,5 +500,8 @@ export class Phase3CSecureDevMethodology {
     };
   }
 }
+
+
+
 
 

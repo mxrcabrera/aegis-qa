@@ -177,7 +177,7 @@ export class Phase7TestingStrategy {
       console.log(`  ���� Source files: ${sourceFiles.length}, Test files: ${testFiles.length}\n`);
 
       return result;
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 7 failed: ${errorMessage}\n`);
 
@@ -493,7 +493,7 @@ export class Phase7TestingStrategy {
       }
 
       return findings;
-    } catch (error) {
+    } catch {
       console.warn(`��ᴩ�  Failed to analyze test file ${testFilePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
@@ -645,10 +645,10 @@ export class Phase7TestingStrategy {
       // Group findings by type
       const findingsByType = new Map<string, TestingFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has(finding.type)) {
-          findingsByType.set(finding.type, []);
+        if (!findingsByType.has((finding as unknown).type)) {
+          findingsByType.set((finding as unknown).type, []);
         }
-        findingsByType.get(finding.type)!.push(finding);
+        findingsByType.get((finding as unknown).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -657,11 +657,11 @@ export class Phase7TestingStrategy {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}** ${finding.filePath}`;
-          if (finding.line) {
-            findingsContent += `:${finding.line}`;
+          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}** ${(finding as unknown).filePath}`;
+          if ((finding as unknown).line) {
+            findingsContent += `:${(finding as unknown).line}`;
           }
-          findingsContent += `\n  - ${finding.description}\n`;
+          findingsContent += `\n  - ${(finding as unknown).description}\n`;
         }
       }
 
@@ -698,10 +698,13 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 

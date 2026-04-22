@@ -244,7 +244,7 @@ export class Phase14GitHygiene {
         highSeverityFindings: allFindings.filter(f => f.severity === 'high').length,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 14 failed: ${errorMessage}\n`);
 
@@ -873,17 +873,17 @@ export class Phase14GitHygiene {
 `;
 
       for (const finding of findings) {
-        const severityIcon = finding.severity === 'critical' ? 'CRITICAL' : finding.severity === 'high' ? 'HIGH' : finding.severity === 'medium' ? 'MEDIUM' : 'LOW';
-        reportContent += `- [${severityIcon}] **${finding.type}** ${finding.filePath}`;
-        if (finding.line) {
-          reportContent += `:${finding.line}`;
+        const severityIcon = (finding as unknown).severity === 'critical' ? 'CRITICAL' : (finding as unknown).severity === 'high' ? 'HIGH' : (finding as unknown).severity === 'medium' ? 'MEDIUM' : 'LOW';
+        reportContent += `- [${severityIcon}] **${(finding as unknown).type}** ${(finding as unknown).filePath}`;
+        if ((finding as unknown).line) {
+          reportContent += `:${(finding as unknown).line}`;
         }
         reportContent += `\n`;
-        reportContent += `  - ${finding.description}\n`;
-        if (finding.suggestion) {
-          reportContent += `  - Suggestion: ${finding.suggestion}\n`;
+        reportContent += `  - ${(finding as unknown).description}\n`;
+        if ((finding as unknown).suggestion) {
+          reportContent += `  - Suggestion: ${(finding as unknown).suggestion}\n`;
         }
-        if (finding.isCorePath) {
+        if ((finding as unknown).isCorePath) {
           reportContent += `  - CORE PATH FILE\n`;
         }
         reportContent += `\n`;
@@ -908,7 +908,7 @@ Generated: ${timestamp}
       }
 
       console.log(`INFO Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('WARNING Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
@@ -927,5 +927,8 @@ Generated: ${timestamp}
     return hash.substring(0, 12);
   }
 }
+
+
+
 
 

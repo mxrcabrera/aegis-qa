@@ -382,7 +382,7 @@ export class Phase11AtomicFixes {
       }
 
       return confirmed;
-    } catch (error) {
+    } catch {
       process.removeListener('SIGINT', sigintHandler);
       rl.close();
       console.error('Error during confirmation:', error);
@@ -449,7 +449,7 @@ export class Phase11AtomicFixes {
         console.log('⏭️  Respuesta no reconocida, rechazando fix\n');
         return false;
       }
-    } catch (error) {
+    } catch {
       rl.close();
       console.error('Error durante aprobación:', error);
       return false;
@@ -552,7 +552,7 @@ export class Phase11AtomicFixes {
       }
 
       return approved;
-    } catch (error) {
+    } catch {
       rl.close();
       console.error('Error durante confirmación:', error);
       return false;
@@ -716,7 +716,7 @@ export class Phase11AtomicFixes {
 
       getFileSystem().writeFileSync(auditFilePath, JSON.stringify(auditData, null, 2), 'utf-8');
       console.log(`[AUDIT] Audit log written to: ${auditFilePath}`);
-    } catch (error) {
+    } catch {
       console.error(`[AUDIT] Failed to write audit log: ${error}`);
     }
   }
@@ -782,7 +782,7 @@ export class Phase11AtomicFixes {
       }
 
       console.log(`✅ Backup físico creado en: ${backupPath}\n`);
-    } catch (error) {
+    } catch {
       console.error('❌ Error creando backup físico:', error);
       throw error;
     }
@@ -991,7 +991,7 @@ export class Phase11AtomicFixes {
       };
 
       return result;
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`❌ Phase 11 failed: ${errorMessage}\n`);
       
@@ -1036,8 +1036,8 @@ export class Phase11AtomicFixes {
     const corePathFiles = new Set<string>();
     
     const phase2Results = analysisResults['phase2'];
-    if (phase2Results && phase2Results.corePathFiles) {
-      for (const file of phase2Results.corePathFiles) {
+    if (phase2Results && (phase2Results as unknown).corePathFiles) {
+      for (const file of (phase2Results as unknown).corePathFiles) {
         corePathFiles.add(file);
       }
     }
@@ -1699,7 +1699,7 @@ export class Phase11AtomicFixes {
       } else {
         console.log(`ℹ️  No fixes applied for Phase ${phaseNumber}, skipping validation`);
       }
-    } catch (error) {
+    } catch {
       console.warn(`⚠️  Validation failed for Phase ${phaseNumber}:`, error instanceof Error ? error.message : error);
     }
   }
@@ -1880,7 +1880,7 @@ export class Phase11AtomicFixes {
       fixResult.applied = false;
       console.log(`INFO Rolled back fix ${fixResult.fixId}`);
       return true;
-    } catch (error) {
+    } catch {
       console.error(`ERROR Failed to rollback fix ${fixResult.fixId}:`, error instanceof Error ? error.message : error);
       return false;
     }
@@ -1939,7 +1939,7 @@ export class Phase11AtomicFixes {
             buildError = stderr;
           }
         }
-      } catch (error) {
+      } catch {
         buildExitCode = 1;
         buildError = error instanceof Error ? error.message : String(error);
       }
@@ -1973,7 +1973,7 @@ export class Phase11AtomicFixes {
       }
 
       return fixResult;
-    } catch (error) {
+    } catch {
       // If any error occurs, attempt rollback
       console.error(`ERROR applying fix ${fixId}:`, error instanceof Error ? error.message : error);
       
@@ -2133,10 +2133,13 @@ Generated: ${timestamp}
       }
 
       console.log(`📝 Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('⚠️  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 

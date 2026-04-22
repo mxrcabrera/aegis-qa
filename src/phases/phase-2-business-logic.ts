@@ -350,19 +350,19 @@ export class Phase2BusinessLogic {
       const executionTimeMs = Date.now() - startTime;
 
       console.log(`Ô£à Phase 2 Complete`);
-      console.log(`  ­ƒÄ» Domain: ${businessProfile.domain}`);
-      console.log(`  ­ƒôè Confidence: ${businessProfile.confidence}%`);
-      console.log(`  ­ƒôª Stack: ${businessProfile.stack.length} dependencies`);
-      console.log(`  ­ƒöÆ Critical modules: ${businessProfile.criticalModules.length}`);
-      console.log(`  ÔÜá´©Å  Risk findings: ${businessProfile.riskFindings.length}`);
-      console.log(`  ­ƒÄ» Recommended focus: ${businessProfile.recommendedFocus.join(', ')}\n`);
+      console.log(`  ­ƒÄ» Domain: ${(businessProfile as unknown).domain}`);
+      console.log(`  ­ƒôè Confidence: ${(businessProfile as unknown).confidence}%`);
+      console.log(`  ­ƒôª Stack: ${(businessProfile as unknown).stack.length} dependencies`);
+      console.log(`  ­ƒöÆ Critical modules: ${(businessProfile as unknown).criticalModules.length}`);
+      console.log(`  ÔÜá´©Å  Risk findings: ${(businessProfile as unknown).riskFindings.length}`);
+      console.log(`  ­ƒÄ» Recommended focus: ${(businessProfile as unknown).recommendedFocus.join(', ')}\n`);
 
       return {
         success: true,
         businessProfile,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ÔØî Phase 2 failed: ${errorMessage}\n`);
 
@@ -448,7 +448,7 @@ export class Phase2BusinessLogic {
       console.log(`  Domain scores: ${JSON.stringify(domainScores)}`);
 
       return { domain: detectedDomain, confidence, stack };
-    } catch (error) {
+    } catch {
       console.warn('  ÔÜá´©Å  Failed to parse package.json:', error instanceof Error ? error.message : error);
       return { domain: 'General', confidence: 0, stack: [] };
     }
@@ -586,12 +586,12 @@ export class Phase2BusinessLogic {
     // Get Phase 1 results from StatePersistence
     const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
 
-    if (!phase1Results || !phase1Results.fileScores) {
+    if (!phase1Results || !(phase1Results as unknown).fileScores) {
       console.log('  ÔÜá´©Å  Phase 1 results not found, skipping cross-reference');
       return riskFindings;
     }
 
-    const fileScores = phase1Results.fileScores;
+    const fileScores = (phase1Results as unknown).fileScores;
 
     for (const fileScore of fileScores) {
       // Check if file is in a core path
@@ -1004,7 +1004,7 @@ export class Phase2BusinessLogic {
       const timestamp = new Date().toISOString();
 
       let riskFindingsContent = '';
-      for (const risk of businessProfile.riskFindings) {
+      for (const risk of (businessProfile as unknown).riskFindings) {
         riskFindingsContent += `- **[${risk.riskLevel.toUpperCase()}] ${risk.filePath}**\n`;
         riskFindingsContent += `  - Reason: ${risk.reason}\n`;
         riskFindingsContent += `  - Quality Score: ${risk.qualityScore}/100\n`;
@@ -1016,21 +1016,21 @@ export class Phase2BusinessLogic {
 - **Execution Time:** ${Date.now() - Date.now()}ms
 
 ### Business Understanding
-- **Domain:** ${businessProfile.domain}
-- **Sensitivity Level:** ${businessProfile.sensitivityLevel.toUpperCase()}
-- **Core Flow:** ${businessProfile.coreFlow.length > 0 ? businessProfile.coreFlow.join(', ') : 'No specific flow detected'}
-- **Aegis Assessment:** ${businessProfile.businessUnderstanding}
+- **Domain:** ${(businessProfile as unknown).domain}
+- **Sensitivity Level:** ${(businessProfile as unknown).sensitivityLevel.toUpperCase()}
+- **Core Flow:** ${(businessProfile as unknown).coreFlow.length > 0 ? (businessProfile as unknown).coreFlow.join(', ') : 'No specific flow detected'}
+- **Aegis Assessment:** ${(businessProfile as unknown).businessUnderstanding}
 
 ### Business Domain Analysis
-- **Confidence:** ${businessProfile.confidence}%
-- **Stack Dependencies:** ${businessProfile.stack.length}
+- **Confidence:** ${(businessProfile as unknown).confidence}%
+- **Stack Dependencies:** ${(businessProfile as unknown).stack.length}
 
 ### Core Paths Identified
-${businessProfile.corePaths.length > 0 ? businessProfile.corePaths.map(p => `- ${p}`).join('\n') : 'None detected'}
+${(businessProfile as unknown).corePaths.length > 0 ? (businessProfile as unknown).corePaths.map(p => `- ${p}`).join('\n') : 'None detected'}
 
 ### Business Risk Findings
-- **Total Risk Findings:** ${businessProfile.riskFindings.length}
-- **Critical Modules:** ${businessProfile.criticalModules.length}
+- **Total Risk Findings:** ${(businessProfile as unknown).riskFindings.length}
+- **Critical Modules:** ${(businessProfile as unknown).criticalModules.length}
 
 ${riskFindingsContent ? `
 ### Risk Details
@@ -1038,15 +1038,15 @@ ${riskFindingsContent}
 ` : ''}
 
 ### Recommended Focus for Subsequent Phases
-${businessProfile.recommendedFocus.map(f => `- ${f}`).join('\n')}
+${(businessProfile as unknown).recommendedFocus.map(f => `- ${f}`).join('\n')}
 
 ### Priority Phase
-- **Phase ${businessProfile.priorityPhase}:** Most critical phase for this business domain
+- **Phase ${(businessProfile as unknown).priorityPhase}:** Most critical phase for this business domain
 
 ### Untouchable Folders (Atomic Fixer)
-${businessProfile.untouchableFolders.length > 0 ? businessProfile.untouchableFolders.map(f => `- ${f}`).join('\n') : 'None'}
+${(businessProfile as unknown).untouchableFolders.length > 0 ? (businessProfile as unknown).untouchableFolders.map(f => `- ${f}`).join('\n') : 'None'}
 
-${businessProfile.isSelfAudit ? `### Self-Audit Mode
+${(businessProfile as unknown).isSelfAudit ? `### Self-Audit Mode
 - **Status:** Active - Aegis QA is auditing itself
 - **Adjusted Context:** Developer Tools / QA Infrastructure
 - **Core Focus:** Hardware Monitoring & Static Analysis
@@ -1069,11 +1069,14 @@ Generated: ${timestamp}
       }
 
       console.log(`­ƒôØ Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 
 

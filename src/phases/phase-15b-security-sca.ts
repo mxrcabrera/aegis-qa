@@ -150,7 +150,7 @@ export class Phase15SecuritySCA {
       console.log(`  ��ᴩ�  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`��� Phase 15 failed: ${errorMessage}\n`);
 
@@ -221,7 +221,7 @@ export class Phase15SecuritySCA {
 
       console.log(`��� Analyzed ${packageCount} packages from lock file`);
 
-    } catch (error) {
+    } catch {
       console.warn(`��ᴩ�  Failed to analyze lock file:`, error instanceof Error ? error.message : error);
     }
 
@@ -278,7 +278,7 @@ export class Phase15SecuritySCA {
         }
       }
 
-    } catch (error) {
+    } catch {
       console.warn(`��ᴩ�  Failed to analyze licenses:`, error instanceof Error ? error.message : error);
     }
 
@@ -313,10 +313,10 @@ export class Phase15SecuritySCA {
       // Group findings by type
       const findingsByType = new Map<string, SCAFinding[]>();
       for (const finding of result.findings) {
-        if (!findingsByType.has(finding.type)) {
-          findingsByType.set(finding.type, []);
+        if (!findingsByType.has((finding as unknown).type)) {
+          findingsByType.set((finding as unknown).type, []);
         }
-        findingsByType.get(finding.type)!.push(finding);
+        findingsByType.get((finding as unknown).type)!.push(finding);
       }
 
       let findingsContent = '';
@@ -325,11 +325,11 @@ export class Phase15SecuritySCA {
 ### ${type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' ')} (${findings.length})
 `;
         for (const finding of findings) {
-          findingsContent += `- [${finding.id}] **${finding.severity.toUpperCase()}**`;
-          if (finding.packageName) {
-            findingsContent += ` ${finding.packageName}@${finding.packageVersion}`;
+          findingsContent += `- [${(finding as unknown).id}] **${(finding as unknown).severity.toUpperCase()}**`;
+          if ((finding as unknown).packageName) {
+            findingsContent += ` ${(finding as unknown).packageName}@${(finding as unknown).packageVersion}`;
           }
-          findingsContent += `\n  - ${finding.description}\n`;
+          findingsContent += `\n  - ${(finding as unknown).description}\n`;
         }
       }
 
@@ -364,10 +364,13 @@ Generated: ${timestamp}
       }
 
       console.log(`���� Partial report written: ${reportPath}`);
-    } catch (error) {
+    } catch {
       console.warn('��ᴩ�  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }
+
+
+
 
 

@@ -387,7 +387,7 @@ export class Phase16FixStrategyGeneration {
     const strategies: FixStrategy[] = [];
 
     for (const finding of this.config.findings) {
-      const filePath = finding.filePath;
+      const filePath = (finding as unknown).filePath;
       const fileDep = fileDependencies.find(f => f.filePath === filePath);
 
       if (!fileDep) {
@@ -395,12 +395,12 @@ export class Phase16FixStrategyGeneration {
       }
 
       const strategy: FixStrategy = {
-        findingId: finding.id,
+        findingId: (finding as unknown).id,
         filePath,
         safetyLevel: fileDep.safetyLevel,
         approach: this.determineApproach(fileDep),
         risk: this.determineRisk(fileDep),
-        suggestedFix: finding.suggestion || 'Review and fix issue',
+        suggestedFix: (finding as unknown).suggestion || 'Review and fix issue',
         blastRadius: fileDep.importCount,
       };
 
@@ -454,6 +454,9 @@ export class Phase16FixStrategyGeneration {
     }
   }
 }
+
+
+
 
 
 

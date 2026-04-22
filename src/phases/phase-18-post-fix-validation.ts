@@ -178,7 +178,7 @@ export class Phase18PostFixValidation {
         validationResult,
         executionTimeMs,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`ERROR Phase 18 failed: ${errorMessage}\n`);
 
@@ -215,7 +215,7 @@ export class Phase18PostFixValidation {
       
       console.log(`INFO Pre-fix baseline captured: ${errors.length} type errors`);
       return { errorCount: errors.length, errors };
-    } catch (error) {
+    } catch {
       const stderr = (error as unknown).stderr || '';
       const errors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
       
@@ -271,7 +271,7 @@ export class Phase18PostFixValidation {
 
       console.log('SUCCESS No new type errors detected. Global integrity maintained');
       return { status: 'passed', errorCount: postFixErrorCount, newErrors: 0 };
-    } catch (error) {
+    } catch {
       const stderr = (error as unknown).stderr || '';
       const postFixErrors = stderr ? stderr.split('\n').filter((line: string) => line.trim()) : [];
       const postFixErrorCount = postFixErrors.length;
@@ -371,7 +371,7 @@ export class Phase18PostFixValidation {
 
     // Compare findings to detect regressions
     for (const preFixFinding of preFixFindings) {
-      const filePath = preFixFinding.filePath;
+      const filePath = (preFixFinding as unknown).filePath;
       if (!filePath) continue;
 
       // Check if same zone has new errors post-fix
@@ -382,9 +382,9 @@ export class Phase18PostFixValidation {
           regressions.push({
             id: `regression-${Date.now()}`,
             filePath,
-            originalFindingType: preFixFinding.type || 'unknown',
-            newErrorType: postFixError.type || 'unknown',
-            description: `Fix for ${preFixFinding.type} introduced ${postFixError.type} in same zone`,
+            originalFindingType: (preFixFinding as unknown).type || 'unknown',
+            newErrorType: (postFixError as unknown).type || 'unknown',
+            description: `Fix for ${(preFixFinding as unknown).type} introduced ${(postFixError as unknown).type} in same zone`,
           });
         }
       }
@@ -406,12 +406,12 @@ export class Phase18PostFixValidation {
       return phaseData;
     }
 
-    if (phaseData.findings && Array.isArray(phaseData.findings)) {
-      return phaseData.findings;
+    if ((phaseData as unknown).findings && Array.isArray((phaseData as unknown).findings)) {
+      return (phaseData as unknown).findings;
     }
 
-    if (phaseData.codeFindings && Array.isArray(phaseData.codeFindings)) {
-      return phaseData.codeFindings;
+    if ((phaseData as unknown).codeFindings && Array.isArray((phaseData as unknown).codeFindings)) {
+      return (phaseData as unknown).codeFindings;
     }
 
     return [];
@@ -439,17 +439,17 @@ export class Phase18PostFixValidation {
    */
   private isRegression(preFixFinding: unknown, postFixError: unknown): boolean {
     // Check if they're in the same file and same line/zone
-    if (preFixFinding.filePath !== postFixError.filePath) {
+    if ((preFixFinding as unknown).filePath !== (postFixError as unknown).filePath) {
       return false;
     }
 
     // Check if post-fix error is different type (new error introduced)
-    if (preFixFinding.type === postFixError.type) {
+    if ((preFixFinding as unknown).type === (postFixError as unknown).type) {
       return false;
     }
 
     // Check if they're in the same zone (within 5 lines)
-    const lineDiff = Math.abs((preFixFinding.line || 0) - (postFixError.line || 0));
+    const lineDiff = Math.abs(((preFixFinding as unknown).line || 0) - ((postFixError as unknown).line || 0));
     if (lineDiff <= 5) {
       return true;
     }
@@ -515,7 +515,7 @@ export class Phase18PostFixValidation {
             }
           }
         }
-      } catch (error) {
+      } catch {
         console.warn(`WARNING Failed to check ${filePath} for security regressions:`, error instanceof Error ? error.message : error);
       }
     }
@@ -534,7 +534,7 @@ export class Phase18PostFixValidation {
   private getModifiedFiles(phase17Data: unknown): string[] {
     const modifiedFiles: string[] = [];
 
-    if (phase17Data.executionResult) {
+    if ((phase17Data as unknown).executionResult) {
       // In real implementation, would track modified files
       // For now, return empty array
     }
@@ -571,7 +571,7 @@ export class Phase18PostFixValidation {
           fs.unlinkSync(backupFile);
           filesCleaned++;
           console.log(`INFO Deleted backup file: ${backupFile}`);
-        } catch (error) {
+        } catch {
           console.warn(`WARNING Failed to delete backup file ${backupFile}:`, error instanceof Error ? error.message : error);
         }
       }
@@ -585,13 +585,13 @@ export class Phase18PostFixValidation {
           this.deleteFolderRecursive(zombieFolder);
           foldersCleaned++;
           console.log(`INFO Deleted zombie backup folder: ${zombieFolder}`);
-        } catch (error) {
+        } catch {
           console.warn(`WARNING Failed to delete zombie folder ${zombieFolder}:`, error instanceof Error ? error.message : error);
         }
       }
 
       console.log(`INFO Final Sanitization complete: ${filesCleaned} files, ${foldersCleaned} folders cleaned`);
-    } catch (error) {
+    } catch {
       console.error('ERROR Final Sanitization failed:', error instanceof Error ? error.message : error);
     }
 
@@ -685,7 +685,7 @@ export class Phase18PostFixValidation {
       } else {
         console.log('WARNING No qa-report.md found to lock');
       }
-    } catch (error) {
+    } catch {
       console.error('ERROR Failed to lock final report:', error instanceof Error ? error.message : error);
     }
   }
@@ -728,7 +728,7 @@ export class Phase18PostFixValidation {
       } else {
         console.log('INFO System temperature/usage normal. No breath needed.');
       }
-    } catch (error) {
+    } catch {
       console.warn('WARNING Failed to perform Big Breath:', error instanceof Error ? error.message : error);
     }
   }
@@ -762,5 +762,8 @@ export class Phase18PostFixValidation {
     return backupFiles;
   }
 }
+
+
+
 
 
