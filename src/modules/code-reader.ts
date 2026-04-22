@@ -548,7 +548,7 @@ export class CodeReader {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       console.warn(`[CodeReader] Failed to analyze imports: ${filePath}`);
       return undefined;
     }
