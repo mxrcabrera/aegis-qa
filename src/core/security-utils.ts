@@ -61,7 +61,7 @@ export function validatePath(filePath: string, projectRoot: string): boolean {
       /%2e%2e/i,  // URL-encoded ..
       /%5c/i,      // URL-encoded backslash
       /%2f/i,      // URL-encoded forward slash
-      /\.\.[\/\\]/, // Path traversal
+      /\.\.[/\\]/, // Path traversal
     ];
 
     if (suspiciousPatterns.some(pattern => pattern.test(filePath))) {
@@ -169,7 +169,7 @@ export function sanitizeError(error: unknown, _options?: {
     message = message.replace(/:\d{1,5}/g, ':[PORT]');
 
     // Remove usernames from paths
-    message = message.replace(/\/home\/[^\/]+/g, '/home/[USER]');
+    message = message.replace(/\/home\/[^/]+/g, '/home/[USER]');
     message = message.replace(/C:\\Users\\[^\\]+/g, 'C:\\Users\\[USER]');
 
     return message;
