@@ -229,7 +229,7 @@ export class Phase16FixStrategyGeneration {
             files.push(fullPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };
