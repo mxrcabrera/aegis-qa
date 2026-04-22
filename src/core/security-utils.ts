@@ -787,7 +787,7 @@ export const globalFileIOSandbox = createFileIOSandbox();
  * @param maxSizeKB - Maximum size in kilobytes (default: 1MB)
  * @returns Parsed object or null if invalid
  */
-export function safeJsonParse(json: string, maxSizeKB: number = 1024): any | null {
+export function safeJsonParse(json: string, maxSizeKB: number = 1024): unknown | null {
   // Check size
   if (json.length > maxSizeKB * 1024) {
     return null;
@@ -1174,7 +1174,7 @@ export async function verifyPackageLockIntegrity(lockFilePath: string): Promise<
     for (const [name, info] of Object.entries(dependencies)) {
       if (name === '') continue; // Skip root package
 
-      const depInfo = info as any;
+      const depInfo = info as { integrity?: string; version?: string; resolved?: string };
       const result: DependencyIntegrityResult = {
         valid: true,
         packageName: name,
