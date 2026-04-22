@@ -203,7 +203,13 @@ export class Phase0Setup {
       }
       console.log('Ô£à Critical files present\n');
 
-      // 4. Syntax Check
+      // 4. Project Type Detection
+      console.log('­ƒö½ Project Type Detection...');
+      const projectType = this.detectProjectType();
+      this.config.currentState.projectType = projectType;
+      console.log(`Ô£à Project type detected: ${projectType}\n`);
+
+      // 5. Syntax Check
       console.log('­ƒöì Syntax Check...');
       const syntaxResult = await this.checkSyntax();
 
@@ -298,6 +304,7 @@ export class Phase0Setup {
 - **Execution Time:** ${setupResults.executionTimeMs}ms
 
 ### Environment Validation
+- **Project Type:** ${this.config.currentState.projectType || 'unknown'}
 - **Dependencies:** ${setupResults.dependencies.valid ? ' Valid' : ' Invalid'}
   - node_modules: ${setupResults.dependencies.hasNodeModules ? ' Present' : ' Missing'}
   - Lockfile: ${setupResults.dependencies.lockfileType || 'none'}
@@ -458,6 +465,28 @@ Generated: ${timestamp}
       missing,
       present,
     };
+  }
+
+  /**
+   * Detects project type based on configuration files
+   *
+   * @private
+   * @returns Project type: 'typescript' | 'javascript' | 'mixed'
+   */
+  private detectProjectType(): 'typescript' | 'javascript' | 'mixed' {
+    const projectRoot = this.config.projectRoot;
+    const hasTsConfig = fs.existsSync(path.join(projectRoot, 'tsconfig.json'));
+    const hasJsConfig = fs.existsSync(path.join(projectRoot, 'jsconfig.json'));
+
+    if (hasTsConfig && hasJsConfig) {
+      return 'mixed';
+    } else if (hasTsConfig) {
+      return 'typescript';
+    } else if (hasJsConfig) {
+      return 'javascript';
+    } else {
+      return 'javascript';
+    }
   }
 
   /**

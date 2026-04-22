@@ -98,6 +98,8 @@ export interface ExecutionState {
   interruptionReason?: string;
   /** Analysis results cache (shared context between phases) */
   analysisResults?: Record<string, any>;
+  /** Project type detected: typescript | javascript | mixed */
+  projectType?: 'typescript' | 'javascript' | 'mixed';
   /** High risk blocker flag - if true, commits should be blocked */
   highRiskBlocker?: boolean;
   /** Context store for cross-phase communication */

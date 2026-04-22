@@ -15,6 +15,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
+ * Project type
+ */
+export type ProjectType = 'typescript' | 'javascript' | 'mixed';
+
+/**
  * TypeScript error from tsc --noEmit
  */
 export interface TSCError {
@@ -60,10 +65,12 @@ export class ErrorBaseline {
   private projectRoot: string;
   private baseline: ErrorBaselineData | null = null;
   private baselineFile: string;
+  private projectType: ProjectType;
 
-  constructor(projectRoot: string) {
+  constructor(projectRoot: string, projectType: ProjectType = 'typescript') {
     this.projectRoot = projectRoot;
     this.baselineFile = path.join(projectRoot, '.aegis-baseline.json');
+    this.projectType = projectType;
   }
 
   /**
@@ -72,6 +79,20 @@ export class ErrorBaseline {
    * @returns Promise<ErrorBaselineData> - Baseline data
    */
   async establishBaseline(): Promise<ErrorBaselineData> {
+    // Skip TSC baseline for JavaScript projects
+    if (this.projectType === 'javascript') {
+      console.log('[ErrorBaseline] JavaScript project detected - skipping TSC baseline');
+      const baseline: ErrorBaselineData = {
+        timestamp: new Date(),
+        totalErrors: 0,
+        errorsByFile: new Map(),
+        errors: [],
+        hash: this.generateHash([]),
+        source: 'skipped-javascript',
+      };
+      return baseline;
+    }
+
     console.log('[ErrorBaseline] Running pre-flight check: tsc --noEmit...');
 
     const retryHelper = new RetryHelper();
@@ -92,6 +113,7 @@ export class ErrorBaseline {
           errorsByFile,
           errors,
           hash,
+          source: 'tsc',
         };
 
         return baseline;
