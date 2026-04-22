@@ -103,6 +103,8 @@ interface ThermalConfig {
   ramCriticalThreshold: number;
   /** Warning RAM usage threshold percentage (default: 90) */
   ramWarningThreshold: number;
+  /** Whether CI mode is enabled (minimal thermal monitoring) */
+  ciMode?: boolean;
   /** Per-phase resource limits */
   phaseLimits?: Record<number, PhaseResourceLimits>;
 }
@@ -129,7 +131,6 @@ export class ThermalController {
   private gpuAvailable: boolean | null = null; // null = not checked yet, true = available, false = unavailable
   private gpuAvailabilityLogged: boolean = false; // Track if we've logged the GPU status
   private ciMode: boolean = false;
-  private maxCooldownMs: number = 30000;
 
   /**
    * Creates a new ThermalController instance
@@ -155,16 +156,20 @@ export class ThermalController {
           ramWarningThreshold: loadedConfig.thermal.ramWarningThreshold,
         };
 
-        // Set CI mode and max cooldown
+        // Set CI mode from config loader
         this.ciMode = loadedConfig.ci.enabled;
-        this.maxCooldownMs = loadedConfig.ci.maxCooldownMs;
 
         if (this.ciMode) {
-          console.log('[ThermalController] CI Mode enabled - using permissive thermal locks');
+          console.log('[ThermalController] CI Mode enabled - using minimal thermal monitoring (GPU disabled, cooldowns skipped, RAM-only)');
         }
       } catch {
         // Config loading failed, use defaults
       }
+    }
+
+    // Override ciMode if explicitly provided in config parameter (for testing)
+    if (config && config.ciMode !== undefined) {
+      this.ciMode = config.ciMode;
     }
 
     this.config = {
@@ -204,6 +209,11 @@ export class ThermalController {
    */
   async checkTemperature(): Promise<TemperatureReading> {
     this.lastCheckTime = Date.now();
+
+    // In CI mode, skip GPU monitoring completely (CI runners don't have GPU)
+    if (this.ciMode) {
+      return this.checkTemperatureFallback();
+    }
 
     // If GPU is known to be unavailable, monitor CPU/RAM instead
     if (this.gpuAvailable === false) {
@@ -358,9 +368,10 @@ export class ThermalController {
       return;
     }
 
-    // In CI mode, cap the cooldown to maxCooldownMs
-    if (this.ciMode && durationMs > this.maxCooldownMs) {
-      durationMs = this.maxCooldownMs;
+    // In CI mode, skip cooldowns completely (CI runners don't overheat)
+    if (this.ciMode) {
+      console.log('[ThermalController] CI mode: skipping cooldown (CI runners don\'t overheat)');
+      return;
     }
 
     this.cooldownActive = true;
@@ -497,7 +508,18 @@ export class ThermalController {
         category: this.categorizeSystemResources(cpuUsage, ramUsage),
       };
 
-      // Check critical thresholds
+      // In CI mode, only log warning for RAM > 90% to prevent OOM kills, don't block
+      if (this.ciMode) {
+        if (ramUsage >= 90) {
+          console.warn(
+            `[ThermalController] CI mode: RAM usage elevated (${ramUsage}%). ` +
+            `Monitor for potential OOM kills.`
+          );
+        }
+        return reading;
+      }
+
+      // Check critical thresholds (non-CI mode)
       if (cpuUsage >= this.config.cpuCriticalThreshold || ramUsage >= this.config.ramCriticalThreshold) {
         if (this.config.autoHalt) {
           throw new Error(
