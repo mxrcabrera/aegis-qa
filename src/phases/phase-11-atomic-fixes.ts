@@ -741,7 +741,7 @@ export class Phase11AtomicFixes {
 
       getFileSystem().writeFileSync(auditFilePath, JSON.stringify(auditData, null, 2), 'utf-8');
       console.log(`[AUDIT] Audit log written to: ${auditFilePath}`);
-    } catch {
+    } catch (error: unknown) {
       console.error(`[AUDIT] Failed to write audit log: ${error}`);
     }
   }

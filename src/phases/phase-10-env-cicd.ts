@@ -333,7 +333,7 @@ export class Phase10EnvCICD {
     const findings: EnvCICDFinding[] = [];
 
     // Check for secrets or private keys in repo (cross-reference with Phase 3)
-    const secretFindings = securityFindings.filter((f: { type: string }) =>
+    const secretFindings = (securityFindings as { type: string }[]).filter((f) =>
       f.type === 'secret-leak' || f.type === 'api-key-exposure' || f.type === 'hardcoded-secret'
     );
 
