@@ -97,13 +97,13 @@ export interface ExecutionState {
   /** Interruption reason */
   interruptionReason?: string;
   /** Analysis results cache (shared context between phases) */
-  analysisResults?: Record<string, any>;
+  analysisResults?: Record<string, unknown>;
   /** Project type detected: typescript | javascript | mixed */
   projectType?: 'typescript' | 'javascript' | 'mixed';
   /** High risk blocker flag - if true, commits should be blocked */
   highRiskBlocker?: boolean;
   /** Context store for cross-phase communication */
-  contextStore?: Record<string, any>;
+  contextStore?: Record<string, unknown>;
   /** Ready for audit flag - if true, report is ready for audit */
   readyForAudit?: boolean;
   /** Git stash reference for checkpoint (e.g., "stash@{0}") */
