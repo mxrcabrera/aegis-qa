@@ -15,7 +15,7 @@ interface Violation {
   id: string;
   type: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  file: any;
+  file: unknown;
   location: { line: number; column: number };
   message: string;
   rule: string;
@@ -48,8 +48,8 @@ interface HardwareMetrics {
 }
 
 interface RemediationResults {
-  appliedFixes: any[];
-  suggestedFixes: any[];
+  appliedFixes: unknown[];
+  suggestedFixes: unknown[];
   totalFixes: number;
 }
 
