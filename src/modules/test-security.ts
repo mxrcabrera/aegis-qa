@@ -18,13 +18,13 @@ interface TestResult {
   success: boolean;
   testName: string;
   message: string;
-  details?: any;
+  details?: unknown;
 }
 
 /**
  * Creates a mock DomainMap for testing
  */
-function createMockDomainMap(): any {
+function createMockDomainMap(): unknown {
   return {
     entities: [
       {
@@ -129,7 +129,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function createPayment(data: any) {
+export async function createPayment(data: unknown) {
   // This is safe because it's a Server Action
   const { data: payment } = await supabase.from('pagos').insert(data).select();
   return payment;
