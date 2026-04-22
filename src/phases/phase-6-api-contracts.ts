@@ -27,7 +27,7 @@ interface APIFinding {
   /** Unique ID based on file hash + line */
   id: string;
   /** Finding type */
-  type: 'missing-versioning' | 'missing-rate-limit' | 'cors-misconfig' | 'pii-exposure' | 'format-inconsistency' | 'missing-validation' | 'contract-issue';
+  type: 'missing-versioning' | 'missing-rate-limit' | 'cors-misconfig' | 'pii-exposure' | 'format-inconsistency' | 'missing-validation' | 'contract-issue' | 'missing-type-validation' | 'type-inconsistency';
   /** Severity: low, medium, high, critical */
   severity: 'low' | 'medium' | 'high' | 'critical';
   /** File path */
@@ -169,6 +169,10 @@ export class Phase6APIContracts {
         const fileFindings = await this.analyzeFile(file, isSaaS, isFintech, sensitiveFields, piiLeakFiles);
         findings.push(...fileFindings);
       }
+
+      // Run frontend/backend type consistency check
+      const typeConsistencyFindings = await this.analyzeTypeConsistency();
+      findings.push(...typeConsistencyFindings);
 
       const criticalFindings = findings.filter(f => f.severity === 'critical').length;
       const highSeverityFindings = findings.filter(f => f.severity === 'high').length;
@@ -323,6 +327,10 @@ export class Phase6APIContracts {
       // 4. Documentation Gap
       const docGapFindings = this.analyzeDocumentationGap(filePath, content, fileHash);
       findings.push(...docGapFindings);
+
+      // 5. Request/Response Type Validation
+      const typeValidationFindings = this.analyzeTypeValidation(filePath, content, fileHash, isCriticalModule);
+      findings.push(...typeValidationFindings);
 
       return findings;
     } catch (error) {
@@ -606,6 +614,162 @@ export class Phase6APIContracts {
         description: '­ƒÜ¿ Validation library detected but using `any` type in body or query params',
         suggestion: 'Using a validation tool but skipping it with `any` type is a red flag of technical negligence. Replace `any` with proper type definitions or validation schemas.',
       });
+    }
+
+    return findings;
+  }
+
+  /**
+   * Analyzes request/response type validation
+   *
+   * @private
+   * @param filePath - File path
+   * @param content - File content
+   * @param fileHash - File hash
+   * @param isCriticalModule - Whether file is in Critical Module
+   * @returns APIFinding[] - Type validation findings
+   */
+  private analyzeTypeValidation(filePath: string, content: string, fileHash: string, isCriticalModule: boolean): APIFinding[] {
+    const findings: APIFinding[] = [];
+
+    // Check for endpoint handlers (Express, NestJS, etc.)
+    const hasEndpointHandler = content.includes('req.') || 
+                               content.includes('request.') ||
+                               content.includes('res.') ||
+                               content.includes('response.') ||
+                               content.includes('@Get') ||
+                               content.includes('@Post') ||
+                               content.includes('@Put') ||
+                               content.includes('@Delete');
+
+    if (!hasEndpointHandler) {
+      return findings;
+    }
+
+    // Check for explicit return types
+    const hasReturnType = /:\s*\w+.*\(/.test(content) || 
+                          content.includes('Promise<') ||
+                          content.includes('Response<');
+
+    // Check for typed request bodies
+    const hasTypedBody = /body:\s*\w+/.test(content) || 
+                        /req\.body\s+as\s+\w+/.test(content) ||
+                        content.includes('z.object') ||
+                        content.includes('Joi.object');
+
+    if (!hasReturnType && hasEndpointHandler) {
+      const severity = isCriticalModule ? 'critical' : 'medium';
+      findings.push({
+        id: this.generateFindingId(fileHash, undefined, 'missing-type-validation'),
+        type: 'missing-type-validation',
+        severity,
+        filePath,
+        description: isCriticalModule
+          ? 'CRITICAL: Endpoint handler without explicit return type in Critical Module'
+          : 'Endpoint handler without explicit return type',
+        suggestion: isCriticalModule
+          ? 'Add explicit return types to endpoint handlers to ensure type safety. This is critical for Core Path modules.'
+          : 'Add explicit return types to endpoint handlers to ensure type safety and better developer experience.',
+      });
+    }
+
+    if (!hasTypedBody && content.includes('req.body') && !content.includes('any')) {
+      findings.push({
+        id: this.generateFindingId(fileHash, undefined, 'missing-type-validation'),
+        type: 'missing-type-validation',
+        severity: 'medium',
+        filePath,
+        description: 'Request body usage without type definition',
+        suggestion: 'Define a TypeScript interface or use a validation library (Zod, Joi) to type the request body.',
+      });
+    }
+
+    return findings;
+  }
+
+  /**
+   * Analyzes frontend/backend type consistency
+   *
+   * @private
+   * @returns Promise<APIFinding[]> - Type consistency findings
+   */
+  private async analyzeTypeConsistency(): Promise<APIFinding[]> {
+    const findings: APIFinding[] = [];
+
+    try {
+      // Look for shared type definitions
+      const { glob } = await import('glob');
+      
+      // Find backend type files
+      const backendTypeFiles = await glob('**/*.types.ts', {
+        cwd: this.config.projectRoot,
+        absolute: true,
+      });
+
+      // Find frontend type files
+      const frontendTypeFiles = await glob('frontend/**/*.ts', {
+        cwd: this.config.projectRoot,
+        absolute: true,
+      });
+
+      // Find shared types directories
+      const sharedTypeFiles = await glob('**/shared/**/*.ts', {
+        cwd: this.config.projectRoot,
+        absolute: true,
+      });
+
+      // Check if there's a shared types directory
+      if (sharedTypeFiles.length === 0 && backendTypeFiles.length > 0 && frontendTypeFiles.length > 0) {
+        findings.push({
+          id: this.generateFindingId('no-shared-types', undefined, 'type-inconsistency'),
+          type: 'type-inconsistency',
+          severity: 'medium',
+          filePath: this.config.projectRoot,
+          description: 'No shared types directory detected between frontend and backend',
+          suggestion: 'Create a shared types directory (e.g., /shared/types) to ensure type consistency between frontend and backend.',
+        });
+      }
+
+      // Check for duplicate type definitions
+      const typeNames = new Map<string, string[]>();
+      
+      for (const file of [...backendTypeFiles, ...frontendTypeFiles, ...sharedTypeFiles]) {
+        try {
+          const content = fs.readFileSync(file, 'utf-8');
+          const interfacePattern = /export\s+(interface|type)\s+(\w+)/g;
+          let match: RegExpExecArray | null;
+          
+          while ((match = interfacePattern.exec(content)) !== null) {
+            const typeName = match[2];
+            if (!typeNames.has(typeName)) {
+              typeNames.set(typeName, []);
+            }
+            typeNames.get(typeName)!.push(file);
+          }
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+
+      // Report duplicate type definitions
+      for (const [typeName, files] of typeNames) {
+        if (files.length > 1) {
+          // Check if files are in different directories (potential inconsistency)
+          const uniqueDirs = new Set(files.map(f => path.dirname(f)));
+          if (uniqueDirs.size > 1) {
+            findings.push({
+              id: this.generateFindingId('duplicate-type', undefined, 'type-inconsistency'),
+              type: 'type-inconsistency',
+              severity: 'low',
+              filePath: files[0],
+              description: `Type "${typeName}" defined in multiple locations: ${Array.from(uniqueDirs).join(', ')}`,
+              suggestion: 'Consolidate duplicate type definitions into a shared location to prevent inconsistencies.',
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to analyze type consistency:', error instanceof Error ? error.message : error);
     }
 
     return findings;
