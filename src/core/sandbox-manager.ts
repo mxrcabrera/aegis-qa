@@ -65,6 +65,7 @@ export class SandboxManager {
   private config: Required<SandboxConfig>;
   private sandboxDir: string;
   private isActive: boolean = false;
+  private _cleanupHandler?: NodeJS.SignalsListener;
 
   constructor(config: SandboxConfig) {
     this.config = {
@@ -242,7 +243,7 @@ export class SandboxManager {
     process.on('SIGINT', handler);
 
     // Store handler reference for later removal
-    (this as any)._cleanupHandler = handler;
+    this._cleanupHandler = handler;
   }
 
   /**
@@ -251,10 +252,10 @@ export class SandboxManager {
    * @private
    */
   private removeCleanupHandler(): void {
-    const handler = (this as any)._cleanupHandler;
+    const handler = this._cleanupHandler;
     if (handler) {
       process.removeListener('SIGINT', handler);
-      delete (this as any)._cleanupHandler;
+      delete this._cleanupHandler;
     }
   }
 
@@ -473,8 +474,8 @@ export class SandboxManager {
 
       console.log('[Sandbox] TypeScript validation passed');
       return { passed: true, errors: [], warnings: [] };
-    } catch (error: any) {
-      const errorMessage = error.stderr || error.message || 'Unknown error';
+    } catch (error: unknown) {
+      const errorMessage = (error as { stderr?: string; message?: string }).stderr || (error as { message?: string }).message || 'Unknown error';
       console.error('[Sandbox] TypeScript validation failed:', errorMessage);
 
       return {
@@ -502,8 +503,8 @@ export class SandboxManager {
 
       console.log('[Sandbox] ESLint validation passed');
       return { passed: true, errors: [], warnings: [] };
-    } catch (error: any) {
-      const errorMessage = error.stderr || error.message || 'Unknown error';
+    } catch (error: unknown) {
+      const errorMessage = (error as { stderr?: string; message?: string }).stderr || (error as { message?: string }).message || 'Unknown error';
       console.error('[Sandbox] ESLint validation failed:', errorMessage);
 
       return {
@@ -535,8 +536,8 @@ export class SandboxManager {
 
       console.log('[Sandbox] Tests passed');
       return { passed: true, errors: [], warnings: stderr.split('\n').filter(line => line.trim()) };
-    } catch (error: any) {
-      const errorMessage = error.stderr || error.message || 'Unknown error';
+    } catch (error: unknown) {
+      const errorMessage = (error as { stderr?: string; message?: string }).stderr || (error as { message?: string }).message || 'Unknown error';
       console.error('[Sandbox] Tests failed:', errorMessage);
 
       return {
@@ -626,9 +627,9 @@ export class SandboxManager {
 
       try {
         await execAsync(diffCommand, { timeout: 120000 });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // diff returns exit code 1 when files differ, which is expected
-        if (error.code === 1) {
+        if ((error as { code?: number }).code === 1) {
           // Expected - files differ
         } else {
           throw error;
