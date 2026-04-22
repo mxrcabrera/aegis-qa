@@ -682,7 +682,7 @@ export class StackDetector {
       };
 
       return await scanDir(this.projectRoot);
-    } catch (error) {
+    } catch {
       return false;
     }
   }
