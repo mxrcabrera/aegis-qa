@@ -1,4 +1,4 @@
-ï»¿/**
+/**
  * Phase 6: API & Contracts
  *
  * Purpose: Audit service exposure, endpoints, and data contract consistency.
@@ -109,7 +109,7 @@ export class Phase6APIContracts {
    */
   async execute(): Promise<Phase6Result> {
     const startTime = Date.now();
-    console.log('Â­Æ’Ã®Ã‰ Phase 6: API & Contracts\n');
+    console.log('­ƒîÉ Phase 6: API & Contracts\n');
 
     try {
       // Get BusinessProfile from Phase 2 for domain context
@@ -118,7 +118,7 @@ export class Phase6APIContracts {
       const isSaaS = domain === 'SaaS';
       const isFintech = domain === 'Fintech';
 
-      console.log(`Â­Æ’Ã„Â» Domain Context: ${domain}${isSaaS || isFintech ? ' (Strict Mode for Rate Limiting/CORS)' : ''}\n`);
+      console.log(`­ƒÄ» Domain Context: ${domain}${isSaaS || isFintech ? ' (Strict Mode for Rate Limiting/CORS)' : ''}\n`);
 
       // Get Phase 3 security results for PII context
       const phase3Results = this.config.statePersistence.getAnalysisResults(3, this.config.currentState);
@@ -136,14 +136,14 @@ export class Phase6APIContracts {
           .map((f: any) => f.filePath)
       );
 
-      console.log(`Â­Æ’Ã¶Ã¬ Context: ${sensitiveFields.size} sensitive fields from Phase 3`);
-      console.log(`Â­Æ’Ã¶Ã¬ Context: ${piiLeakFiles.size} files with PII leak in logs\n`);
+      console.log(`­ƒöì Context: ${sensitiveFields.size} sensitive fields from Phase 3`);
+      console.log(`­ƒöì Context: ${piiLeakFiles.size} files with PII leak in logs\n`);
 
       // Scan for API files
       const files = await this.scanAPIFiles();
 
       if (files.length === 0) {
-        console.log('Ã”ÃœÃ¡Â´Â©Ã…  No API files found for analysis\n');
+        console.log('ÔÜá´©Å  No API files found for analysis\n');
         
         const result: Phase6Result = {
           success: true,
@@ -161,7 +161,7 @@ export class Phase6APIContracts {
         return result;
       }
 
-      console.log(`Â­Æ’Ã´Ã© Analyzing ${files.length} API files...\n`);
+      console.log(`­ƒôé Analyzing ${files.length} API files...\n`);
 
       const findings: APIFinding[] = [];
 
@@ -190,15 +190,15 @@ export class Phase6APIContracts {
       await this.writePartialReport(result, domain);
       await this.config.statePersistence.saveState(this.config.currentState);
 
-      console.log(`Ã”Â£Ã  Phase 6 Complete`);
-      console.log(`  Â­Æ’Ã¶Ã¬ Total findings: ${findings.length}`);
-      console.log(`  Â­Æ’ÃœÂ¿ Critical findings: ${criticalFindings}`);
-      console.log(`  Ã”ÃœÃ¡Â´Â©Ã…  High severity findings: ${highSeverityFindings}\n`);
+      console.log(`Ô£à Phase 6 Complete`);
+      console.log(`  ­ƒöì Total findings: ${findings.length}`);
+      console.log(`  ­ƒÜ¿ Critical findings: ${criticalFindings}`);
+      console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Ã”Ã˜Ã® Phase 6 failed: ${errorMessage}\n`);
+      console.error(`ÔØî Phase 6 failed: ${errorMessage}\n`);
 
       const result: Phase6Result = {
         success: false,
@@ -307,7 +307,7 @@ export class Phase6APIContracts {
           type: 'pii-exposure',
           severity: 'critical',
           filePath,
-          description: 'Â­Æ’ÃœÂ¿ CRITICAL: API Controller with PII leak in logs detected',
+          description: '­ƒÜ¿ CRITICAL: API Controller with PII leak in logs detected',
           suggestion: 'This file has both PII leak in console.log (Phase 3) and API endpoint exposure. This is a critical security risk. Remove all PII from logs and ensure API responses do not expose sensitive data.',
         });
       }
@@ -334,7 +334,7 @@ export class Phase6APIContracts {
 
       return findings;
     } catch (error) {
-      console.warn(`Ã”ÃœÃ¡Â´Â©Ã…  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
+      console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
   }
@@ -427,7 +427,7 @@ export class Phase6APIContracts {
         
         if (isPublicAPI) {
           severity = 'critical';
-          description = `Â­Æ’ÃœÂ¿ CRITICAL: Missing Rate Limiting in public API (${isFintech ? 'Fintech' : 'SaaS'} domain)`;
+          description = `­ƒÜ¿ CRITICAL: Missing Rate Limiting in public API (${isFintech ? 'Fintech' : 'SaaS'} domain)`;
         } else if (isInternalAPI || isAdminAPI) {
           severity = 'low';
           description = `Missing Rate Limiting in ${isInternalAPI ? 'internal' : 'admin'} API`;
@@ -589,7 +589,7 @@ export class Phase6APIContracts {
     if (hasRequestBody && !hasValidation) {
       const severity = isCriticalModule ? 'critical' : 'medium';
       const description = isCriticalModule
-        ? 'Â­Æ’ÃœÂ¿ CRITICAL: Endpoint in Critical Module without input validation'
+        ? '­ƒÜ¿ CRITICAL: Endpoint in Critical Module without input validation'
         : 'Endpoint without input validation detected';
 
       findings.push({
@@ -611,7 +611,7 @@ export class Phase6APIContracts {
         type: 'missing-validation',
         severity: 'high',
         filePath,
-        description: 'Â­Æ’ÃœÂ¿ Validation library detected but using `any` type in body or query params',
+        description: '­ƒÜ¿ Validation library detected but using `any` type in body or query params',
         suggestion: 'Using a validation tool but skipping it with `any` type is a red flag of technical negligence. Replace `any` with proper type definitions or validation schemas.',
       });
     }
@@ -814,7 +814,7 @@ export class Phase6APIContracts {
       }
 
       const reportContent = `
-## Phase 6: API & Contracts - Ã”Â£Ã  PASSED
+## Phase 6: API & Contracts - Ô£à PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${result.executionTimeMs}ms
 - **Domain:** ${domain}
@@ -843,9 +843,9 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
       }
 
-      console.log(`Â­Æ’Ã´Ã˜ Partial report written: ${reportPath}`);
+      console.log(`­ƒôØ Partial report written: ${reportPath}`);
     } catch (error) {
-      console.warn('Ã”ÃœÃ¡Â´Â©Ã…  Failed to write partial report:', error instanceof Error ? error.message : error);
+      console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }

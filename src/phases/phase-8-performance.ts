@@ -1,4 +1,4 @@
-ï»¿/**
+/**
  * Phase 8: Performance & Scalability
  *
  * Purpose: Detect bottlenecks, memory leaks, and patterns that impede scaling.
@@ -107,7 +107,7 @@ export class Phase8Performance {
    */
   async execute(): Promise<Phase8Result> {
     const startTime = Date.now();
-    console.log('Ã”ÃœÃ­ Phase 8: Performance & Scalability\n');
+    console.log('ÔÜí Phase 8: Performance & Scalability\n');
 
     try {
       // Get Phase 2 results for Critical Modules and Domain context
@@ -124,16 +124,16 @@ export class Phase8Performance {
       const phase4Results = this.config.statePersistence.getAnalysisResults(4, this.config.currentState);
       const databaseFindings = phase4Results?.findings || [];
 
-      console.log(`Â­Æ’Ã„Â» Domain Context: ${domain}${isFintech ? ' (Fintech - Strict Mode for Performance)' : ''}\n`);
-      console.log(`Â­Æ’Ã„Â» Context: ${criticalModules.length} Critical Modules from Phase 2\n`);
-      console.log(`Â­Æ’Ã¶Ã¬ Context: ${Object.keys(complexityScores).length} complexity scores from Phase 1\n`);
-      console.log(`Â­Æ’Ã¶Ã¬ Context: ${databaseFindings.length} database findings from Phase 4\n`);
+      console.log(`­ƒÄ» Domain Context: ${domain}${isFintech ? ' (Fintech - Strict Mode for Performance)' : ''}\n`);
+      console.log(`­ƒÄ» Context: ${criticalModules.length} Critical Modules from Phase 2\n`);
+      console.log(`­ƒöì Context: ${Object.keys(complexityScores).length} complexity scores from Phase 1\n`);
+      console.log(`­ƒöì Context: ${databaseFindings.length} database findings from Phase 4\n`);
 
       // Scan for source files
       const files = await this.scanFiles();
 
       if (files.length === 0) {
-        console.log('Ã”ÃœÃ¡Â´Â©Ã…  No source files found for analysis\n');
+        console.log('ÔÜá´©Å  No source files found for analysis\n');
         
         const result: Phase8Result = {
           success: true,
@@ -151,7 +151,7 @@ export class Phase8Performance {
         return result;
       }
 
-      console.log(`Â­Æ’Ã´Ã© Analyzing ${files.length} source files...\n`);
+      console.log(`­ƒôé Analyzing ${files.length} source files...\n`);
 
       const findings: PerformanceFinding[] = [];
 
@@ -176,15 +176,15 @@ export class Phase8Performance {
       await this.writePartialReport(result);
       await this.config.statePersistence.saveState(this.config.currentState);
 
-      console.log(`Ã”Â£Ã  Phase 8 Complete`);
-      console.log(`  Â­Æ’Ã¶Ã¬ Total findings: ${findings.length}`);
-      console.log(`  Â­Æ’ÃœÂ¿ Critical findings: ${criticalFindings}`);
-      console.log(`  Ã”ÃœÃ¡Â´Â©Ã…  High severity findings: ${highSeverityFindings}\n`);
+      console.log(`Ô£à Phase 8 Complete`);
+      console.log(`  ­ƒöì Total findings: ${findings.length}`);
+      console.log(`  ­ƒÜ¿ Critical findings: ${criticalFindings}`);
+      console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}\n`);
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Ã”Ã˜Ã® Phase 8 failed: ${errorMessage}\n`);
+      console.error(`ÔØî Phase 8 failed: ${errorMessage}\n`);
 
       const result: Phase8Result = {
         success: false,
@@ -288,7 +288,7 @@ export class Phase8Performance {
 
       return findings;
     } catch (error) {
-      console.warn(`Ã”ÃœÃ¡Â´Â©Ã…  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
+      console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
   }
@@ -333,7 +333,7 @@ export class Phase8Performance {
           filePath,
           line: lineNumber,
           description: isCriticalModule 
-            ? `Â­Æ’ÃœÂ¿ CRITICAL: useEffect with eventListeners/subscriptions missing cleanup in Critical Module`
+            ? `­ƒÜ¿ CRITICAL: useEffect with eventListeners/subscriptions missing cleanup in Critical Module`
             : 'useEffect with eventListeners/subscriptions missing cleanup function',
           suggestion: isCriticalModule
             ? 'This is in the Critical Path. Add a cleanup function immediately. Missing cleanup causes memory leaks that will crash production.'
@@ -362,7 +362,7 @@ export class Phase8Performance {
           filePath,
           line: lineNumber,
           description: isCriticalModule
-            ? `Â­Æ’ÃœÂ¿ CRITICAL: addEventListener without corresponding removeEventListener in Critical Module`
+            ? `­ƒÜ¿ CRITICAL: addEventListener without corresponding removeEventListener in Critical Module`
             : 'addEventListener without corresponding removeEventListener',
           suggestion: isCriticalModule
             ? 'This is in the Critical Path. Always remove event listeners to prevent memory leaks that will crash production.'
@@ -391,7 +391,7 @@ export class Phase8Performance {
           filePath,
           line: lineNumber,
           description: isFintech
-            ? `Â­Æ’ÃœÂ¿ CRITICAL: Database connection without close/disconnect in Fintech domain`
+            ? `­ƒÜ¿ CRITICAL: Database connection without close/disconnect in Fintech domain`
             : 'Database connection without corresponding close/disconnect',
           suggestion: isFintech
             ? 'Fintech requires strict resource management. Always close database connections to prevent connection pool exhaustion. This will crash production under load.'
@@ -443,7 +443,7 @@ export class Phase8Performance {
 
       if (complexity > 15 && isCriticalModule) {
         severity = 'critical';
-        description = `Â­Æ’ÃœÂ¿ CRITICAL: Heavy computation in High Complexity (${complexity}) Critical Module - This will freeze the app under load`;
+        description = `­ƒÜ¿ CRITICAL: Heavy computation in High Complexity (${complexity}) Critical Module - This will freeze the app under load`;
         suggestion = 'This file has high complexity AND is in the Critical Path. Heavy computations here will freeze the entire application under load. Move to Web Workers immediately.';
       } else if (complexity > 10 || isCriticalModule) {
         severity = 'high';
@@ -523,9 +523,9 @@ export class Phase8Performance {
         filePath,
         line: lineNumber,
         description: isFintech
-          ? `Â­Æ’ÃœÂ¿ CRITICAL: Blocking synchronous file operation in Fintech domain`
+          ? `­ƒÜ¿ CRITICAL: Blocking synchronous file operation in Fintech domain`
           : isCriticalModule
-          ? `Â­Æ’ÃœÂ¿ CRITICAL: Blocking synchronous file operation in Critical Module`
+          ? `­ƒÜ¿ CRITICAL: Blocking synchronous file operation in Critical Module`
           : 'Blocking synchronous file operation detected',
         suggestion: isFintech
           ? 'Fintech requires strict non-blocking I/O. Use async file operations (readFile, writeFile) immediately. Blocking operations will crash production under load.'
@@ -620,7 +620,7 @@ export class Phase8Performance {
       }
 
       const reportContent = `
-## Phase 8: Performance & Scalability - Ã”Â£Ã  PASSED
+## Phase 8: Performance & Scalability - Ô£à PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${result.executionTimeMs}ms
 
@@ -648,9 +648,9 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
       }
 
-      console.log(`Â­Æ’Ã´Ã˜ Partial report written: ${reportPath}`);
+      console.log(`­ƒôØ Partial report written: ${reportPath}`);
     } catch (error) {
-      console.warn('Ã”ÃœÃ¡Â´Â©Ã…  Failed to write partial report:', error instanceof Error ? error.message : error);
+      console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }

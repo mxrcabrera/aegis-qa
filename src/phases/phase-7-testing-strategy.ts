@@ -1,4 +1,4 @@
-ï»¿/**
+/**
  * Phase 7: Testing Strategy
  *
  * Purpose: Evaluate test infrastructure and detect testing blind spots.
@@ -111,7 +111,7 @@ export class Phase7TestingStrategy {
    */
   async execute(): Promise<Phase7Result> {
     const startTime = Date.now();
-    console.log('Â­Æ’ÂºÂ¬ Phase 7: Testing Strategy\n');
+    console.log('­ƒº¬ Phase 7: Testing Strategy\n');
 
     try {
       // Get BusinessProfile from Phase 2 for domain context and Critical Modules
@@ -120,8 +120,8 @@ export class Phase7TestingStrategy {
       const criticalModules = businessProfile?.corePaths || [];
       const isFintech = domain === 'Fintech';
 
-      console.log(`Â­Æ’Ã„Â» Domain Context: ${domain}${isFintech ? ' (Fintech - Strict Mode for Integration Tests)' : ''}\n`);
-      console.log(`Â­Æ’Ã„Â» Context: ${criticalModules.length} Critical Modules from Phase 2\n`);
+      console.log(`­ƒÄ» Domain Context: ${domain}${isFintech ? ' (Fintech - Strict Mode for Integration Tests)' : ''}\n`);
+      console.log(`­ƒÄ» Context: ${criticalModules.length} Critical Modules from Phase 2\n`);
 
       // Get Phase 1 results for Cross-Phase Coverage Gap
       const phase1Results = this.config.statePersistence.getAnalysisResults(1, this.config.currentState);
@@ -131,7 +131,7 @@ export class Phase7TestingStrategy {
       const sourceFiles = await this.scanSourceFiles();
       const testFiles = await this.scanTestFiles();
 
-      console.log(`Â­Æ’Ã´Ã© Analyzing ${sourceFiles.length} source files and ${testFiles.length} test files...\n`);
+      console.log(`­ƒôé Analyzing ${sourceFiles.length} source files and ${testFiles.length} test files...\n`);
 
       const findings: TestingFinding[] = [];
 
@@ -170,16 +170,16 @@ export class Phase7TestingStrategy {
       await this.writePartialReport(result, domain);
       await this.config.statePersistence.saveState(this.config.currentState);
 
-      console.log(`Ã”Â£Ã  Phase 7 Complete`);
-      console.log(`  Â­Æ’Ã¶Ã¬ Total findings: ${findings.length}`);
-      console.log(`  Â­Æ’ÃœÂ¿ Critical findings: ${criticalFindings}`);
-      console.log(`  Ã”ÃœÃ¡Â´Â©Ã…  High severity findings: ${highSeverityFindings}`);
-      console.log(`  Â­Æ’Ã´Ã¨ Source files: ${sourceFiles.length}, Test files: ${testFiles.length}\n`);
+      console.log(`Ô£à Phase 7 Complete`);
+      console.log(`  ­ƒöì Total findings: ${findings.length}`);
+      console.log(`  ­ƒÜ¿ Critical findings: ${criticalFindings}`);
+      console.log(`  ÔÜá´©Å  High severity findings: ${highSeverityFindings}`);
+      console.log(`  ­ƒôè Source files: ${sourceFiles.length}, Test files: ${testFiles.length}\n`);
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Ã”Ã˜Ã® Phase 7 failed: ${errorMessage}\n`);
+      console.error(`ÔØî Phase 7 failed: ${errorMessage}\n`);
 
       const result: Phase7Result = {
         success: false,
@@ -332,7 +332,7 @@ export class Phase7TestingStrategy {
           type: 'missing-test',
           severity: 'critical',
           filePath: sourceFile,
-          description: 'Â­Æ’ÃœÂ¿ CRITICAL: Core Path file without associated test',
+          description: '­ƒÜ¿ CRITICAL: Core Path file without associated test',
           suggestion: 'This file is in the Core Path and has no test coverage. Create a test file to ensure critical business logic is shielded.',
         });
       }
@@ -494,7 +494,7 @@ export class Phase7TestingStrategy {
 
       return findings;
     } catch (error) {
-      console.warn(`Ã”ÃœÃ¡Â´Â©Ã…  Failed to analyze test file ${testFilePath}:`, error instanceof Error ? error.message : error);
+      console.warn(`ÔÜá´©Å  Failed to analyze test file ${testFilePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
   }
@@ -538,7 +538,7 @@ export class Phase7TestingStrategy {
             type: 'urgent-testing-debt',
             severity: 'critical',
             filePath: sourceFile,
-            description: `Â­Æ’ÃœÂ¿ URGENT TESTING DEBT: High complexity (${complexity}) Core Path file without unit test`,
+            description: `­ƒÜ¿ URGENT TESTING DEBT: High complexity (${complexity}) Core Path file without unit test`,
             suggestion: 'This file has high complexity and is in the Core Path. Create comprehensive unit tests to cover all logical branches. High complexity without tests is a ticking time bomb.',
           });
         }
@@ -594,7 +594,7 @@ export class Phase7TestingStrategy {
         severity,
         filePath: 'project',
         description: isFintech 
-          ? 'Â­Æ’ÃœÂ¿ Fintech domain without integration tests detected'
+          ? '­ƒÜ¿ Fintech domain without integration tests detected'
           : 'No integration tests detected, only unit tests',
         suggestion: isFintech
           ? 'For Fintech, integration tests are critical. Add tests that touch the database and API to ensure data integrity and transaction correctness.'
@@ -666,7 +666,7 @@ export class Phase7TestingStrategy {
       }
 
       const reportContent = `
-## Phase 7: Testing Strategy - Ã”Â£Ã  PASSED
+## Phase 7: Testing Strategy - Ô£à PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${result.executionTimeMs}ms
 - **Domain:** ${domain}
@@ -697,9 +697,9 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
       }
 
-      console.log(`Â­Æ’Ã´Ã˜ Partial report written: ${reportPath}`);
+      console.log(`­ƒôØ Partial report written: ${reportPath}`);
     } catch (error) {
-      console.warn('Ã”ÃœÃ¡Â´Â©Ã…  Failed to write partial report:', error instanceof Error ? error.message : error);
+      console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }

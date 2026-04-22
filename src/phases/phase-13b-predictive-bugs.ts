@@ -1,4 +1,4 @@
-ï»¿/**
+/**
  * Phase 13: Predictive Bugs
  *
  * Purpose: Analyzes code patterns to predict potential bugs before they occur.
@@ -81,13 +81,13 @@ export class Phase13PredictiveBugs {
    */
   async execute(): Promise<Phase13Result> {
     const startTime = Date.now();
-    console.log('Â­Æ’Ã¶Â« Phase 13: Predictive Bugs\n');
+    console.log('­ƒö« Phase 13: Predictive Bugs\n');
 
     try {
       const files = await this.scanSourceFiles();
 
       if (files.length === 0) {
-        console.log('Ã”ÃœÃ¡Â´Â©Ã…  No source files found for analysis\n');
+        console.log('ÔÜá´©Å  No source files found for analysis\n');
         
         const result: Phase13Result = {
           success: true,
@@ -105,7 +105,7 @@ export class Phase13PredictiveBugs {
         return result;
       }
 
-      console.log(`Â­Æ’Ã´Ã© Analyzing ${files.length} source files...\n`);
+      console.log(`­ƒôé Analyzing ${files.length} source files...\n`);
 
       const predictions = await this.predictiveBugDetection.analyzeFiles(files);
 
@@ -125,15 +125,15 @@ export class Phase13PredictiveBugs {
       await this.writePartialReport(result);
       await this.config.statePersistence.saveState(this.config.currentState);
 
-      console.log(`Ã”Â£Ã  Phase 13 Complete`);
-      console.log(`  Â­Æ’Ã¶Ã¬ Total predictions: ${predictions.length}`);
-      console.log(`  Â­Æ’ÃœÂ¿ High risk: ${highRiskCount}`);
-      console.log(`  Ã”ÃœÃ¡Â´Â©Ã…  Medium risk: ${mediumRiskCount}\n`);
+      console.log(`Ô£à Phase 13 Complete`);
+      console.log(`  ­ƒöì Total predictions: ${predictions.length}`);
+      console.log(`  ­ƒÜ¿ High risk: ${highRiskCount}`);
+      console.log(`  ÔÜá´©Å  Medium risk: ${mediumRiskCount}\n`);
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Ã”Ã˜Ã® Phase 13 failed: ${errorMessage}\n`);
+      console.error(`ÔØî Phase 13 failed: ${errorMessage}\n`);
 
       const result: Phase13Result = {
         success: false,
@@ -223,7 +223,7 @@ export class Phase13PredictiveBugs {
       const summary = this.predictiveBugDetection.generateSummary(result.predictions);
 
       const reportContent = `
-## Phase 13: Predictive Bugs - Ã”Â£Ã  PASSED
+## Phase 13: Predictive Bugs - Ô£à PASSED
 - **Timestamp:** ${timestamp}
 - **Execution Time:** ${result.executionTimeMs}ms
 
@@ -252,9 +252,9 @@ Generated: ${timestamp}
         fs.writeFileSync(reportPath, header + reportContent, 'utf-8');
       }
 
-      console.log(`Â­Æ’Ã´Ã˜ Partial report written: ${reportPath}`);
+      console.log(`­ƒôØ Partial report written: ${reportPath}`);
     } catch (error) {
-      console.warn('Ã”ÃœÃ¡Â´Â©Ã…  Failed to write partial report:', error instanceof Error ? error.message : error);
+      console.warn('ÔÜá´©Å  Failed to write partial report:', error instanceof Error ? error.message : error);
     }
   }
 }

@@ -523,7 +523,7 @@ export class AtomicFixer {
     }
 
     // Sort fixes within each file by severity (highest first), then by line (descending)
-    for (const [_file, fileFixes] of fileGroups.entries()) {
+    for (const [, fileFixes] of fileGroups.entries()) {
       fileFixes.sort((a, b) => {
         // Sort by severity: critical > high > medium > low
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };

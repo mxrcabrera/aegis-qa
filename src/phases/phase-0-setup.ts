@@ -1,4 +1,4 @@
-ï»¿/**
+/**
  * Phase 0: Setup - Hotel Check-in
  *
  * Purpose: Initial validation and setup before starting the QA process.
@@ -152,11 +152,11 @@ export class Phase0Setup {
    */
   async execute(): Promise<Phase0Result> {
     const startTime = Date.now();
-    console.log('Â­Æ’Ã…Â¿ Phase 0: Setup - Hotel Check-in\n');
+    console.log('­ƒÅ¿ Phase 0: Setup - Hotel Check-in\n');
 
     try {
       // 1. Hardware Lock - Run self-diagnostic first
-      console.log('Â­Æ’Ã¶Ã† Hardware Lock...');
+      console.log('­ƒöÆ Hardware Lock...');
       const hardwareResult = await this.checkHardware();
       if (!hardwareResult.passed) {
         return {
@@ -169,10 +169,10 @@ export class Phase0Setup {
           error: 'Hardware diagnostic failed',
         };
       }
-      console.log('Ã”Â£Ã  Hardware lock passed\n');
+      console.log('Ô£à Hardware lock passed\n');
 
       // 2. Dependencies Check
-      console.log('Â­Æ’Ã´Âª Dependencies Check...');
+      console.log('­ƒôª Dependencies Check...');
       const depsResult = await this.checkDependencies();
       if (!depsResult.valid) {
         return {
@@ -185,10 +185,10 @@ export class Phase0Setup {
           error: 'Dependencies check failed',
         };
       }
-      console.log('Ã”Â£Ã  Dependencies valid\n');
+      console.log('Ô£à Dependencies valid\n');
 
       // 3. Critical Files Check
-      console.log('Â­Æ’Ã´Ã¤ Critical Files Check...');
+      console.log('­ƒôä Critical Files Check...');
       const criticalFilesResult = this.checkCriticalFiles();
       if (!criticalFilesResult.complete) {
         return {
@@ -201,21 +201,21 @@ export class Phase0Setup {
           error: `Missing critical files: ${criticalFilesResult.missing.join(', ')}`,
         };
       }
-      console.log('Ã”Â£Ã  Critical files present\n');
+      console.log('Ô£à Critical files present\n');
 
       // 4. Project Type Detection
-      console.log('Â­Æ’Ã¶Â½ Project Type Detection...');
+      console.log('­ƒö½ Project Type Detection...');
       const projectType = this.detectProjectType();
       this.config.currentState.projectType = projectType;
-      console.log(`Ã”Â£Ã  Project type detected: ${projectType}\n`);
+      console.log(`Ô£à Project type detected: ${projectType}\n`);
 
       // 5. Syntax Check
-      console.log('Â­Æ’Ã¶Ã¬ Syntax Check...');
+      console.log('­ƒöì Syntax Check...');
       const syntaxResult = await this.checkSyntax();
 
       // If any check fails, halt the process
       if (!depsResult.valid || !criticalFilesResult.complete || !syntaxResult.valid) {
-        console.error('\nÃ”Ã˜Ã® Phase 0 Setup failed. Project is not ready for QA analysis.');
+        console.error('\nÔØî Phase 0 Setup failed. Project is not ready for QA analysis.');
         
         if (!depsResult.valid) {
           console.error('  - Dependency check failed');
@@ -318,7 +318,7 @@ export class Phase0Setup {
 
 ### Hardware Diagnostic
 - **Status:** ${setupResults.hardware.passed ? ' Passed' : ' Failed'}
-- **Temperature Rise Rate:** ${setupResults.hardware.temperatureRiseRate}â”¬â–‘C/min
+- **Temperature Rise Rate:** ${setupResults.hardware.temperatureRiseRate}-¦C/min
 
 ### Hardware Profile
 - **Recommended Batch Size:** ${setupResults.hardware.recommendedBatchSize || 20}

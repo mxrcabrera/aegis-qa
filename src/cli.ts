@@ -1,4 +1,4 @@
-ï»¿#!/usr/bin/env node
+#!/usr/bin/env node
 
 /**
  * Aegis QA - CLI Entry Point
@@ -216,8 +216,8 @@ class AegisCLI {
     }
 
     if (!this.config.ciMode) {
-      console.log('Â­Æ’Ã¸Ã­Â´Â©Ã…  Aegis QA - Advanced Quality Assurance Orchestrator');
-      console.log(`Â­Æ’Ã´Ã© Target Directory: ${resolve(targetDir)}\n`);
+      console.log('­ƒøí´©Å  Aegis QA - Advanced Quality Assurance Orchestrator');
+      console.log(`­ƒôé Target Directory: ${resolve(targetDir)}\n`);
     }
 
     // Initialize core components
@@ -245,24 +245,24 @@ class AegisCLI {
 
     // Establish error baseline before running phases
     if (!this.config.ciMode) {
-      console.log('Â­Æ’Ã¶Â¼ Establishing error baseline...');
+      console.log('­ƒö¼ Establishing error baseline...');
     }
     await reportAggregator.establishBaseline();
     if (!this.config.ciMode) {
-      console.log('Ã”Â£Ã  Baseline established\n');
+      console.log('Ô£à Baseline established\n');
     }
 
     // Run self-diagnostic stress test on startup
     if (!this.config.skipThermal) {
       if (!this.config.ciMode) {
-        console.log('Â­Æ’Ã¶Â¼ Running self-diagnostic stress test...');
+        console.log('­ƒö¼ Running self-diagnostic stress test...');
       }
       const diagnosticResult = await thermalController.runSelfDiagnostic(5000);
       if (!this.config.ciMode) {
         console.log(`  Diagnostic passed: ${diagnosticResult.pass}`);
-        console.log(`  Temperature rise rate: ${diagnosticResult.temperatureRiseRate.toFixed(2)}â”¬â–‘C/s`);
+        console.log(`  Temperature rise rate: ${diagnosticResult.temperatureRiseRate.toFixed(2)}-¦C/s`);
         console.log(`  Thresholds adjusted: ${diagnosticResult.adjustedThresholds}`);
-        console.log('Ã”Â£Ã  Self-diagnostic complete\n');
+        console.log('Ô£à Self-diagnostic complete\n');
       }
     }
 
@@ -291,7 +291,7 @@ class AegisCLI {
 
     // Detect hardware capabilities
     if (!this.config.ciMode) {
-      console.log('Â­Æ’Ã¶Âº Detecting hardware capabilities...');
+      console.log('­ƒöº Detecting hardware capabilities...');
     }
     const hardwareProfile = await thermalController.detectHardwareCapabilities();
     if (!this.config.ciMode) {
@@ -301,7 +301,7 @@ class AegisCLI {
       console.log(`  RAM: ${hardwareProfile.ramTotal}GB`);
       console.log(`  Recommended Batch Size: ${hardwareProfile.recommendedBatchSize}`);
       console.log(`  Recommended Cooldown: ${hardwareProfile.recommendedCooldown}ms`);
-      console.log('Ã”Â£Ã  Hardware detection complete\n');
+      console.log('Ô£à Hardware detection complete\n');
     }
 
     // Create phase orchestrator with execution hardening enabled
@@ -390,7 +390,7 @@ class AegisCLI {
 
   private async runReview(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
     if (!this.config.ciMode) {
-      console.log('Â´â”Â¢ Running Full Review (Phases 0-15)\n');
+      console.log('´+¢ Running Full Review (Phases 0-15)\n');
     }
 
     // Create sandbox if sandbox mode is enabled
@@ -405,9 +405,9 @@ class AegisCLI {
       const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
 
       if (!this.config.ciMode) {
-        console.log('\nÃ”Â£Ã  Review Complete');
-        console.log(`Â­Æ’Ã´Ã¨ Total Findings: ${result.totalFindings}`);
-        console.log(`Ã”Ã…â–’Â´Â©Ã…  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log('\nÔ£à Review Complete');
+        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
+        console.log(`ÔÅ¦´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
 
       // Generate patch if sandbox mode is enabled
       if (this.config.sandboxMode) {
@@ -419,8 +419,8 @@ class AegisCLI {
         await phaseOrchestrator.cleanupSandbox();
       }
 
-        console.log(`Â­Æ’Ã¥ New Issues: ${newViolationCount}`);
-        console.log(`Â­Æ’Â¥ Inherited Issues: ${inheritedViolationCount}`);
+        console.log(`­ƒå New Issues: ${newViolationCount}`);
+        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
       } else {
         console.log(`Review Complete: ${result.totalFindings} findings, ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
         console.log(`New Issues: ${newViolationCount}, Inherited: ${inheritedViolationCount}`);
@@ -428,21 +428,21 @@ class AegisCLI {
 
       // Smart exit code: success if only inherited errors, failure if new errors
       if (newViolationCount > 0) {
-        console.log('\nÃ”Ã˜Ã® New issues detected');
+        console.log('\nÔØî New issues detected');
         process.exit(1);
       } else if (inheritedViolationCount > 0) {
-        console.log('\nÃ”Â£Ã  No new issues (all errors inherited)');
+        console.log('\nÔ£à No new issues (all errors inherited)');
         process.exit(0);
       }
     } else {
-      console.log('\nÃ”Ã˜Ã® Review Failed');
+      console.log('\nÔØî Review Failed');
       process.exit(1);
     }
   }
 
   private async runFix(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
     if (!this.config.ciMode) {
-      console.log('Â­Æ’Ã¶Âº Running Atomic Fixes (Phases 16-18)\n');
+      console.log('­ƒöº Running Atomic Fixes (Phases 16-18)\n');
     }
 
     // Create sandbox if sandbox mode is enabled
@@ -457,13 +457,13 @@ class AegisCLI {
       const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
 
       if (!this.config.ciMode) {
-        console.log('\nÃ”Â£Ã  Fixes Complete');
-        console.log(`Â­Æ’Ã´Ã¨ Total Findings: ${result.totalFindings}`);
-        console.log(`Ã”Â£Ã  Fixed: ${result.fixedCount}`);
-        console.log(`Ã”ÃœÃ¡Â´Â©Ã…  Needs Human Review: ${result.needsHumanReview}`);
-        console.log(`Ã”Ã˜Ã® Failed: ${result.failedCount}`);
-        console.log(`Â­Æ’Ã¥ New Issues: ${newViolationCount}`);
-        console.log(`Â­Æ’Â¥ Inherited Issues: ${inheritedViolationCount}`);
+        console.log('\nÔ£à Fixes Complete');
+        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
+        console.log(`Ô£à Fixed: ${result.fixedCount}`);
+        console.log(`ÔÜá´©Å  Needs Human Review: ${result.needsHumanReview}`);
+        console.log(`ÔØî Failed: ${result.failedCount}`);
+        console.log(`­ƒå New Issues: ${newViolationCount}`);
+        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
 
         // Generate patch if sandbox mode is enabled
         if (this.config.sandboxMode) {
@@ -491,21 +491,21 @@ class AegisCLI {
 
       // Smart exit code: success if only inherited errors, failure if new errors
       if (newViolationCount > 0) {
-        console.log('\nÃ”Ã˜Ã® New issues detected');
+        console.log('\nÔØî New issues detected');
         process.exit(1);
       } else if (inheritedViolationCount > 0) {
-        console.log('\nÃ”Â£Ã  No new issues (all errors inherited)');
+        console.log('\nÔ£à No new issues (all errors inherited)');
         process.exit(0);
       }
     } else {
-      console.log('\nÃ”Ã˜Ã® Fixes Failed');
+      console.log('\nÔØî Fixes Failed');
       process.exit(1);
     }
   }
 
   private async runIncremental(phaseOrchestrator: PhaseOrchestrator, reportAggregator: ReportAggregator): Promise<void> {
     if (!this.config.ciMode) {
-      console.log('Â­Æ’Ã¶Ã¤ Running Incremental Review (Phase 19)\n');
+      console.log('­ƒöä Running Incremental Review (Phase 19)\n');
     }
 
     // Create sandbox if sandbox mode is enabled
@@ -520,11 +520,11 @@ class AegisCLI {
       const inheritedViolationCount = reportAggregator.getInheritedViolationCount();
 
       if (!this.config.ciMode) {
-        console.log('\nÃ”Â£Ã  Incremental Review Complete');
-        console.log(`Â­Æ’Ã´Ã¨ Total Findings: ${result.totalFindings}`);
-        console.log(`Ã”Ã…â–’Â´Â©Ã…  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
-        console.log(`Â­Æ’Ã¥ New Issues: ${newViolationCount}`);
-        console.log(`Â­Æ’Â¥ Inherited Issues: ${inheritedViolationCount}`);
+        console.log('\nÔ£à Incremental Review Complete');
+        console.log(`­ƒôè Total Findings: ${result.totalFindings}`);
+        console.log(`ÔÅ¦´©Å  Total Time: ${(result.totalExecutionTimeMs / 1000).toFixed(2)}s`);
+        console.log(`­ƒå New Issues: ${newViolationCount}`);
+        console.log(`­ƒ¥ Inherited Issues: ${inheritedViolationCount}`);
 
         // Generate patch if sandbox mode is enabled
         if (this.config.sandboxMode) {
@@ -552,14 +552,14 @@ class AegisCLI {
 
       // Smart exit code: success if only inherited errors, failure if new errors
       if (newViolationCount > 0) {
-        console.log('\nÃ”Ã˜Ã® New issues detected');
+        console.log('\nÔØî New issues detected');
         process.exit(1);
       } else if (inheritedViolationCount > 0) {
-        console.log('\nÃ”Â£Ã  No new issues (all errors inherited)');
+        console.log('\nÔ£à No new issues (all errors inherited)');
         process.exit(0);
       }
     } else {
-      console.log('\nÃ”Ã˜Ã® Incremental Review Failed');
+      console.log('\nÔØî Incremental Review Failed');
       process.exit(1);
     }
   }

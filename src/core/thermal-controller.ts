@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ThermalController - Hardware Protection Layer
  *
  * Purpose: Monitor and control GPU temperature to prevent hardware damage during
@@ -9,9 +9,9 @@
  * AI processing operations must pass through this controller before execution.
  *
  * Safety Thresholds:
- * - CRITICAL: 70┬░C - System will halt execution immediately
- * - WARNING: 60┬░C - System will apply extended cooldown
- * - SAFE: < 60┬░C - Normal operation
+ * - CRITICAL: 70-�C - System will halt execution immediately
+ * - WARNING: 60-�C - System will apply extended cooldown
+ * - SAFE: < 60-�C - Normal operation
  *
  * @module core/thermal-controller
  * @since 1.0.0
@@ -27,7 +27,7 @@ import { ConfigLoader } from './config-loader.js';
 interface TemperatureReading {
   /** Current GPU temperature in Celsius */
   current: number;
-  /** Whether temperature is within safe limits (< 70┬░C) */
+  /** Whether temperature is within safe limits (< 70-�C) */
   isSafe: boolean;
   /** Temperature category: 'safe' | 'warning' | 'critical' */
   category: 'safe' | 'warning' | 'critical';
@@ -120,7 +120,7 @@ interface ThermalConfig {
  * @example
  * ```typescript
  * const controller = new ThermalController();
- * await controller.checkTemperature(); // Throws error if > 70┬░C
+ * await controller.checkTemperature(); // Throws error if > 70-�C
  * await controller.applyCooldown(15000); // 15 second cooldown
  * ```
  */
@@ -190,18 +190,18 @@ export class ThermalController {
    * Checks current GPU temperature using nvidia-smi
    *
    * This method executes the nvidia-smi command to retrieve the current GPU temperature.
-   * If the temperature exceeds the critical threshold (70┬░C), it will throw an error
+   * If the temperature exceeds the critical threshold (70-�C), it will throw an error
    * to halt execution and prevent hardware damage.
    *
    * @returns Promise<TemperatureReading> - Current temperature reading with safety status
-   * @throws {Error} If GPU temperature exceeds critical threshold (70┬░C)
+   * @throws {Error} If GPU temperature exceeds critical threshold (70-�C)
    * @throws {Error} If nvidia-smi command fails or is not available
    *
    * @example
    * ```typescript
    * try {
    *   const reading = await controller.checkTemperature();
-   *   console.log(`GPU temp: ${reading.current}┬░C`);
+   *   console.log(`GPU temp: ${reading.current}-�C`);
    * } catch (error) {
    *   console.error('GPU too hot, halting execution');
    * }
@@ -251,12 +251,12 @@ export class ThermalController {
       if (temperature >= this.config.criticalThreshold) {
         if (this.config.autoHalt) {
           throw new Error(
-            `CRITICAL: GPU temperature (${temperature}┬░C) exceeds safe threshold (${this.config.criticalThreshold}┬░C). ` +
+            `CRITICAL: GPU temperature (${temperature}-�C) exceeds safe threshold (${this.config.criticalThreshold}-�C). ` +
             `Execution halted to prevent hardware damage.`
           );
         } else {
           console.warn(
-            `WARNING: GPU temperature (${temperature}┬░C) exceeds safe threshold. ` +
+            `WARNING: GPU temperature (${temperature}-�C) exceeds safe threshold. ` +
             `Consider applying cooldown.`
           );
         }
@@ -393,7 +393,7 @@ export class ThermalController {
    *
    * This is a convenience method that combines temperature checking with automatic
    * cooldown application. It will apply cooldown if the temperature is in the warning
-   * zone (60-70┬░C) and throw an error if in the critical zone (> 70┬░C).
+   * zone (60-70-�C) and throw an error if in the critical zone (> 70-�C).
    *
    * @param cooldownDurationMs - Cooldown duration to apply if temperature is elevated
    * @returns Promise<TemperatureReading> - Temperature reading
@@ -402,8 +402,8 @@ export class ThermalController {
    * @example
    * ```typescript
    * const reading = await controller.checkAndCooldown(15000);
-   * // If temp > 60┬░C, applies 15s cooldown
-   * // If temp > 70┬░C, throws error
+   * // If temp > 60-�C, applies 15s cooldown
+   * // If temp > 70-�C, throws error
    * ```
    */
   async checkAndCooldown(cooldownDurationMs: number = 15000): Promise<TemperatureReading> {
@@ -412,7 +412,7 @@ export class ThermalController {
     // Apply cooldown if in warning zone
     if (reading.category === 'warning') {
       console.warn(
-        `[ThermalController] Temperature elevated (${reading.current}┬░C), applying cooldown`
+        `[ThermalController] Temperature elevated (${reading.current}-�C), applying cooldown`
       );
       await this.applyCooldown(cooldownDurationMs);
     }
@@ -810,7 +810,7 @@ export class ThermalController {
    * ```typescript
    * const result = await controller.runSelfDiagnostic();
    * console.log(`Diagnostic passed: ${result.pass}`);
-   * console.log(`Temperature change rate: ${result.temperatureRiseRate}┬░C/s`);
+   * console.log(`Temperature change rate: ${result.temperatureRiseRate}-�C/s`);
    * console.log(`Baseline: ${JSON.stringify(result.baseline)}`);
    * ```
    */
@@ -840,7 +840,7 @@ export class ThermalController {
       const initialCpuUsage = initialResources.cpuUsage;
       const initialRamUsage = initialResources.ramUsage;
 
-      console.log(`[ThermalController] Initial baseline - Temp: ${initialTemp}┬░C, CPU: ${initialCpuUsage}%, RAM: ${initialRamUsage}%`);
+      console.log(`[ThermalController] Initial baseline - Temp: ${initialTemp}-�C, CPU: ${initialCpuUsage}%, RAM: ${initialRamUsage}%`);
 
       // Check if initial reading is already in warning zone
       if (initialReading.category === 'warning' || initialResources.category === 'warning') {
@@ -874,12 +874,12 @@ export class ThermalController {
       const finalCpuUsage = finalResources.cpuUsage;
       const finalRamUsage = finalResources.ramUsage;
 
-      console.log(`[ThermalController] Final baseline - Temp: ${finalTemp}┬░C, CPU: ${finalCpuUsage}%, RAM: ${finalRamUsage}%`);
+      console.log(`[ThermalController] Final baseline - Temp: ${finalTemp}-�C, CPU: ${finalCpuUsage}%, RAM: ${finalRamUsage}%`);
 
       // Calculate temperature rise rate
       const tempRise = finalTemp - initialTemp;
       temperatureRiseRate = (tempRise / (durationMs / 1000));
-      console.log(`[ThermalController] Temperature change rate: ${temperatureRiseRate.toFixed(2)}┬░C/s`);
+      console.log(`[ThermalController] Temperature change rate: ${temperatureRiseRate.toFixed(2)}-�C/s`);
 
       // Adjust thresholds based on observed passive behavior
       if (!adjustedThresholds && temperatureRiseRate > 1.0) {

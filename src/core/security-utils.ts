@@ -1182,7 +1182,7 @@ export async function verifyPackageLockIntegrity(lockFilePath: string): Promise<
 
       // Check integrity if available
       if (depInfo.integrity) {
-        const [_algorithm, expectedHash] = depInfo.integrity.split('-');
+        const [, expectedHash] = depInfo.integrity.split('-');
 
         try {
           const actualHash = await calculateChecksum(depInfo.resolved || '');

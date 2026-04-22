@@ -1,4 +1,4 @@
-﻿/**
+/**
  * IgnoreHandler - Glob Optimization with .aegisignore
  *
  * Purpose: Read and parse .aegisignore file (inheriting from .gitignore) to

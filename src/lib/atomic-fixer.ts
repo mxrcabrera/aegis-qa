@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Atomic Fixer - Automated Code Fixes
  *
  * Purpose: Provides safe, atomic code fixes for common issues detected in QA phases.
@@ -236,7 +236,7 @@ export class AtomicFixer {
           }
         } catch (error) {
           result.fixesFailed++;
-          console.warn(`ÔÜá´©Å  Fix ${fixId} failed on ${filePath}:`, error instanceof Error ? error.message : error);
+          console.warn(`��ᴩ�  Fix ${fixId} failed on ${filePath}:`, error instanceof Error ? error.message : error);
         }
       }
 
@@ -247,7 +247,7 @@ export class AtomicFixer {
 
       return result;
     } catch (error) {
-      console.error(`ÔØî Failed to apply fixes to ${filePath}:`, error instanceof Error ? error.message : error);
+      console.error(`��� Failed to apply fixes to ${filePath}:`, error instanceof Error ? error.message : error);
       result.success = false;
       return result;
     }
@@ -263,7 +263,7 @@ export class AtomicFixer {
   async rollback(filePath: string, _rollbackData: string[]): Promise<boolean> {
     // In a real implementation, this would restore the original content
     // For now, this is a placeholder
-    console.warn(`ÔÜá´©Å  Rollback not implemented for ${filePath}`);
+    console.warn(`��ᴩ�  Rollback not implemented for ${filePath}`);
     return false;
   }
 

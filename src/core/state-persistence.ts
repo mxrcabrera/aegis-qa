@@ -433,7 +433,7 @@ export class StatePersistence {
         console.log(`[StatePersistence] Total findings: ${state.totalFindings}`);
         
         return state;
-      } catch (parseError) {
+      } catch {
         // File might be truncated or corrupted
         console.warn('[StatePersistence] State file appears corrupted or truncated, attempting to restore from backup');
         const restored = await this.restoreFromBackup();

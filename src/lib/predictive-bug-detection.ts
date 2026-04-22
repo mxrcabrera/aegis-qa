@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Predictive Bug Detection
  *
  * Purpose: Analyzes code patterns to predict potential bugs before they occur.
@@ -15,7 +15,6 @@
  */
 
 import * as fs from 'fs';
-import * as _path from 'path';
 
 /**
  * Bug prediction result
@@ -218,7 +217,7 @@ export class PredictiveBugDetection {
 
       return predictions;
     } catch (error) {
-      console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
+      console.warn(`��ᴩ�  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
   }

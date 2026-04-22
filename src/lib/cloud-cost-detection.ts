@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cloud Cost Detection
  *
  * Purpose: Analyzes infrastructure code to detect potential cost issues and optimization opportunities.
@@ -15,7 +15,6 @@
  */
 
 import * as fs from 'fs';
-import * as _path from 'path';
 import { glob } from 'glob';
 
 /**
@@ -227,7 +226,7 @@ export class CloudCostDetection {
 
       return detections;
     } catch (error) {
-      console.warn(`ÔÜá´©Å  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
+      console.warn(`��ᴩ�  Failed to analyze ${filePath}:`, error instanceof Error ? error.message : error);
       return [];
     }
   }
