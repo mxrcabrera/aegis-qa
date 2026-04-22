@@ -463,7 +463,7 @@ export class CodeReader {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
       return content.split('\n').length;
-    } catch (error) {
+    } catch {
       return 0;
     }
   }
