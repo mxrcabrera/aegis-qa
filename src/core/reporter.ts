@@ -66,6 +66,10 @@ export interface ReporterConfig {
   escalationMap: Map<string, Severity>;
   /** Project root directory for ErrorBaseline */
   projectRoot?: string;
+  /** Maximum violations per category to show in detailed report (default: 50) */
+  maxViolationsPerCategory?: number;
+  /** Whether to show all violations without cap (overrides maxViolationsPerCategory) */
+  verbose?: boolean;
 }
 
 /**
@@ -98,6 +102,8 @@ export class ReportAggregator {
           ['high', 'critical'],
         ]),
       projectRoot: config.projectRoot ?? '.',
+      maxViolationsPerCategory: config.maxViolationsPerCategory ?? 50,
+      verbose: config.verbose ?? false,
     };
   }
 
@@ -419,16 +425,19 @@ export class ReportAggregator {
     const criticalPathCount = all.filter((v) => v.file.inCriticalPath).length;
     const { newViolations, inheritedViolations } = this.separateViolations();
 
+    const maxPerCategory = this.config.maxViolationsPerCategory;
+    const isVerbose = this.config.verbose;
+
     let summary = '# Aegis QA Report\n\n';
 
     // URGENT BUSINESS RISK - Show first if there are business risk findings
     if (this.businessRiskFindings.length > 0) {
       summary += '## 🚨 URGENT BUSINESS RISK\n\n';
       summary += `**Business Domain:** ${this.businessDomain}\n\n`;
-      
+
       const criticalRisks = this.businessRiskFindings.filter((r) => r.riskLevel === 'critical');
       const highRisks = this.businessRiskFindings.filter((r) => r.riskLevel === 'high');
-      
+
       if (criticalRisks.length > 0) {
         summary += `**Critical Risk Modules:** ${criticalRisks.length}\n`;
         for (const risk of criticalRisks.slice(0, 5)) {
@@ -439,7 +448,7 @@ export class ReportAggregator {
         }
         summary += '\n';
       }
-      
+
       if (highRisks.length > 0) {
         summary += `**High Risk Modules:** ${highRisks.length}\n`;
         for (const risk of highRisks.slice(0, 5)) {
@@ -450,7 +459,7 @@ export class ReportAggregator {
         }
         summary += '\n';
       }
-      
+
       summary += '---\n\n';
     }
 
@@ -499,8 +508,37 @@ export class ReportAggregator {
       summary += `- **${category}:** ${count}\n`;
     }
 
+    // Detailed violations by category with cap
+    summary += '\n## Violations by Category\n\n';
+
+    const violationsByCategory = new Map<ViolationCategory, Violation[]>();
+    for (const violation of all) {
+      const category = violation.type as ViolationCategory;
+      if (!violationsByCategory.has(category)) {
+        violationsByCategory.set(category, []);
+      }
+      violationsByCategory.get(category)!.push(violation);
+    }
+
+    for (const [category, violations] of violationsByCategory.entries()) {
+      summary += `### ${category}\n\n`;
+      summary += `**Total:** ${violations.length}\n\n`;
+
+      const violationsToShow = isVerbose ? violations : violations.slice(0, maxPerCategory);
+      for (const violation of violationsToShow) {
+        summary += `- **${violation.file.path}:${violation.location.line}** [${violation.severity}]: ${violation.message}\n`;
+      }
+
+      if (!isVerbose && violations.length > maxPerCategory) {
+        const remaining = violations.length - maxPerCategory;
+        summary += `\n... and ${remaining} more ${category} violations. Run with --verbose for full list.\n\n`;
+      } else {
+        summary += '\n';
+      }
+    }
+
     // Applied/Suggested Fixes section
-    summary += '\n## 🔧 Applied/Suggested Fixes\n\n';
+    summary += '## 🔧 Applied/Suggested Fixes\n\n';
     summary += '*Atomic fixes applied or suggested from Phase 11*\n\n';
     summary += '- **Status:** Check partial report for detailed fix results\n';
     summary += '- **Patch Files:** Available in .sentinel/diffs/\n';

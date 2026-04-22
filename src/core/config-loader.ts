@@ -77,6 +77,11 @@ interface AegisConfig {
     /** Disable garbage collection (default: false) */
     disableGC?: boolean;
   };
+  /** Reporting settings */
+  reporting?: {
+    /** Maximum violations per category to show in detailed report (default: 50) */
+    maxViolationsPerCategory?: number;
+  };
 }
 
 /**
@@ -117,6 +122,10 @@ interface LoadedConfig {
     recommendedBatchSize?: number;
     recommendedCooldown?: number;
     disableGC: boolean;
+  };
+  /** Reporting settings */
+  reporting: {
+    maxViolationsPerCategory: number;
   };
 }
 
@@ -187,6 +196,9 @@ export class ConfigLoader {
         recommendedCooldown: userConfig.performance?.recommendedCooldown,
         disableGC: userConfig.performance?.disableGC ?? false,
       },
+      reporting: {
+        maxViolationsPerCategory: userConfig.reporting?.maxViolationsPerCategory ?? 50,
+      },
     };
 
     return config;
@@ -231,6 +243,11 @@ export class ConfigLoader {
       if (config.performance && typeof config.performance !== 'object') {
         console.warn('[ConfigLoader] Invalid performance configuration, using defaults');
         delete config.performance;
+      }
+
+      if (config.reporting && typeof config.reporting !== 'object') {
+        console.warn('[ConfigLoader] Invalid reporting configuration, using defaults');
+        delete config.reporting;
       }
 
       return config;

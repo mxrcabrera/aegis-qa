@@ -20,6 +20,7 @@ import { PhaseOrchestrator } from './orchestration/phase-orchestrator.js';
 import { StatePersistence, type ExecutionState } from './core/state-persistence.js';
 import { GitCheckpointManager } from './core/git-checkpoint-manager.js';
 import { ErrorMessages } from './core/error-messages.js';
+import { ConfigLoader } from './core/config-loader.js';
 import { resolve, normalize } from 'path';
 import * as fs from 'fs';
 import { FileSystem, setFileSystem, type WriteGuardMode } from './core/write-guard.js';
@@ -170,8 +171,17 @@ class AegisCLI {
     // Initialize core components
     const thermalController = new ThermalController({}, resolve(targetDir));
     const secretManager = new SecretManager({ mockMode: true });
+    
+    // Load configuration from .aegisrc.json
+    const configLoader = new ConfigLoader(resolve(targetDir));
+    const config = configLoader.load();
+    
     // Create report aggregator (will be updated with business risk findings after Phase 2)
-    const reportAggregator = new ReportAggregator({ projectRoot: resolve(targetDir) });
+    const reportAggregator = new ReportAggregator({
+      projectRoot: resolve(targetDir),
+      verbose: this.config.verboseMode,
+      maxViolationsPerCategory: config.reporting.maxViolationsPerCategory
+    });
     this.statePersistence = new StatePersistence(resolve(targetDir));
     this.gitCheckpointManager = new GitCheckpointManager(resolve(targetDir));
 
