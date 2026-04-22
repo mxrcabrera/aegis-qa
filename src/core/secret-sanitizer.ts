@@ -354,28 +354,28 @@ export class SecretSanitizer {
     const originalWarn = console.warn;
     const originalInfo = console.info;
 
-    console.log = (...args: any[]) => {
+    console.log = (...args: unknown[]) => {
       const sanitized = args.map(arg => 
         typeof arg === 'string' ? sanitizer.sanitizeLog(arg) : arg
       ).filter(arg => arg !== null);
       originalLog(...sanitized);
     };
 
-    console.error = (...args: any[]) => {
+    console.error = (...args: unknown[]) => {
       const sanitized = args.map(arg => 
         typeof arg === 'string' ? sanitizer.sanitizeLog(arg) : arg
       ).filter(arg => arg !== null);
       originalError(...sanitized);
     };
 
-    console.warn = (...args: any[]) => {
+    console.warn = (...args: unknown[]) => {
       const sanitized = args.map(arg => 
         typeof arg === 'string' ? sanitizer.sanitizeLog(arg) : arg
       ).filter(arg => arg !== null);
       originalWarn(...sanitized);
     };
 
-    console.info = (...args: any[]) => {
+    console.info = (...args: unknown[]) => {
       const sanitized = args.map(arg => 
         typeof arg === 'string' ? sanitizer.sanitizeLog(arg) : arg
       ).filter(arg => arg !== null);
