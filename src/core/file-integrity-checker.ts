@@ -239,7 +239,7 @@ export class FileIntegrityChecker {
     try {
       const stats = await fs.promises.stat(filePath);
       return stats.mtimeMs <= timestamp;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

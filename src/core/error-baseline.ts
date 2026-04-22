@@ -500,7 +500,7 @@ export class ErrorBaseline {
 
       this.baseline = baseline;
       return baseline;
-    } catch (error) {
+    } catch {
       console.warn('[ErrorBaseline] No baseline file found, will establish new baseline');
       return null;
     }

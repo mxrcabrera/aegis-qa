@@ -267,7 +267,7 @@ export class DiffGenerator {
     try {
       const files = await fs.promises.readdir(this.patchesDir);
       return files.filter(file => file.endsWith('.patch'));
-    } catch (error) {
+    } catch {
       return [];
     }
   }
