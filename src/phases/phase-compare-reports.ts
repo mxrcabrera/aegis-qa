@@ -224,7 +224,7 @@ export class PhaseCompareReports {
   }
 
   private parseReportContent(content: string): unknown {
-    const reportData: any = {
+    const reportData: unknown = {
       categories: {},
       totalFindings: 0,
     };
@@ -429,6 +429,7 @@ export class PhaseCompareReports {
     };
   }
 }
+
 
 
 
