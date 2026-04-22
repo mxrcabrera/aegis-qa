@@ -1,4 +1,4 @@
-/**
+ï»¿/**
  * BatchProcessor - Atomic File Processing with Integrity Guarantees
  *
  * Purpose: Process files in batches with atomic operations, ensuring no files
@@ -51,7 +51,7 @@ interface FileProcessingResult {
   /** Error message if processing failed */
   error?: string;
   /** Any findings from this file */
-  findings?: any[];
+  findings?: unknown[];
 }
 
 /**
@@ -134,7 +134,7 @@ export class BatchProcessor {
       }
     }
 
-    console.log(`[BatchProcessor] ­ƒÄ» Smart Scoping: ${criticalFiles.length} critical modules prioritized, ${nonCriticalFiles.length} non-critical files deferred`);
+    console.log(`[BatchProcessor] ï¿½ï¿½Ä» Smart Scoping: ${criticalFiles.length} critical modules prioritized, ${nonCriticalFiles.length} non-critical files deferred`);
     
     // Return critical files first, then non-critical
     return [...criticalFiles, ...nonCriticalFiles];
@@ -375,4 +375,5 @@ export class BatchProcessor {
     console.log(`[BatchProcessor] Batch size set to ${this.batchSize}`);
   }
 }
+
 
