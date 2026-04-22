@@ -335,6 +335,8 @@ class AegisCLI {
       auditOnly: this.config.auditOnly || false, // Audit-only mode for compliance
       interactiveFix: this.config.interactiveFix || false, // Per-fix interactive approval
       sandboxMode: this.config.sandboxMode || false, // Sandbox mode for isolated execution
+      maxRisk: this.config.maxRisk, // Maximum risk level for fixes
+      minConfidence: this.config.minConfidence, // Minimum confidence threshold for fixes
     });
 
     // Execute command
@@ -792,18 +794,6 @@ async function main() {
     }
     minConfidence = confidenceValue;
   }
-
-  // Parse --run-tests flag (for future use when PhaseOrchestrator skeleton is implemented)
-  const runTests = args.includes('--run-tests');
-  void runTests; // Suppress unused warning
-
-  // Parse --test-command flag (for future use when PhaseOrchestrator skeleton is implemented)
-  const testCommandIndex = args.indexOf('--test-command');
-  let testCommand: string | undefined;
-  if (testCommandIndex !== -1 && args[testCommandIndex + 1]) {
-    testCommand = args[testCommandIndex + 1];
-  }
-  void testCommand; // Suppress unused warning
 
   // Security: Validate all input before proceeding
   try {

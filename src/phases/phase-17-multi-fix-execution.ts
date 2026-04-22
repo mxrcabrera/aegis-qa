@@ -107,6 +107,10 @@ interface Phase17Config {
   statePersistence: StatePersistence;
   /** Current execution state */
   currentState: ExecutionState;
+  /** Maximum risk level for fixes (safe/moderate/risky) */
+  maxRisk?: 'safe' | 'moderate' | 'risky';
+  /** Minimum confidence threshold for fixes (0-1) */
+  minConfidence?: number;
 }
 
 /**

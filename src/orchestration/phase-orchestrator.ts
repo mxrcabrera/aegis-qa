@@ -148,6 +148,10 @@ interface PhaseOrchestratorConfig {
   allowNoGit?: boolean;
   /** Whether to enable sandbox mode for isolated execution */
   sandboxMode?: boolean;
+  /** Maximum risk level for fixes (safe/moderate/risky) */
+  maxRisk?: 'safe' | 'moderate' | 'risky';
+  /** Minimum confidence threshold for fixes (0-1) */
+  minConfidence?: number;
 }
 
 /**
