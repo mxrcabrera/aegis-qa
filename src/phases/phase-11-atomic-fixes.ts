@@ -742,7 +742,7 @@ export class Phase11AtomicFixes {
 
       await this.config.gitCheckpointManager.createCheckpoint(tagName);
       console.log('✅ Backup Git creado exitosamente\n');
-    } catch (error) {
+    } catch {
       console.log('⚠️  Git backup falló, creando backup físico...\n');
       await this.createPhysicalBackup(filePaths);
     }
