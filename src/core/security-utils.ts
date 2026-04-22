@@ -1201,7 +1201,7 @@ export async function verifyPackageLockIntegrity(lockFilePath: string): Promise<
 
       results.push(result);
     }
-  } catch (error) {
+  } catch {
     return [{ valid: false, packageName: 'package-lock.json', reason: 'Failed to parse lock file' }];
   }
 
