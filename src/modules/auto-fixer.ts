@@ -28,10 +28,42 @@ interface Fix {
   error?: string;
 }
 
+interface StyleViolation {
+  file: string;
+  line: number;
+  type: string;
+  message: string;
+}
+
+interface StyleAuditResult {
+  violations?: StyleViolation[];
+}
+
+interface TableInfo {
+  table: string;
+  vulnerability: string;
+}
+
+interface ServiceRoleExposure {
+  found: boolean;
+  files: string[];
+}
+
+interface SecuritySummary {
+  critical: number;
+}
+
+interface SecurityAuditResult {
+  recommendations?: unknown[];
+  tablesTested?: TableInfo[];
+  summary?: SecuritySummary;
+  serviceRoleExposed?: ServiceRoleExposure;
+}
+
 interface AuditResults {
-  routes: any;
-  styles: any;
-  security: any;
+  routes: unknown;
+  styles: StyleAuditResult;
+  security: SecurityAuditResult;
 }
 
 class AutoFixer {
@@ -67,17 +99,13 @@ class AutoFixer {
       }
 
       // Fix security issues
-      const securityFixes = auditResults.security?.recommendations || [];
-      if (securityFixes.length > 0) {
-        console.log(
-          `Verificando ${securityFixes.length} issues de seguridad...`,
-        );
-        await this.fixSecurityIssues(securityFixes);
+      if (auditResults.security) {
+        await this.fixSecurityIssues(auditResults.security);
         result.fixesApplied += this.fixes.length;
       }
 
       console.log(
-        `UNLEASHED: Fixes aplicados: ${result.fixesApplied}/${styleFixes.length + securityFixes.length}`,
+        `UNLEASHED: Fixes aplicados: ${result.fixesApplied}/${styleFixes.length}`,
       );
       console.log("=== Auto-Fixer UNLEASHED Completado ===");
 
@@ -94,9 +122,9 @@ class AutoFixer {
   /**
    * Fix style violations - UNLEASHED MODE (no limits)
    */
-  private async fixStyleViolationsUnleashed(violations: any[]): Promise<void> {
+  private async fixStyleViolationsUnleashed(violations: StyleViolation[]): Promise<void> {
     // Group violations by file
-    const violationsByFile = new Map<string, any[]>();
+    const violationsByFile = new Map<string, StyleViolation[]>();
     for (const violation of violations) {
       if (!violationsByFile.has(violation.file)) {
         violationsByFile.set(violation.file, []);
@@ -196,7 +224,7 @@ class AutoFixer {
 
     try {
       // Aplicar fixes de estilos
-      if (auditResults.styles?.violations?.length > 0) {
+      if (auditResults.styles?.violations && auditResults.styles.violations.length > 0) {
         console.log(
           `Aplicando ${auditResults.styles.violations.length} fixes de estilos...`,
         );
@@ -204,10 +232,7 @@ class AutoFixer {
       }
 
       // Aplicar fixes de seguridad (limitados a los seguros)
-      if (auditResults.security?.tablesTested?.length > 0) {
-        console.log(
-          `Verificando ${auditResults.security.tablesTested.length} issues de seguridad...`,
-        );
+      if (auditResults.security) {
         await this.fixSecurityIssues(auditResults.security);
       }
 
@@ -233,7 +258,7 @@ class AutoFixer {
   /**
    * Aplica fixes para violaciones de estilo
    */
-  private async fixStyleViolations(violations: any[]): Promise<void> {
+  private async fixStyleViolations(violations: StyleViolation[]): Promise<void> {
     for (const violation of violations) {
       try {
         const filePath = path.join(this.projectPath, violation.file);
@@ -336,14 +361,14 @@ class AutoFixer {
   /**
    * Aplica fixes para issues de seguridad (solo los seguros)
    */
-  private async fixSecurityIssues(securityResult: any): Promise<void> {
+  private async fixSecurityIssues(securityResult: SecurityAuditResult): Promise<void> {
     // Solo aplicar fixes seguros, no cambios críticos de seguridad
 
     // Fix 1: Agregar comentarios sobre RLS si faltan
-    if (securityResult.summary?.critical > 0) {
-      const criticalTables = securityResult.tablesTested.filter(
-        (t: any) => t.vulnerability === "critical",
-      );
+    if (securityResult.summary && securityResult.summary.critical > 0) {
+      const criticalTables = securityResult.tablesTested?.filter(
+        (t: TableInfo) => t.vulnerability === "critical",
+      ) || [];
 
       for (const table of criticalTables) {
         try {
