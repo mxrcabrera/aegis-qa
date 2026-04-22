@@ -683,7 +683,7 @@ class AutoFixer {
         const { glob } = await import("glob");
         const matches = await glob(pattern, { cwd: this.projectPath });
         files.push(...matches);
-      } catch (error) {
+      } catch {
         // Skip if pattern doesn't match
       }
     }
