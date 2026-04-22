@@ -57,6 +57,23 @@ export interface RemediationResults {
   };
 }
 
+interface FileLocation {
+  path: string;
+}
+
+interface ViolationLocation {
+  line?: number;
+}
+
+interface Violation {
+  rule: string;
+  file?: FileLocation;
+  id?: string;
+  location?: ViolationLocation;
+  severity?: 'critical' | 'high' | 'medium' | 'low';
+  confidence?: number;
+}
+
 export class AtomicFixer {
   private projectRoot: string;
   private interactiveMode: boolean;
@@ -399,7 +416,7 @@ export class AtomicFixer {
   /**
    * Run all atomic fixes
    */
-  async runFixes(violations: any[], domainModel?: any): Promise<RemediationResults> {
+  async runFixes(violations: Violation[], domainModel?: unknown): Promise<RemediationResults> {
     const results: RemediationResults = {
       appliedFixes: [],
       suggestedFixes: [],
@@ -640,7 +657,7 @@ export class AtomicFixer {
   /**
    * Generate fixes based on violations
    */
-  private async generateFixes(violations: any[], _domainModel?: any): Promise<Fix[]> {
+  private async generateFixes(violations: Violation[], _domainModel?: unknown): Promise<Fix[]> {
     const fixes: Fix[] = [];
 
     // Group violations by type
@@ -676,7 +693,7 @@ export class AtomicFixer {
   /**
    * Generate i18n/a11y fix
    */
-  private async generateI18nFix(violation: any): Promise<Fix | null> {
+  private async generateI18nFix(violation: Violation): Promise<Fix | null> {
     const filePath = violation.file?.path || '';
     const violationId = violation.id || '';
 
@@ -750,7 +767,7 @@ export class AtomicFixer {
   /**
    * Generate environment fix
    */
-  private async generateEnvironmentFix(violation: any): Promise<Fix | null> {
+  private async generateEnvironmentFix(violation: Violation): Promise<Fix | null> {
     const violationId = violation.id || '';
     const envExamplePath = path.join(this.projectRoot, '.env.example');
     const envContent = this.generateEnvExampleContent();
@@ -795,7 +812,7 @@ export class AtomicFixer {
   /**
    * Generate clean code fix
    */
-  private async generateCleanCodeFix(violation: any): Promise<Fix | null> {
+  private async generateCleanCodeFix(violation: Violation): Promise<Fix | null> {
     const filePath = violation.file?.path || '';
     const violationId = violation.id || '';
 
