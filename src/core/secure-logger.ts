@@ -28,7 +28,7 @@ interface LogEntry {
   level: LogLevel;
   securityLevel: SecurityLevel;
   message: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
   module?: string;
   phase?: number;
 }
