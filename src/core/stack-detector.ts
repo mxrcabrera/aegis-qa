@@ -324,7 +324,7 @@ export class StackDetector {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -371,7 +371,7 @@ export class StackDetector {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -423,7 +423,7 @@ export class StackDetector {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -470,7 +470,7 @@ export class StackDetector {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -512,7 +512,7 @@ export class StackDetector {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -554,7 +554,7 @@ export class StackDetector {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -600,7 +600,7 @@ export class StackDetector {
       }
 
       return undefined;
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
