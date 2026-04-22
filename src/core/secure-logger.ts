@@ -76,7 +76,7 @@ export class SecureLogger {
     level: LogLevel,
     securityLevel: SecurityLevel,
     message: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     module?: string,
     phase?: number
   ): void {
@@ -164,55 +164,53 @@ export class SecureLogger {
   /**
    * Debug level logging (public)
    */
-  debug(message: string, context?: Record<string, any>, module?: string, phase?: number): void {
+  debug(message: string, context?: Record<string, unknown>, module?: string, phase?: number): void {
     this.log(LogLevel.DEBUG, SecurityLevel.PUBLIC, message, context, module, phase);
   }
 
   /**
    * Debug level logging (internal)
    */
-  debugInternal(message: string, context?: Record<string, any>, module?: string, phase?: number): void {
+  debugInternal(message: string, context?: Record<string, unknown>, module?: string, phase?: number): void {
     this.log(LogLevel.DEBUG, SecurityLevel.INTERNAL, message, context, module, phase);
   }
 
   /**
    * Info level logging (public)
    */
-  info(message: string, context?: Record<string, any>, module?: string, phase?: number): void {
+  info(message: string, context?: Record<string, unknown>, module?: string, phase?: number): void {
     this.log(LogLevel.INFO, SecurityLevel.PUBLIC, message, context, module, phase);
   }
 
   /**
    * Info level logging (internal)
    */
-  infoInternal(message: string, context?: Record<string, any>, module?: string, phase?: number): void {
+  infoInternal(message: string, context?: Record<string, unknown>, module?: string, phase?: number): void {
     this.log(LogLevel.INFO, SecurityLevel.INTERNAL, message, context, module, phase);
   }
 
   /**
    * Warning level logging
    */
-  warn(message: string, context?: Record<string, any>, module?: string, phase?: number): void {
+  warn(message: string, context?: Record<string, unknown>, module?: string, phase?: number): void {
     this.log(LogLevel.WARN, SecurityLevel.INTERNAL, message, context, module, phase);
   }
 
   /**
    * Error level logging
    */
-  error(message: string, context?: Record<string, any>, module?: string, phase?: number): void {
+  error(message: string, context?: Record<string, unknown>, module?: string, phase?: number): void {
     this.log(LogLevel.ERROR, SecurityLevel.INTERNAL, message, context, module, phase);
   }
 
   /**
    * Critical level logging
    */
-  critical(message: string, context?: Record<string, any>, module?: string, phase?: number): void {
+  critical(message: string, context?: Record<string, unknown>, module?: string, phase?: number): void {
     this.log(LogLevel.CRITICAL, SecurityLevel.INTERNAL, message, context, module, phase);
   }
 
-  /**
-   * Gets all logs
-   */
+  // ...
   getLogs(): LogEntry[] {
     return [...this.logs];
   }
