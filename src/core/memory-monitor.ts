@@ -84,7 +84,7 @@ export class MemoryMonitor {
       heapTotal: usage.heapTotal,
       heapUsed: usage.heapUsed,
       external: usage.external,
-      arrayBuffers: (usage as any).arrayBuffers || 0,
+      arrayBuffers: (usage as NodeJS.MemoryUsage & { arrayBuffers?: number }).arrayBuffers || 0,
       usagePercentage,
     };
   }
@@ -267,9 +267,9 @@ export class MemoryMonitor {
    * @private
    */
   private triggerGarbageCollection(): void {
-    if (typeof (global as any).gc === 'function') {
+    if (typeof (global as typeof globalThis & { gc?: () => void }).gc === 'function') {
       console.log('🧹 Triggering manual garbage collection...');
-      (global as any).gc();
+      (global as typeof globalThis & { gc?: () => void }).gc();
       const stats = this.getMemoryStats();
       console.log(`🧹 Memory after GC: ${stats.usagePercentage.toFixed(1)}% (${this.formatBytes(stats.rss)})`);
     } else {
