@@ -18,6 +18,7 @@ export interface Fix {
   id: string;
   violationId?: string; // Link to original violation ID for traceability
   type: 'i18n' | 'a11y' | 'environment' | 'clean-code';
+  category: 'atomic' | 'refactoring'; // Atomic: point changes (safe), Refactoring: structural changes (manual review)
   severity: 'critical' | 'high' | 'medium' | 'low';
   file: string;
   line?: number;
@@ -43,8 +44,8 @@ export interface FixResult {
 }
 
 export interface RemediationResults {
-  appliedFixes: FixResult[];
-  suggestedFixes: FixResult[];
+  atomicFixes: FixResult[]; // Applied or suggested atomic fixes (point changes)
+  refactoringSuggestions: FixResult[]; // Refactoring suggestions (structural changes, never auto-applied)
   totalFixes: number;
   testValidationResults?: {
     enabled: boolean;
@@ -418,8 +419,8 @@ export class AtomicFixer {
    */
   async runFixes(violations: Violation[], domainModel?: unknown): Promise<RemediationResults> {
     const results: RemediationResults = {
-      appliedFixes: [],
-      suggestedFixes: [],
+      atomicFixes: [],
+      refactoringSuggestions: [],
       totalFixes: 0
     };
 
@@ -453,17 +454,29 @@ export class AtomicFixer {
     });
 
     for (const fix of fixes) {
-      // Check confidence and risk gates before applying
+      // Refactoring suggestions are never auto-applied, only reported
+      if (fix.category === 'refactoring') {
+        const suggestionResult: FixResult = {
+          fix,
+          applied: false,
+          error: 'REFACTORING_SUGGESTION: Structural change requires manual review'
+        };
+        results.refactoringSuggestions.push(suggestionResult);
+        console.log(`[Refactoring] Skipping auto-apply for ${fix.id}: ${fix.description}`);
+        continue;
+      }
+
+      // Check confidence and risk gates before applying atomic fixes
       const gateCheck = this.checkFixGates(fix);
       
       if (!gateCheck.passes) {
-        // Fix is skipped due to gating - add to suggested fixes with skip reason
+        // Fix is skipped due to gating - add to atomic fixes with skip reason
         const skippedResult: FixResult = {
           fix,
           applied: false,
           error: `Skipped (${gateCheck.reason})`
         };
-        results.suggestedFixes.push(skippedResult);
+        results.atomicFixes.push(skippedResult);
         console.log(`[ConfidenceGating] Skipped fix ${fix.id}: ${gateCheck.reason}`);
         continue;
       }
@@ -486,7 +499,7 @@ export class AtomicFixer {
             await this.rollbackFix(fix, backupPath);
             result.applied = false;
             result.error = validation.details;
-            results.suggestedFixes.push(result);
+            results.atomicFixes.push(result);
             continue;
           } else {
             console.log(`[TestValidation] ${validation.details}`);
@@ -497,9 +510,9 @@ export class AtomicFixer {
           }
         }
 
-        results.appliedFixes.push(result);
+        results.atomicFixes.push(result);
       } else {
-        results.suggestedFixes.push(result);
+        results.atomicFixes.push(result);
       }
     }
 
@@ -749,6 +762,7 @@ export class AtomicFixer {
       id: fixId,
       violationId, // Link to original violation for traceability
       type: violation.rule === 'missing-alt' ? 'i18n' : 'a11y',
+      category: 'atomic', // Point changes are atomic fixes
       severity: violation.severity || 'medium',
       file: filePath,
       line: violation.location?.line,
@@ -791,6 +805,7 @@ export class AtomicFixer {
         id: fixId,
         violationId, // Link to original violation for traceability
         type: 'environment',
+        category: 'atomic', // Creating .env.example is an atomic fix
         severity: 'critical',
         file: envExamplePath,
         description: 'Create .env.example with detected environment variables',
@@ -866,13 +881,14 @@ export class AtomicFixer {
       id: fixId,
       violationId, // Link to original violation for traceability
       type: 'clean-code',
+      category: 'refactoring', // Structural changes are refactoring suggestions
       severity: 'medium',
       file: filePath,
       line: violation.location?.line,
       description: `Refactor ${funcName} to use options object pattern (${paramList.length} parameters)`,
       originalContent: line,
       proposedContent,
-      autoApply: false, // Manual review required
+      autoApply: false, // Never auto-apply refactoring suggestions
       requiresConfirmation: true,
       isCorePath: this.isCorePath(filePath),
       confidence: violation.confidence || 0.7,
