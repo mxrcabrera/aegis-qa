@@ -899,7 +899,7 @@ export async function checkExecutePermission(filePath: string): Promise<Permissi
     const fs = await import('fs');
     await fs.promises.access(filePath, fs.constants.X_OK);
     return { allowed: true, permission: 'execute' };
-  } catch (error) {
+  } catch {
     return {
       allowed: false,
       reason: 'Execute permission denied or file does not exist',
