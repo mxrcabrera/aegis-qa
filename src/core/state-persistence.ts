@@ -699,7 +699,7 @@ export class StatePersistence {
    * await persistence.storeAnalysisResults(1, { fileScores: [...], totalFindings: 42 }, currentState);
    * ```
    */
-  async storeAnalysisResults(phase: number, results: any, currentState: ExecutionState): Promise<void> {
+  async storeAnalysisResults(phase: number, results: unknown, currentState: ExecutionState): Promise<void> {
     if (!currentState.analysisResults) {
       currentState.analysisResults = {};
     }
@@ -722,7 +722,7 @@ export class StatePersistence {
    * }
    * ```
    */
-  getAnalysisResults(phase: number, currentState: ExecutionState): any | null {
+  getAnalysisResults(phase: number, currentState: ExecutionState): unknown | null {
     if (!currentState.analysisResults) {
       return null;
     }
