@@ -39,7 +39,7 @@ interface CacheEntry<T> {
 /**
  * Domain analysis cache entry
  */
-interface DomainAnalysisCacheEntry extends CacheEntry<any> {
+interface DomainAnalysisCacheEntry extends CacheEntry<unknown> {
   /** Schema hash for invalidation */
   schemaHash: string;
   /** Domain name */
@@ -49,7 +49,7 @@ interface DomainAnalysisCacheEntry extends CacheEntry<any> {
 /**
  * File analysis cache entry
  */
-interface FileAnalysisCacheEntry extends CacheEntry<any> {
+interface FileAnalysisCacheEntry extends CacheEntry<unknown> {
   /** File path */
   filePath: string;
   /** File size in bytes */
@@ -97,7 +97,7 @@ export class CacheManager {
   private config: CacheManagerConfig;
   private domainCache: Map<string, DomainAnalysisCacheEntry> = new Map();
   private fileCache: Map<string, FileAnalysisCacheEntry> = new Map();
-  private thermalCache: Map<string, CacheEntry<any>> = new Map();
+  private thermalCache: Map<string, CacheEntry<unknown>> = new Map();
 
   constructor(config?: Partial<CacheManagerConfig>) {
     this.config = {
@@ -158,7 +158,7 @@ export class CacheManager {
    * @param fileHash - Hash of file content for invalidation
    * @returns Promise<void>
    */
-  async setFileAnalysis(filePath: string, data: any, fileHash: string): Promise<void> {
+  async setFileAnalysis(filePath: string, data: unknown, fileHash: string): Promise<void> {
     if (!this.config.enabled) {
       return;
     }
@@ -191,7 +191,7 @@ export class CacheManager {
    * @param currentFileHash - Current hash of file content for validation
    * @returns Promise<any | null> - Cached data or null if invalid/missing
    */
-  async getFileAnalysis(filePath: string, currentFileHash: string): Promise<any | null> {
+  async getFileAnalysis(filePath: string, currentFileHash: string): Promise<unknown | null> {
     if (!this.config.enabled) {
       return null;
     }
@@ -232,7 +232,7 @@ export class CacheManager {
    * @param schemaHash - Hash of schema for invalidation
    * @returns Promise<void>
    */
-  async setDomainAnalysis(domainName: string, data: any, schemaHash: string): Promise<void> {
+  async setDomainAnalysis(domainName: string, data: unknown, schemaHash: string): Promise<void> {
     if (!this.config.enabled) {
       return;
     }
@@ -264,7 +264,7 @@ export class CacheManager {
    * @param currentSchemaHash - Current schema hash for validation
    * @returns Promise<any | null> - Cached data or null if invalid/missing
    */
-  async getDomainAnalysis(domainName: string, currentSchemaHash: string): Promise<any | null> {
+  async getDomainAnalysis(domainName: string, currentSchemaHash: string): Promise<unknown | null> {
     if (!this.config.enabled) {
       return null;
     }
@@ -304,13 +304,13 @@ export class CacheManager {
    * @param data - Thermal data to cache
    * @returns Promise<void>
    */
-  async setThermalData(key: string, data: any): Promise<void> {
+  async setThermalData(key: string, data: unknown): Promise<void> {
     if (!this.config.enabled) {
       return;
     }
 
     try {
-      const entry: CacheEntry<any> = {
+      const entry: CacheEntry<unknown> = {
         data,
         contentHash: crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex'),
         createdAt: Date.now(),
@@ -331,7 +331,7 @@ export class CacheManager {
    * @param key - Cache key
    * @returns Promise<any | null> - Cached data or null if missing
    */
-  async getThermalData(key: string): Promise<any | null> {
+  async getThermalData(key: string): Promise<unknown | null> {
     if (!this.config.enabled) {
       return null;
     }
