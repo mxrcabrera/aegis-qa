@@ -38,6 +38,7 @@ import { Phase14GitHygiene } from '../phases/phase-14b-git-hygiene.js';
 import { Phase15CICDDevOps } from '../phases/phase-15a-cicd-devops.js';
 import { Phase15BCloudInfra } from '../phases/phase-15c-cloud-infra.js';
 import { Phase15CContainerization } from '../phases/phase-15d-containerization.js';
+import { Phase20IntelligentROIReport, type Phase20Result } from '../phases/phase-20-intelligent-roi-report.js';
 import { FileFilter } from '../core/file-filter.js';
 import { IgnoreHandler } from '../core/ignore-handler.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
@@ -2458,9 +2459,53 @@ export class PhaseOrchestrator {
 
     const overallSuccess = phaseResults.every(result => result.success);
 
-    console.log(`\nԣ� Full Review Complete`);
-    console.log(`���� Total Findings: ${totalFindings}`);
-    console.log(`�Ŧ���  Total Time: ${(executionTimeMs / 1000).toFixed(2)}s\n`);
+    console.log(`\n Full Review Complete`);
+    console.log(` Total Findings: ${totalFindings}`);
+    console.log(`  Total Time: ${(executionTimeMs / 1000).toFixed(2)}s\n`);
+
+    // Phase 20: Intelligent ROI Report - Executive Report with Time Savings
+    console.log(' Phase 20: Intelligent ROI Report - Executive Report Generation');
+
+    try {
+      // Get findings from ReportAggregator (from phases 0-15)
+      const allViolations = this.config.reportAggregator.getAllViolations();
+      const allFindings = Array.from(allViolations.values()).flat().map((v) => ({
+        type: v.type,
+        filePath: v.file.path,
+        severity: v.severity === 'none' ? 'low' : v.severity as 'critical' | 'high' | 'medium' | 'low',
+        inCorePath: v.file.inCriticalPath,
+      }));
+
+      const phase20IntelligentROIReport = new Phase20IntelligentROIReport({
+        projectRoot: this.config.projectRoot,
+        thermalController: this.config.thermalController,
+        statePersistence: this.config.statePersistence,
+        currentState: this.config.currentState,
+        allFindings,
+        // Phase 18 and 17 results not available in runFullReview() context
+        // Phase 20 will generate report based on findings from phases 0-15
+      });
+
+      const timeoutMs = this.config.phaseTimeoutMs || 300000;
+      const phase20Result: Phase20Result = await this.runWithTimeout(
+        () => phase20IntelligentROIReport.execute(),
+        timeoutMs,
+        'Phase 20: Intelligent ROI Report'
+      );
+
+      if (phase20Result.success) {
+        console.log(` Phase 20: Intelligent ROI Report passed`);
+        console.log(`  Report: ${phase20Result.reportPath}`);
+        console.log(`  Time saved: ${phase20Result.totalTimeSavedHours.toFixed(2)} hours\n`);
+      } else {
+        console.warn(` Phase 20 failed: ${phase20Result.error}`);
+        console.warn(` Continuing without ROI report...\n`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(` Phase 20 failed with exception: ${errorMessage}`);
+      console.warn(` Continuing without ROI report...\n`);
+    }
 
     return {
       success: overallSuccess,

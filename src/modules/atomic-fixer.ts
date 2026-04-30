@@ -901,7 +901,7 @@ export class AtomicFixer {
   /**
    * Apply a fix with safety gate
    */
-  private async applyFix(fix: Fix): Promise<FixResult> {
+  public async applyFix(fix: Fix): Promise<FixResult> {
     const result: FixResult = {
       fix,
       applied: false

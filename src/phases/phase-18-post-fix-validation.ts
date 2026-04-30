@@ -18,6 +18,8 @@ import * as path from 'path';
 import { execSafe } from '../core/command-sanitizer.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
+import { type MultiFixExecutionResult } from './phase-17-multi-fix-execution.js';
+import { type FixStrategy } from './phase-16-fix-strategy-generation.js';
 
 /**
  * Post-fix validation result
@@ -39,6 +41,26 @@ interface PostFixValidationResult {
   backupFoldersCleaned: number;
   /** Cooldown applied */
   cooldownApplied: boolean;
+  /** Fix validation results */
+  fixValidationResults: FixValidationResult[];
+}
+
+/**
+ * Fix validation result
+ */
+interface FixValidationResult {
+  /** Fix ID */
+  fixId: string;
+  /** File path */
+  filePath: string;
+  /** Validation status */
+  status: 'verified' | 'regressive' | 'manual-review-required';
+  /** Syntax valid */
+  syntaxValid: boolean;
+  /** Pattern resolved */
+  patternResolved: boolean;
+  /** Error message if any */
+  error?: string;
 }
 
 /**
@@ -116,6 +138,10 @@ interface Phase18Config {
   statePersistence: StatePersistence;
   /** Current execution state */
   currentState: ExecutionState;
+  /** Multi-fix execution result from Phase 17 */
+  multiFixResult: MultiFixExecutionResult;
+  /** Fix plan from Phase 16 */
+  fixPlan: FixStrategy[];
 }
 
 /**
@@ -191,6 +217,9 @@ export class Phase18PostFixValidation {
       // Step 6: Hardware Guard (The Big Breath)
       await this.performBigBreath();
 
+      // Step 7: Validate individual fixes
+      const fixValidationResults = await this.validateIndividualFixes();
+
       const validationResult: PostFixValidationResult = {
         globalIntegrityStatus: integrityCheck.status,
         preFixTypeErrorCount: preFixBaseline.errorCount,
@@ -200,6 +229,7 @@ export class Phase18PostFixValidation {
         backupFilesCleaned: sanitizationResult.filesCleaned,
         backupFoldersCleaned: sanitizationResult.foldersCleaned,
         cooldownApplied: true,
+        fixValidationResults,
       };
 
       // Store Phase 18 results in StatePersistence
@@ -240,6 +270,7 @@ export class Phase18PostFixValidation {
           backupFilesCleaned: 0,
           backupFoldersCleaned: 0,
           cooldownApplied: false,
+          fixValidationResults: [],
         },
         executionTimeMs: Date.now() - startTime,
         error: errorMessage,
@@ -780,6 +811,161 @@ export class Phase18PostFixValidation {
       }
     } catch (error: unknown) {
       console.warn('WARNING Failed to perform Big Breath:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  /**
+   * Validates individual fixes (syntax, resolution, regressions)
+   *
+   * @private
+   * @returns Promise<FixValidationResult[]> - Fix validation results
+   */
+  private async validateIndividualFixes(): Promise<FixValidationResult[]> {
+    console.log('INFO Validating individual fixes...\n');
+    const validationResults: FixValidationResult[] = [];
+
+    // Get modified files from fix plan
+    const modifiedFiles = new Set<string>();
+    for (const fix of this.config.fixPlan) {
+      if (fix.file) {
+        modifiedFiles.add(fix.file);
+      }
+    }
+
+    console.log(`INFO Checking ${modifiedFiles.size} modified files\n`);
+
+    // Validate each fix
+    for (const fix of this.config.fixPlan) {
+      const result: FixValidationResult = {
+        fixId: fix.id,
+        filePath: fix.file,
+        status: 'manual-review-required',
+        syntaxValid: false,
+        patternResolved: false,
+      };
+
+      try {
+        // Step 1: Syntax validation
+        const syntaxValid = await this.validateSyntax(fix.file);
+        result.syntaxValid = syntaxValid;
+
+        if (!syntaxValid) {
+          result.status = 'regressive';
+          result.error = 'Syntax error detected after fix';
+          console.log(`REGRESSIVE Fix ${fix.id} for ${fix.file} - syntax error`);
+          validationResults.push(result);
+          continue;
+        }
+
+        // Step 2: Pattern resolution confirmation
+        const patternResolved = await this.confirmPatternResolution(fix);
+        result.patternResolved = patternResolved;
+
+        if (patternResolved) {
+          result.status = 'verified';
+          console.log(`VERIFIED Fix ${fix.id} for ${fix.file} - pattern resolved`);
+        } else {
+          result.status = 'manual-review-required';
+          result.error = 'Pattern not resolved - manual review required';
+          console.log(`MANUAL-REVIEW Fix ${fix.id} for ${fix.file} - pattern not resolved`);
+        }
+
+        validationResults.push(result);
+      } catch (error) {
+        result.status = 'regressive';
+        result.error = error instanceof Error ? error.message : 'unknown error';
+        console.error(`ERROR Fix ${fix.id} validation failed:`, result.error);
+        validationResults.push(result);
+      }
+    }
+
+    // Summary
+    const verified = validationResults.filter(r => r.status === 'verified').length;
+    const regressive = validationResults.filter(r => r.status === 'regressive').length;
+    const manualReview = validationResults.filter(r => r.status === 'manual-review-required').length;
+
+    console.log(`\nINFO Fix Validation Summary:`);
+    console.log(`INFO Verified: ${verified}`);
+    console.log(`INFO Regressive: ${regressive}`);
+    console.log(`INFO Manual Review Required: ${manualReview}\n`);
+
+    return validationResults;
+  }
+
+  /**
+   * Validates syntax of a file
+   *
+   * @private
+   * @param filePath - File path
+   * @returns Promise<boolean> - Whether syntax is valid
+   */
+  private async validateSyntax(filePath: string): Promise<boolean> {
+    const fullPath = path.join(this.config.projectRoot, filePath);
+    const ext = path.extname(filePath).toLowerCase();
+
+    try {
+      // For TypeScript files, use tsc --noEmit
+      if (['.ts', '.tsx'].includes(ext)) {
+        try {
+          await execSafe('npx', ['tsc', '--noEmit', fullPath], { cwd: this.config.projectRoot });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      // For JavaScript files, use eslint --no-eslintrc
+      if (['.js', '.jsx'].includes(ext)) {
+        try {
+          await execSafe('npx', ['eslint', '--no-eslintrc', fullPath], { cwd: this.config.projectRoot });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      // For other files, just check if file is readable
+      try {
+        fs.readFileSync(fullPath, 'utf-8');
+        return true;
+      } catch {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Confirms pattern resolution by comparing current state with original finding
+   *
+   * @private
+   * @param fix - Fix strategy
+   * @returns Promise<boolean> - Whether pattern is resolved
+   */
+  private async confirmPatternResolution(fix: FixStrategy): Promise<boolean> {
+    const fullPath = path.join(this.config.projectRoot, fix.file);
+
+    try {
+      const currentContent = fs.readFileSync(fullPath, 'utf-8');
+
+      // Check if original problematic pattern still exists
+      if (fix.originalContent && !currentContent.includes(fix.originalContent)) {
+        // Original pattern no longer exists - likely resolved
+        return true;
+      }
+
+      // Check if proposed content was applied
+      if (fix.proposedContent && currentContent.includes(fix.proposedContent)) {
+        // Proposed content exists - likely applied
+        return true;
+      }
+
+      // For more complex patterns, could use regex matching here
+      // For now, use simple string matching
+      return false;
+    } catch {
+      return false;
     }
   }
 

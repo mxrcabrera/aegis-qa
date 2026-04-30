@@ -21,17 +21,7 @@ import { getFileSystem } from '../core/write-guard.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
 import { validatePath, sanitizeError } from '../core/security-utils.js';
-
-/**
- * Finding complexity
- */
-enum FindingComplexity {
-  CORE = 'core', // 30 minutes per finding
-  BUSINESS = 'business', // 20 minutes per finding
-  SECURITY = 'security', // 15 minutes per finding
-  STYLE = 'style', // 5 minutes per finding
-  LOW = 'low', // 2 minutes per finding
-}
+import { type MultiFixExecutionResult } from './phase-17-multi-fix-execution.js';
 
 /**
  * Phase 20 configuration
@@ -49,6 +39,26 @@ interface Phase20Config {
   allFindings: Finding[];
   /** Fix results from Phase 17 */
   fixResults?: FixResult[];
+  /** Multi-fix execution result from Phase 17 */
+  multiFixResult?: MultiFixExecutionResult;
+  /** Post-fix validation result from Phase 18 */
+  postFixValidationResult?: {
+    globalIntegrityStatus: 'passed' | 'GLOBAL_INTEGRITY_COMPROMISED';
+    preFixTypeErrorCount: number;
+    postFixTypeErrorCount: number;
+    newTypeErrors: number;
+    regressions: unknown[];
+    fixValidationResults?: unknown[];
+  };
+  /** Circuit breaker monitoring data */
+  circuitBreakerData?: {
+    monitoringCount: number;
+    blockCount: number;
+  };
+  /** WriteGuard blocking data */
+  writeGuardData?: {
+    blockCount: number;
+  };
 }
 
 /**
@@ -81,8 +91,20 @@ interface ROIResult {
   totalTimeSavedMinutes: number;
   /** Total time saved in hours */
   totalTimeSavedHours: number;
-  /** Complexity breakdown */
-  complexityBreakdown: Record<string, number>;
+  /** Severity breakdown */
+  severityBreakdown: Record<string, number>;
+  /** Risk reduction percentage */
+  riskReductionPercentage: number;
+  /** Initial risk score */
+  initialRiskScore: number;
+  /** Post-remediation risk score */
+  postRemediationRiskScore: number;
+  /** Audit consolidation */
+  auditConsolidation: {
+    circuitBreakerMonitoringCount: number;
+    circuitBreakerBlockCount: number;
+    writeGuardBlockCount: number;
+  };
 }
 
 /**
@@ -211,93 +233,147 @@ export class Phase20IntelligentROIReport {
    * @returns ROIResult - ROI calculation result
    */
   private calculateROI(): ROIResult {
-    const complexityBreakdown: Record<string, number> = {
-      core: 0,
-      business: 0,
-      security: 0,
-      style: 0,
+    const severityBreakdown: Record<string, number> = {
+      critical: 0,
+      high: 0,
+      medium: 0,
       low: 0,
     };
 
     let totalTimeSavedMinutes = 0;
 
+    // Calculate time saved based on severity
     for (const finding of this.config.allFindings) {
-      const complexity = this.determineComplexity(finding);
-      const timePerFinding = this.getTimePerFinding(complexity);
-      
-      complexityBreakdown[complexity]++;
+      const severity = finding.severity || 'low';
+      const timePerFinding = this.getTimePerSeverity(severity);
+
+      severityBreakdown[severity]++;
       totalTimeSavedMinutes += timePerFinding;
     }
+
+    // Calculate risk reduction
+    const initialRiskScore = this.calculateInitialRiskScore();
+    const postRemediationRiskScore = this.calculatePostRemediationRiskScore();
+    const riskReductionPercentage = initialRiskScore > 0
+      ? ((initialRiskScore - postRemediationRiskScore) / initialRiskScore) * 100
+      : 0;
+
+    // Audit consolidation
+    const auditConsolidation = {
+      circuitBreakerMonitoringCount: this.config.circuitBreakerData?.monitoringCount || 0,
+      circuitBreakerBlockCount: this.config.circuitBreakerData?.blockCount || 0,
+      writeGuardBlockCount: this.config.writeGuardData?.blockCount || 0,
+    };
 
     return {
       totalTimeSavedMinutes,
       totalTimeSavedHours: totalTimeSavedMinutes / 60,
-      complexityBreakdown,
+      severityBreakdown,
+      riskReductionPercentage,
+      initialRiskScore,
+      postRemediationRiskScore,
+      auditConsolidation,
     };
   }
 
   /**
-   * Determines finding complexity
+   * Calculates initial risk score based on findings
    *
    * @private
-   * @param finding - Finding object
-   * @returns Finding complexity
+   * @returns number - Initial risk score
    */
-  private determineComplexity(finding: Finding): FindingComplexity {
-    // Determine complexity based on finding type and severity
-    const type = finding.type || '';
-    const severity = finding.severity || '';
-
-    // Core issues (business logic, database)
-    if (type.includes('business') || type.includes('database') || type.includes('api')) {
-      return FindingComplexity.CORE;
+  private calculateInitialRiskScore(): number {
+    let score = 0;
+    for (const finding of this.config.allFindings) {
+      const severity = finding.severity || 'low';
+      score += this.getSeverityWeight(severity);
     }
-
-    // Security issues
-    if (type.includes('security') || severity === 'critical') {
-      return FindingComplexity.SECURITY;
-    }
-
-    // Business logic
-    if (type.includes('logic') || type.includes('domain')) {
-      return FindingComplexity.BUSINESS;
-    }
-
-    // Style issues
-    if (type.includes('style') || type.includes('formatting') || severity === 'low') {
-      return FindingComplexity.STYLE;
-    }
-
-    // Default to low
-    return FindingComplexity.LOW;
+    return score;
   }
 
   /**
-   * Gets time per finding based on complexity
+   * Calculates post-remediation risk score
    *
    * @private
-   * @param complexity - Finding complexity
-   * @returns number - Time in minutes
+   * @returns number - Post-remediation risk score
    */
-  private getTimePerFinding(complexity: FindingComplexity): number {
-    switch (complexity) {
-      case FindingComplexity.CORE:
-        return 30; // 30 minutes
-      case FindingComplexity.BUSINESS:
-        return 20; // 20 minutes
-      case FindingComplexity.SECURITY:
-        return 15; // 15 minutes
-      case FindingComplexity.STYLE:
-        return 5; // 5 minutes
-      case FindingComplexity.LOW:
-        return 2; // 2 minutes
+  private calculatePostRemediationRiskScore(): number {
+    let score = 0;
+
+    // If Phase 18 validation results are available, use them
+    if (this.config.postFixValidationResult?.fixValidationResults) {
+      const fixValidationResults = this.config.postFixValidationResult.fixValidationResults as Array<{
+        status: string;
+      }>;
+
+      // Count verified fixes as resolved
+      const verifiedCount = fixValidationResults.filter(r => r.status === 'verified').length;
+      const regressiveCount = fixValidationResults.filter(r => r.status === 'regressive').length;
+
+      // Start with initial score
+      score = this.calculateInitialRiskScore();
+
+      // Subtract verified fixes (they're resolved)
+      score -= verifiedCount * 10; // Assume each verified fix reduces risk by 10 points
+
+      // Add regressive fixes (they introduced new issues)
+      score += regressiveCount * 15; // Each regressive fix adds 15 points of risk
+    } else {
+      // Fallback: use initial score minus fixes applied
+      score = this.calculateInitialRiskScore();
+      const fixesApplied = this.config.multiFixResult?.fixesApplied || 0;
+      score -= fixesApplied * 10;
+    }
+
+    return Math.max(0, score);
+  }
+
+  /**
+   * Gets severity weight for risk calculation
+   *
+   * @private
+   * @param severity - Severity level
+   * @returns number - Weight value
+   */
+  private getSeverityWeight(severity: string): number {
+    switch (severity) {
+      case 'critical':
+        return 50;
+      case 'high':
+        return 30;
+      case 'medium':
+        return 15;
+      case 'low':
+        return 5;
       default:
         return 5;
     }
   }
 
   /**
-   * Generates executive report
+   * Gets time per finding based on severity
+   *
+   * @private
+   * @param severity - Severity level
+   * @returns number - Time in minutes
+   */
+  private getTimePerSeverity(severity: string): number {
+    switch (severity) {
+      case 'critical':
+        return 240; // 4 hours (240 minutes)
+      case 'high':
+        return 120; // 2 hours (120 minutes)
+      case 'medium':
+        return 60; // 1 hour (60 minutes)
+      case 'low':
+        return 30; // 30 minutes
+      default:
+        return 30;
+    }
+  }
+
+  /**
+   * Generates executive report (multi-format: JSON and Markdown)
    *
    * @private
    * @param roi - ROI calculation result
@@ -305,12 +381,15 @@ export class Phase20IntelligentROIReport {
    */
   private generateReport(roi: ROIResult): string {
     const reportPath = path.join(this.config.projectRoot, 'qa-report.md');
+    const jsonReportPath = path.join(this.config.projectRoot, 'qa-report.json');
 
-    // Generate report content
-    let report = this.generateReportContent(roi);
+    // Generate JSON report (for machines)
+    const jsonReport = this.generateJSONReport(roi);
+    const censoredJsonReport = this.censorSecrets(jsonReport);
 
-    // Apply Self-Destruct Secure Mode (censor secrets)
-    report = this.censorSecrets(report);
+    // Generate Markdown report (for humans)
+    const markdownReport = this.generateReportContent(roi);
+    const censoredMarkdownReport = this.censorSecrets(markdownReport);
 
     // Check if file system is in read-only mode (no-write mode)
     const fileSystem = getFileSystem();
@@ -319,25 +398,93 @@ export class Phase20IntelligentROIReport {
       console.log('\n' + '='.repeat(60));
       console.log('QA REPORT (Read-Only Mode)');
       console.log('='.repeat(60));
-      console.log(report);
+      console.log('\n--- JSON Report ---\n');
+      console.log(censoredJsonReport);
+      console.log('\n--- Markdown Report ---\n');
+      console.log(censoredMarkdownReport);
       console.log('='.repeat(60) + '\n');
       return '<stdout>';
     }
 
-    // Write report
-    fileSystem.writeFileSync(reportPath, report, 'utf-8');
+    // Write JSON report
+    fileSystem.writeFileSync(jsonReportPath, censoredJsonReport, 'utf-8');
+    console.log(`INFO JSON report generated: ${jsonReportPath}`);
 
-    // Save timestamped copy to .sentinel/reports/ for longitudinal analysis
+    // Write Markdown report
+    fileSystem.writeFileSync(reportPath, censoredMarkdownReport, 'utf-8');
+    console.log(`INFO Markdown report generated: ${reportPath}`);
+
+    // Save timestamped copies to .sentinel/reports/ for longitudinal analysis
     const sentinelDir = path.join(this.config.projectRoot, '.sentinel', 'reports');
     if (!fs.existsSync(sentinelDir)) {
       fs.mkdirSync(sentinelDir, { recursive: true });
     }
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const timestampedPath = path.join(sentinelDir, `qa-report-${timestamp}.md`);
-    fs.copyFileSync(reportPath, timestampedPath);
-    console.log(`INFO Timestamped report saved to: ${timestampedPath}`);
+    const timestampedJsonPath = path.join(sentinelDir, `qa-report-${timestamp}.json`);
+    const timestampedMdPath = path.join(sentinelDir, `qa-report-${timestamp}.md`);
+    fs.copyFileSync(jsonReportPath, timestampedJsonPath);
+    fs.copyFileSync(reportPath, timestampedMdPath);
+    console.log(`INFO Timestamped reports saved to: ${sentinelDir}`);
 
     return reportPath;
+  }
+
+  /**
+   * Generates JSON report (for machines)
+   *
+   * @private
+   * @param roi - ROI calculation result
+   * @returns string - JSON report content
+   */
+  private generateJSONReport(roi: ROIResult): string {
+    const timestamp = new Date().toISOString();
+    const totalFindings = this.config.allFindings.length;
+    const criticalFindings = this.config.allFindings.filter((f) => f.severity === 'critical').length;
+    const highSeverityFindings = this.config.allFindings.filter((f) => f.severity === 'high').length;
+    const fixesApplied = this.config.multiFixResult?.fixesApplied || 0;
+    const fixesFailed = this.config.multiFixResult?.fixesFailed || 0;
+    const fixesSkipped = this.config.multiFixResult?.fixesSkipped || 0;
+
+    const report = {
+      metadata: {
+        generated: timestamp,
+        project: path.basename(this.config.projectRoot),
+        version: '1.0.0',
+      },
+      summary: {
+        totalFindings,
+        criticalFindings,
+        highSeverityFindings,
+        fixesApplied,
+        fixesFailed,
+        fixesSkipped,
+        totalTimeSavedMinutes: roi.totalTimeSavedMinutes,
+        totalTimeSavedHours: roi.totalTimeSavedHours,
+        riskReductionPercentage: roi.riskReductionPercentage,
+      },
+      severityBreakdown: roi.severityBreakdown,
+      riskAnalysis: {
+        initialRiskScore: roi.initialRiskScore,
+        postRemediationRiskScore: roi.postRemediationRiskScore,
+        riskReductionPercentage: roi.riskReductionPercentage,
+      },
+      auditConsolidation: roi.auditConsolidation,
+      phase18Validation: {
+        globalIntegrityStatus: this.config.postFixValidationResult?.globalIntegrityStatus || 'N/A',
+        preFixTypeErrorCount: this.config.postFixValidationResult?.preFixTypeErrorCount || 0,
+        postFixTypeErrorCount: this.config.postFixValidationResult?.postFixTypeErrorCount || 0,
+        newTypeErrors: this.config.postFixValidationResult?.newTypeErrors || 0,
+        regressionsDetected: this.config.postFixValidationResult?.regressions?.length || 0,
+      },
+      findingsBySeverity: {
+        critical: criticalFindings,
+        high: highSeverityFindings,
+        medium: this.config.allFindings.filter((f) => f.severity === 'medium').length,
+        low: this.config.allFindings.filter((f) => f.severity === 'low').length,
+      },
+    };
+
+    return JSON.stringify(report, null, 2);
   }
 
   /**
@@ -352,7 +499,9 @@ export class Phase20IntelligentROIReport {
     const totalFindings = this.config.allFindings.length;
     const criticalFindings = this.config.allFindings.filter((f) => f.severity === 'critical').length;
     const highSeverityFindings = this.config.allFindings.filter((f) => f.severity === 'high').length;
-    const fixesApplied = this.config.fixResults?.filter((r) => r.success).length || 0;
+    const fixesApplied = this.config.multiFixResult?.fixesApplied || 0;
+    const fixesFailed = this.config.multiFixResult?.fixesFailed || 0;
+    const fixesSkipped = this.config.multiFixResult?.fixesSkipped || 0;
 
     return `# Aegis QA - Executive ROI Report
 
@@ -369,17 +518,42 @@ This report provides a comprehensive analysis of code quality findings and the e
 - **Critical Findings:** ${criticalFindings}
 - **High Severity Findings:** ${highSeverityFindings}
 - **Fixes Applied:** ${fixesApplied}
+- **Fixes Failed:** ${fixesFailed}
+- **Fixes Skipped:** ${fixesSkipped}
 - **Total Time Saved:** ${roi.totalTimeSavedHours.toFixed(2)} hours (${roi.totalTimeSavedMinutes} minutes)
+- **Risk Reduction:** ${roi.riskReductionPercentage.toFixed(1)}%
 
-## Complexity Breakdown
+## Severity Breakdown
 
-| Complexity | Count | Time per Finding | Total Time Saved |
-|------------|-------|-----------------|------------------|
-| Core (Business Logic, Database) | ${roi.complexityBreakdown.core} | 30 min | ${(roi.complexityBreakdown.core * 30).toFixed(0)} min |
-| Business (Domain, Logic) | ${roi.complexityBreakdown.business} | 20 min | ${(roi.complexityBreakdown.business * 20).toFixed(0)} min |
-| Security | ${roi.complexityBreakdown.security} | 15 min | ${(roi.complexityBreakdown.security * 15).toFixed(0)} min |
-| Style (Formatting, Low Severity) | ${roi.complexityBreakdown.style} | 5 min | ${(roi.complexityBreakdown.style * 5).toFixed(0)} min |
-| Low | ${roi.complexityBreakdown.low} | 2 min | ${(roi.complexityBreakdown.low * 2).toFixed(0)} min |
+| Severity | Count | Time per Finding | Total Time Saved |
+|----------|-------|-----------------|------------------|
+| Critical | ${roi.severityBreakdown.critical} | 4h (240 min) | ${(roi.severityBreakdown.critical * 240).toFixed(0)} min |
+| High | ${roi.severityBreakdown.high} | 2h (120 min) | ${(roi.severityBreakdown.high * 120).toFixed(0)} min |
+| Medium | ${roi.severityBreakdown.medium} | 1h (60 min) | ${(roi.severityBreakdown.medium * 60).toFixed(0)} min |
+| Low | ${roi.severityBreakdown.low} | 30 min | ${(roi.severityBreakdown.low * 30).toFixed(0)} min |
+
+## Risk Analysis
+
+- **Initial Risk Score:** ${roi.initialRiskScore}
+- **Post-Remediation Risk Score:** ${roi.postRemediationRiskScore}
+- **Risk Reduction:** ${roi.riskReductionPercentage.toFixed(1)}%
+
+## Audit Consolidation
+
+### System Protections
+
+| Protection | Monitoring Count | Block Count |
+|------------|------------------|-------------|
+| Circuit Breaker | ${roi.auditConsolidation.circuitBreakerMonitoringCount} | ${roi.auditConsolidation.circuitBreakerBlockCount} |
+| WriteGuard | N/A | ${roi.auditConsolidation.writeGuardBlockCount} |
+
+### Phase 18 Validation Results
+
+- **Global Integrity Status:** ${this.config.postFixValidationResult?.globalIntegrityStatus || 'N/A'}
+- **Pre-fix Type Errors:** ${this.config.postFixValidationResult?.preFixTypeErrorCount || 0}
+- **Post-fix Type Errors:** ${this.config.postFixValidationResult?.postFixTypeErrorCount || 0}
+- **New Type Errors:** ${this.config.postFixValidationResult?.newTypeErrors || 0}
+- **Regressions Detected:** ${this.config.postFixValidationResult?.regressions?.length || 0}
 
 ## Findings by Severity
 
@@ -396,6 +570,7 @@ This report provides a comprehensive analysis of code quality findings and the e
 2. **Security Review:** Conduct thorough security review for all security-related findings
 3. **Code Quality:** Establish regular code review practices to prevent accumulation of style issues
 4. **Automation:** Consider integrating Aegis QA into CI/CD pipeline for continuous monitoring
+5. **Risk Management:** Monitor risk reduction trends and adjust remediation strategies accordingly
 
 ## Next Steps
 

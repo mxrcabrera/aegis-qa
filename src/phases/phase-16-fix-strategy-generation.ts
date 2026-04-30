@@ -55,28 +55,70 @@ interface Finding {
   id: string;
   /** File path */
   filePath: string;
-  /** Suggested fix */
-  suggestion?: string;
+  /** Line number */
+  line?: number;
+  /** Severity level */
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  /** Confidence score (0-1) */
+  confidence: number;
+  /** Risk level */
+  riskLevel: 'safe' | 'moderate' | 'risky';
+  /** Description */
+  description: string;
+  /** Original content */
+  originalContent: string;
+  /** Proposed content */
+  proposedContent: string;
+  /** Fix type */
+  type: 'i18n' | 'a11y' | 'environment' | 'clean-code';
+  /** Fix category */
+  category: 'atomic' | 'refactoring';
+  /** Whether fix is in core path */
+  isCorePath: boolean;
 }
 
 /**
- * Fix strategy
+ * Fix strategy - compatible with AtomicFixer Fix interface
  */
 export interface FixStrategy {
   /** Finding ID */
-  findingId: string;
+  id: string;
+  /** Violation ID for traceability */
+  violationId?: string;
+  /** Fix type */
+  type: 'i18n' | 'a11y' | 'environment' | 'clean-code';
+  /** Fix category */
+  category: 'atomic' | 'refactoring';
+  /** Severity level */
+  severity: 'critical' | 'high' | 'medium' | 'low';
   /** File to fix */
-  filePath: string;
-  /** Safety level */
+  file: string;
+  /** Line number */
+  line?: number;
+  /** Description */
+  description: string;
+  /** Original content */
+  originalContent: string;
+  /** Proposed content */
+  proposedContent: string;
+  /** Whether fix can be auto-applied */
+  autoApply: boolean;
+  /** Whether fix requires confirmation */
+  requiresConfirmation: boolean;
+  /** Whether fix is in core path */
+  isCorePath: boolean;
+  /** Confidence score (0-1) */
+  confidence: number;
+  /** Risk level */
+  riskLevel: 'safe' | 'moderate' | 'risky';
+  /** Safety level from dependency analysis */
   safetyLevel: SafetyLevel;
   /** Recommended approach */
   approach: 'direct' | 'careful' | 'manual' | 'skip';
-  /** Risk assessment */
-  risk: 'low' | 'medium' | 'high' | 'critical';
-  /** Suggested fix */
-  suggestedFix: string;
-  /** Blast radius */
+  /** Blast radius (number of dependents) */
   blastRadius: number;
+  /** Priority score for ordering */
+  priorityScore: number;
 }
 
 /**
@@ -93,6 +135,10 @@ interface Phase16Config {
   currentState: ExecutionState;
   /** Findings from previous phases */
   findings: Finding[];
+  /** Minimum confidence threshold (0-1) */
+  minConfidence?: number;
+  /** Maximum risk level allowed */
+  maxRisk?: 'safe' | 'moderate' | 'risky';
 }
 
 /**
@@ -399,6 +445,21 @@ export class Phase16FixStrategyGeneration {
     const strategies: FixStrategy[] = [];
 
     for (const finding of this.config.findings) {
+      // Filter by minConfidence
+      if (this.config.minConfidence !== undefined && finding.confidence < this.config.minConfidence) {
+        continue;
+      }
+
+      // Filter by maxRisk
+      if (this.config.maxRisk !== undefined) {
+        const riskOrder: Record<string, number> = { safe: 0, moderate: 1, risky: 2 };
+        const maxRiskOrder = riskOrder[this.config.maxRisk];
+        const findingRiskOrder = riskOrder[finding.riskLevel];
+        if (findingRiskOrder > maxRiskOrder) {
+          continue;
+        }
+      }
+
       const filePath = finding.filePath;
       const fileDep = fileDependencies.find(f => f.filePath === filePath);
 
@@ -407,19 +468,62 @@ export class Phase16FixStrategyGeneration {
       }
 
       const strategy: FixStrategy = {
-        findingId: finding.id,
-        filePath,
+        id: finding.id,
+        type: finding.type,
+        category: finding.category,
+        severity: finding.severity,
+        file: filePath,
+        line: finding.line,
+        description: finding.description,
+        originalContent: finding.originalContent,
+        proposedContent: finding.proposedContent,
+        autoApply: finding.category === 'atomic' && finding.riskLevel === 'safe',
+        requiresConfirmation: finding.riskLevel !== 'safe',
+        isCorePath: finding.isCorePath,
+        confidence: finding.confidence,
+        riskLevel: finding.riskLevel,
         safetyLevel: fileDep.safetyLevel,
         approach: this.determineApproach(fileDep),
-        risk: this.determineRisk(fileDep),
-        suggestedFix: finding.suggestion || 'Review and fix issue',
         blastRadius: fileDep.importCount,
+        priorityScore: this.calculatePriorityScore(finding, fileDep),
       };
 
       strategies.push(strategy);
     }
 
-    return strategies;
+    // Sort by priority score (descending)
+    strategies.sort((a, b) => b.priorityScore - a.priorityScore);
+
+    // Group by file
+    const groupedByFile = this.groupByFile(strategies);
+
+    // Flatten grouped strategies (maintaining priority order within each file)
+    const flattened: FixStrategy[] = [];
+    for (const fileStrategies of Object.values(groupedByFile)) {
+      flattened.push(...fileStrategies);
+    }
+
+    return flattened;
+  }
+
+  /**
+   * Groups strategies by file
+   *
+   * @private
+   * @param strategies - Fix strategies
+   * @returns Record<string, FixStrategy[]> - Strategies grouped by file
+   */
+  private groupByFile(strategies: FixStrategy[]): Record<string, FixStrategy[]> {
+    const grouped: Record<string, FixStrategy[]> = {};
+
+    for (const strategy of strategies) {
+      if (!grouped[strategy.file]) {
+        grouped[strategy.file] = [];
+      }
+      grouped[strategy.file].push(strategy);
+    }
+
+    return grouped;
   }
 
   /**
@@ -427,43 +531,66 @@ export class Phase16FixStrategyGeneration {
    *
    * @private
    * @param fileDep - File dependency info
-   * @returns Fix approach
+   * @returns Approach type
    */
   private determineApproach(fileDep: FileDependencyInfo): 'direct' | 'careful' | 'manual' | 'skip' {
-    switch (fileDep.safetyLevel) {
-      case SafetyLevel.SAFE_LEVEL_1:
-        return 'direct';
-      case SafetyLevel.SAFE_LEVEL_2:
-        return 'careful';
-      case SafetyLevel.SAFE_LEVEL_3:
-        return 'manual';
-      case SafetyLevel.SAFE_LEVEL_4:
-        return 'skip';
-      default:
-        return 'manual';
+    if (fileDep.safetyLevel === SafetyLevel.SAFE_LEVEL_4) {
+      return 'skip';
     }
+    if (fileDep.safetyLevel === SafetyLevel.SAFE_LEVEL_3) {
+      return 'manual';
+    }
+    if (fileDep.safetyLevel === SafetyLevel.SAFE_LEVEL_2) {
+      return 'careful';
+    }
+    return 'direct';
   }
 
   /**
-   * Determines risk based on safety level
+   * Calculates priority score for a fix
+   *
+   * Higher score = higher priority
+   * Factors: severity (weight 3), confidence (weight 2), risk level (weight 2), blast radius (weight 1)
    *
    * @private
+   * @param finding - Finding with metadata
    * @param fileDep - File dependency info
-   * @returns Risk level
+   * @returns Priority score (0-100)
    */
-  private determineRisk(fileDep: FileDependencyInfo): 'low' | 'medium' | 'high' | 'critical' {
-    switch (fileDep.safetyLevel) {
-      case SafetyLevel.SAFE_LEVEL_1:
-        return 'low';
-      case SafetyLevel.SAFE_LEVEL_2:
-        return 'medium';
-      case SafetyLevel.SAFE_LEVEL_3:
-        return 'high';
-      case SafetyLevel.SAFE_LEVEL_4:
-        return 'critical';
-      default:
-        return 'medium';
-    }
+  private calculatePriorityScore(finding: Finding, fileDep: FileDependencyInfo): number {
+    let score = 0;
+
+    // Severity weight: 3
+    const severityWeight = 3;
+    const severityScores: Record<string, number> = {
+      critical: 100,
+      high: 75,
+      medium: 50,
+      low: 25,
+    };
+    score += (severityScores[finding.severity] || 0) * severityWeight;
+
+    // Confidence weight: 2 (higher confidence = higher priority)
+    const confidenceWeight = 2;
+    score += finding.confidence * 100 * confidenceWeight;
+
+    // Risk level weight: 2 (safer = higher priority)
+    const riskWeight = 2;
+    const riskScores: Record<string, number> = {
+      safe: 100,
+      moderate: 50,
+      risky: 0,
+    };
+    score += (riskScores[finding.riskLevel] || 0) * riskWeight;
+
+    // Blast radius weight: 1 (lower blast radius = higher priority for high-traffic files)
+    const blastRadiusWeight = 1;
+    // Invert blast radius: fewer dependents = higher priority
+    const blastRadiusScore = Math.max(0, 100 - (fileDep.importCount * 2));
+    score += blastRadiusScore * blastRadiusWeight;
+
+    // Normalize to 0-100
+    return Math.min(100, Math.max(0, score / 8));
   }
 }
 
