@@ -18,6 +18,7 @@ import * as path from 'path';
 import { execSafe } from '../core/command-sanitizer.js';
 import { ThermalController } from '../core/thermal-controller.js';
 import { StatePersistence, type ExecutionState } from '../core/state-persistence.js';
+import { getFileSystem } from '../core/write-guard.js';
 
 /**
  * Fix strategy from Phase 16
@@ -346,14 +347,14 @@ export class Phase17MultiFixExecution {
       }
 
       // Write modified content
-      fs.writeFileSync(filePath, modifiedContent, 'utf-8');
+      getFileSystem().writeFileSync(filePath, modifiedContent, 'utf-8');
 
       // Linter-Fix Loop: Run eslint --fix up to 3 times
       const linterResult = await this.runLinterFixLoop(batch.filePath);
       if (!linterResult.success) {
         console.log(`WARNING Linter-Fix Loop failed for ${batch.filePath} after 3 attempts. Rolling back...`);
         // Atomic Batch Rollback: Total rollback to pre-batch state
-        fs.writeFileSync(filePath, originalContent, 'utf-8');
+        getFileSystem().writeFileSync(filePath, originalContent, 'utf-8');
         result.applied = 0;
         result.failed = batch.strategies.length;
         return result;
@@ -369,7 +370,7 @@ export class Phase17MultiFixExecution {
       if (!verificationResult.passed) {
         // Atomic Batch Rollback: Total rollback to pre-batch state
         console.log(`WARNING Verification failed for ${batch.filePath}. Performing total rollback...`);
-        fs.writeFileSync(filePath, originalContent, 'utf-8');
+        getFileSystem().writeFileSync(filePath, originalContent, 'utf-8');
         result.applied = 0;
         result.failed = batch.strategies.length;
       } else {
@@ -414,7 +415,7 @@ export class Phase17MultiFixExecution {
         }
 
         // Write modified content
-        fs.writeFileSync(filePath, fixResult.newContent, 'utf-8');
+        getFileSystem().writeFileSync(filePath, fixResult.newContent, 'utf-8');
 
         // Smart Verification (PUNTO 2)
         const verificationResult = await this.performSmartVerification(
@@ -427,7 +428,7 @@ export class Phase17MultiFixExecution {
           result.applied++;
         } else {
           // Rollback
-          fs.writeFileSync(filePath, originalContent, 'utf-8');
+          getFileSystem().writeFileSync(filePath, originalContent, 'utf-8');
           result.failed++;
         }
       } catch (error: unknown) {

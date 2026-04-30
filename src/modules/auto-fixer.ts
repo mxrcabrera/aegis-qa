@@ -12,6 +12,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { getFileSystem } from '../core/write-guard.js';
 
 interface FixResult {
   success: boolean;
@@ -196,7 +197,7 @@ class AutoFixer {
 
         // Write the fixed content
         const newContent = lines.join("\n");
-        fs.writeFileSync(fullPath, newContent);
+        getFileSystem().writeFileSync(fullPath, newContent);
       } catch (error) {
         console.error(`UNLEASHED Error fixing ${filePath}:`, error);
         this.fixes.push({
@@ -339,7 +340,7 @@ class AutoFixer {
 
             const newContent = lines.join("\n");
 
-            fs.writeFileSync(filePath, newContent);
+            getFileSystem().writeFileSync(filePath, newContent);
           }
         }
       } catch (error) {
@@ -386,7 +387,7 @@ class AutoFixer {
             ) {
               const rlsComment = `-- TODO: Enable Row Level Security for ${table.table} table\n-- This table is currently accessible without authentication\n`;
 
-              fs.writeFileSync(filePath, rlsComment + "\n" + content);
+              getFileSystem().writeFileSync(filePath, rlsComment + "\n" + content);
 
               this.fixes.push({
                 file: schemaFile,

@@ -1431,7 +1431,7 @@ export class Phase11AtomicFixes {
     result.patchFilePath = await this.generatePatchFile(fixId, envExamplePath, '', envExampleContent);
 
     // Apply the fix
-    fs.writeFileSync(envExamplePath, envExampleContent, 'utf-8');
+    getFileSystem().writeFileSync(envExamplePath, envExampleContent, 'utf-8');
     result.applied = true;
 
     remediationResult.fixResults.push(result);
@@ -1900,7 +1900,7 @@ export class Phase11AtomicFixes {
 
     try {
       const backupContent = fs.readFileSync(fixResult.backupFilePath, 'utf-8');
-      fs.writeFileSync(fixResult.filePath, backupContent, 'utf-8');
+      getFileSystem().writeFileSync(fixResult.filePath, backupContent, 'utf-8');
       fixResult.rolledBack = true;
       fixResult.applied = false;
       console.log(`INFO Rolled back fix ${fixResult.fixId}`);
@@ -1921,12 +1921,12 @@ export class Phase11AtomicFixes {
     try {
       // Step 1: Backup - Guardar originalContent en memoria y en archivo
       const backupPath = path.join(this.config.projectRoot, `.backup.${fixId}.tmp`);
-      fs.writeFileSync(backupPath, originalContent, 'utf-8');
+      getFileSystem().writeFileSync(backupPath, originalContent, 'utf-8');
       fixResult.backupFilePath = backupPath;
       console.log(`INFO Backup created for ${fixId}`);
 
       // Step 2: Action - Aplicar el fix
-      fs.writeFileSync(filePath, newContent, 'utf-8');
+      getFileSystem().writeFileSync(filePath, newContent, 'utf-8');
       fixResult.applied = true;
       console.log(`INFO Fix ${fixId} applied to ${filePath}`);
 
@@ -1974,7 +1974,7 @@ export class Phase11AtomicFixes {
         console.log(`WARNING Build failed for ${fixId} (exit code: ${buildExitCode}). Performing rollback...`);
         
         // Rollback - restaurar el originalContent
-        fs.writeFileSync(filePath, originalContent, 'utf-8');
+        getFileSystem().writeFileSync(filePath, originalContent, 'utf-8');
         fixResult.rolledBack = true;
         fixResult.applied = false;
         fixResult.success = false;
@@ -1982,7 +1982,7 @@ export class Phase11AtomicFixes {
         
         // Clean up backup file
         if (fs.existsSync(backupPath)) {
-          fs.unlinkSync(backupPath);
+          getFileSystem().unlinkSync(backupPath);
         }
         
         console.log(`INFO Rollback completed for ${fixId}`);
@@ -2005,7 +2005,7 @@ export class Phase11AtomicFixes {
       // Attempt rollback if fix was applied
       if (fixResult.applied) {
         try {
-          fs.writeFileSync(filePath, originalContent, 'utf-8');
+          getFileSystem().writeFileSync(filePath, originalContent, 'utf-8');
           fixResult.rolledBack = true;
           fixResult.applied = false;
           console.log(`INFO Emergency rollback for ${fixId}`);

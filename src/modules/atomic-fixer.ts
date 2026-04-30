@@ -13,6 +13,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { resolveAndValidatePath } from '../core/filesystem-safety.js';
 import { ImpactAnalyzer, type ImpactScore } from './impact-analyzer.js';
+import { getFileSystem } from '../core/write-guard.js';
 
 export interface Fix {
   id: string;
@@ -986,7 +987,7 @@ export class AtomicFixer {
   private async generatePatch(fix: Fix, patchPath: string): Promise<void> {
     const patchContent = `--- ${fix.file}\n+++ ${fix.file}\n@@ -${fix.line || 1},1 +${fix.line || 1},1 @@\n-${fix.originalContent}\n+${fix.proposedContent}\n`;
     
-    fs.writeFileSync(patchPath, patchContent, 'utf-8');
+    getFileSystem().writeFileSync(patchPath, patchContent, 'utf-8');
   }
 
   /**
@@ -1003,9 +1004,9 @@ export class AtomicFixer {
       // Create new file
       const dir = path.dirname(fix.file);
       if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+        getFileSystem().mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(fix.file, fix.proposedContent, 'utf-8');
+      getFileSystem().writeFileSync(fix.file, fix.proposedContent, 'utf-8');
       return;
     }
 
@@ -1014,10 +1015,10 @@ export class AtomicFixer {
 
     if (fix.line !== undefined && fix.line > 0 && fix.line <= lines.length) {
       lines[fix.line - 1] = fix.proposedContent;
-      fs.writeFileSync(fix.file, lines.join('\n'), 'utf-8');
+      getFileSystem().writeFileSync(fix.file, lines.join('\n'), 'utf-8');
     } else {
       // Append to file
-      fs.appendFileSync(fix.file, `\n${fix.proposedContent}`, 'utf-8');
+      getFileSystem().appendFileSync(fix.file, `\n${fix.proposedContent}`, 'utf-8');
     }
   }
 
@@ -1090,10 +1091,10 @@ export class AtomicFixer {
     // Create temporary file with proposed content
     const tempDir = path.join(this.projectRoot, '.sentinel', 'temp-validation');
     if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
+      getFileSystem().mkdirSync(tempDir, { recursive: true });
     }
     const tempFilePath = path.join(tempDir, path.basename(fix.file));
-    fs.writeFileSync(tempFilePath, fix.proposedContent, 'utf-8');
+    getFileSystem().writeFileSync(tempFilePath, fix.proposedContent, 'utf-8');
 
     try {
       // Check if tsconfig.json has incremental enabled for optimization
@@ -1225,10 +1226,10 @@ export class AtomicFixer {
     const backupPath = path.join(this.diffsPath, `backup-${fix.id}.bak`);
     
     if (fs.existsSync(fix.file)) {
-      fs.copyFileSync(fix.file, backupPath);
+      getFileSystem().copyFileSync(fix.file, backupPath);
     } else {
       // File doesn't exist, create empty backup marker
-      fs.writeFileSync(backupPath, '', 'utf-8');
+      getFileSystem().writeFileSync(backupPath, '', 'utf-8');
     }
 
     return backupPath;
@@ -1247,11 +1248,11 @@ export class AtomicFixer {
 
       if (fs.existsSync(backupPath)) {
         const backupContent = fs.readFileSync(backupPath, 'utf-8');
-        fs.writeFileSync(fix.file, backupContent, 'utf-8');
+        getFileSystem().writeFileSync(fix.file, backupContent, 'utf-8');
       } else {
         // File didn't exist originally, delete it
         if (fs.existsSync(fix.file)) {
-          fs.unlinkSync(fix.file);
+          getFileSystem().unlinkSync(fix.file);
         }
       }
     } catch (error) {

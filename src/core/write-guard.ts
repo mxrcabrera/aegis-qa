@@ -107,6 +107,18 @@ export class FileSystem {
   }
 
   /**
+   * Appends data to a file synchronously
+   *
+   * @param filePath - The file path to append to
+   * @param data - The data to append
+   * @param options - File write options
+   */
+  appendFileSync(filePath: string, data: string | Buffer, options?: fs.WriteFileOptions): void {
+    this.guardWrite('appendFileSync', filePath);
+    fs.appendFileSync(filePath, data, options);
+  }
+
+  /**
    * Creates a directory synchronously
    *
    * @param dirPath - The directory path to create
