@@ -10,10 +10,16 @@
   "scripts": {
     "test": "vitest",
     "build": "tsc",
+    "build:obfuscated": "tsc && node scripts/obfuscate-build.js",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "type-check": "tsc --noEmit",
-    "aegis:review": "node dist/cli.js review ."
+    "aegis:review": "node dist/cli.js review .",
+    "build:portable": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-win-x64,node18-linux-x64,node18-macos-x64 --output binaries/",
+    "build:exe": "npm run build && pkg dist/portable-entry.js --targets node18-win-x64 --output binaries/aegis.exe",
+    "build:exe-protected": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-win-x64 --output binaries/aegis-protected.exe",
+    "build:linux": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-linux-x64 --output binaries/aegis-linux",
+    "build:mac": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-macos-x64 --output binaries/aegis-mac"
   },
   "keywords": [
     "qa",
@@ -29,6 +35,8 @@
   "dependencies": {
     "@clack/prompts": "^1.2.0",
     "@supabase/supabase-js": "^2.103.0",
+    "@types/fs-extra": "^11.0.4",
+    "axios": "^1.16.0",
     "dotenv": "^17.4.1",
     "fs-extra": "^11.2.0",
     "glob": "^13.0.6",
@@ -38,6 +46,8 @@
     "@eslint/js": "^9.18.0",
     "@vitest/ui": "^4.1.4",
     "eslint": "^10.2.0",
+    "javascript-obfuscator": "^5.4.2",
+    "pkg": "^5.8.1",
     "prettier": "^3.8.1",
     "ts-morph": "^28.0.0",
     "tsx": "^4.21.0",

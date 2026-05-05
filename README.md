@@ -261,13 +261,27 @@ When using `--audit-only` mode:
 - Automatic secret redaction for security
 - Time-saved metrics weighted by complexity
 
-## 🔒 Security Features
+## 🔒 Data Privacy & Security
+
+### 100% Local Analysis
+
+Aegis QA performs **all analysis locally** on your machine. **No source code, database schema, business logic, or any intellectual property ever leaves your environment**.
+
+- **No Telemetry**: No usage statistics, error reports, or performance metrics are transmitted
+- **No Cloud Processing**: All analysis happens on your local machine
+- **No Data Collection**: No files, code snippets, or analysis results are sent externally
+- **Offline Operation**: Full functionality without internet connection required
+
+### Security Features
 
 - **Secret Censoring** - Automatic redaction of secrets in reports
 - **State Persistence** - Secure state management
 - **File Filtering** - Respect for .gitignore and .aegisignore
 - **Atomic Fixes** - Safe, validated code modifications
 - **Dependency Blast Radius** - Protection for high-traffic files
+- **🆕 Branch Isolation** - Original branch protection through automatic branching
+
+## �️ Technology Stack
 
 ## 🧪 Development
 
@@ -297,7 +311,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing to Aegis Q
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Proprietary License - see [LICENSE](LICENSE) for details.
+
+**Important**: This software is the exclusive property of Marianella Cabrera Ahumada. Download and execution are permitted for personal use or technical evaluation purposes only. Modification, redistribution, sublicensing, or sale of the source code or its derivatives is strictly prohibited without express written permission.
 
 ## 🗺️ Roadmap
 

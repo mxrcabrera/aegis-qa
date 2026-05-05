@@ -19,6 +19,7 @@ import { DomainAnalyzer } from './inference/domain-analyzer.js';
 import { PhaseOrchestrator } from './orchestration/phase-orchestrator.js';
 import { ReportAggregator } from './core/reporter.js';
 import { StatePersistence, type ExecutionState } from './core/state-persistence.js';
+import { licenseManager } from './core/license-manager.js';
 import {
   NullDatabaseIntrospector,
   SQLFileDatabaseIntrospector,
@@ -201,6 +202,22 @@ class AegisCLI {
   async run(): Promise<void> {
     const { command, targetDir } = this.config;
 
+    // 🔒 PRIMER CHEQUEO: VALIDACIÓN DE LICENCIA
+    const licenseStatus = await licenseManager.checkLicense();
+    
+    // Mostrar mensaje de estado de licencia
+    if (!this.config.ciMode) {
+      console.log('🔒 ' + licenseStatus.message);
+      console.log('');
+    }
+
+    // Validar acceso a fases según licencia
+    if (command === 'review' && licenseStatus.isTrial) {
+      console.log('⚠️  Trial Mode: Solo se permiten fases 0-2 (3 fases de 20 disponibles)');
+      console.log('💡 Comprá la versión Full para desbloquear todas las fases: https://aegis-qa.com/upgrade');
+      console.log('');
+    }
+
     // Initialize FileSystem with write guard
     const fsMode: WriteGuardMode = this.config.noWriteMode ? 'readOnly' : 'readWrite';
     const fileSystem = new FileSystem(fsMode);
@@ -218,8 +235,8 @@ class AegisCLI {
     }
 
     if (!this.config.ciMode) {
-      console.log('�������  Aegis QA - Advanced Quality Assurance Orchestrator');
-      console.log(`���� Target Directory: ${resolve(targetDir)}\n`);
+      console.log('🛡️  Aegis QA - Advanced Quality Assurance Orchestrator');
+      console.log(`🎯 Target Directory: ${resolve(targetDir)}\n`);
     }
 
     // Initialize core components
@@ -839,5 +856,8 @@ async function main() {
     process.exit(1);
   }
 }
+
+// Export main function for portable entry point
+export { main };
 
 main();
