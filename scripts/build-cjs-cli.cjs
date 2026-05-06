@@ -7,10 +7,56 @@
 const esbuild = require('esbuild');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+
+const XOR_KEY = Buffer.from('AEGIS-QA-2024-HARDWARE-BOUND', 'utf8');
+
+/**
+ * Ofusca una string usando XOR + Base64
+ */
+function obfuscate(input) {
+  const buffer = Buffer.from(input, 'utf8');
+  const obfuscated = Buffer.alloc(buffer.length);
+  
+  for (let i = 0; i < buffer.length; i++) {
+    obfuscated[i] = buffer[i] ^ XOR_KEY[i % XOR_KEY.length];
+  }
+  
+  return obfuscated.toString('base64');
+}
+
+/**
+ * Carga variables de entorno desde .env.local
+ */
+function loadEnv() {
+  const envPath = path.join(__dirname, '..', '.env.local');
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split('\n').forEach(line => {
+      const match = line.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const [, key, value] = match;
+        process.env[key] = value.replace(/^["']|["']$/g, '');
+      }
+    });
+  }
+}
 
 async function buildCJS() {
   try {
     console.log('Building CLI to CommonJS for pkg...');
+    
+    // Cargar variables de entorno
+    loadEnv();
+    
+    // Generar token ofuscado
+    const edgeConfigUrl = process.env.EDGE_CONFIG;
+    if (!edgeConfigUrl) {
+      console.warn('⚠️  EDGE_CONFIG no encontrado, el binario funcionará en modo Trial');
+    }
+    
+    const obfuscatedToken = edgeConfigUrl ? obfuscate(edgeConfigUrl) : '';
+    console.log('🔒 Token ofuscado generado para build');
     
     // Build the CLI to CommonJS
     await esbuild.build({
@@ -29,7 +75,8 @@ async function buildCJS() {
       sourcemap: false,
       minify: false,
       define: {
-        'process.env.NODE_ENV': '"production"'
+        'process.env.NODE_ENV': '"production"',
+        'process.env.EDGE_CONFIG_OBFUSCATED': `"${obfuscatedToken}"`
       }
     });
     

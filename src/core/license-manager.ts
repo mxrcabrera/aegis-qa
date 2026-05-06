@@ -29,10 +29,28 @@ export interface LicenseStatus {
 export class LicenseManager {
   private machineId: string;
   private licensePath: string;
+  private static readonly XOR_KEY = Buffer.from('AEGIS-QA-2024-HARDWARE-BOUND', 'utf8');
 
   constructor() {
     this.machineId = this.generateMachineId();
     this.licensePath = path.join(os.homedir(), LICENSE_FILE);
+  }
+
+  /**
+   * Decodifica el Edge Config URL ofuscado
+   * 🔒 PROTEGIDO POR MARIANELLA CABRERA AHUMADA
+   */
+  private static decodeEdgeConfig(obfuscated: string): string {
+    try {
+      const buffer = Buffer.from(obfuscated, 'base64');
+      const decoded = Buffer.alloc(buffer.length);
+      for (let i = 0; i < buffer.length; i++) {
+        decoded[i] = buffer[i] ^ LicenseManager.XOR_KEY[i % LicenseManager.XOR_KEY.length];
+      }
+      return decoded.toString('utf8');
+    } catch {
+      return '';
+    }
   }
 
   /**
@@ -96,7 +114,8 @@ export class LicenseManager {
   async checkLicense(): Promise<LicenseStatus> {
     try {
       // Primero verificar Edge Config si está disponible
-      const edgeConfigUrl = process.env.EDGE_CONFIG;
+      const obfuscatedEdgeConfig = process.env.EDGE_CONFIG_OBFUSCATED || process.env.EDGE_CONFIG;
+      const edgeConfigUrl = obfuscatedEdgeConfig ? LicenseManager.decodeEdgeConfig(obfuscatedEdgeConfig) : '';
       if (edgeConfigUrl) {
         const edgeConfigResult = await this.validateEdgeConfig(edgeConfigUrl);
         if (edgeConfigResult) {
