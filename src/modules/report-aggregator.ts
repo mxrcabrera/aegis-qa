@@ -365,4 +365,5 @@ class ReportAggregator {
 }
 
 export default ReportAggregator;
-export { ReportAggregator, Violation, ViolationSummary, AuditorReport };
+export { ReportAggregator };
+export type { Violation, ViolationSummary, AuditorReport };

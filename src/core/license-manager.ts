@@ -95,6 +95,15 @@ export class LicenseManager {
    */
   async checkLicense(): Promise<LicenseStatus> {
     try {
+      // Primero verificar Edge Config si está disponible
+      const edgeConfigUrl = process.env.EDGE_CONFIG;
+      if (edgeConfigUrl) {
+        const edgeConfigResult = await this.validateEdgeConfig(edgeConfigUrl);
+        if (edgeConfigResult) {
+          return edgeConfigResult;
+        }
+      }
+
       // Verificar si existe archivo de licencia
       if (await fs.pathExists(this.licensePath)) {
         const licenseData = await fs.readJson(this.licensePath);
@@ -159,6 +168,44 @@ export class LicenseManager {
       return true;
     } catch (error) {
       return false;
+    }
+  }
+
+  /**
+   * Valida licencia vía Vercel Edge Config
+   * 🔒 PROTEGIDO POR MARIANELLA CABRERA AHUMADA
+   */
+  private async validateEdgeConfig(edgeConfigUrl: string): Promise<LicenseStatus | null> {
+    try {
+      // Leer el Edge Config completo (raíz) en lugar del endpoint específico
+      const response = await axios.get(edgeConfigUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': `Aegis-QA/${this.machineId}`
+        }
+      });
+
+      if (response.data && response.data.items && Array.isArray(response.data.items.allowed_entries)) {
+        // Buscar el machine ID en el array allowed_entries del JSON completo
+        const allowedEntry = response.data.items.allowed_entries.find((entry: any) => 
+          entry && entry.id === this.machineId
+        );
+
+        if (allowedEntry) {
+          return {
+            isTrial: false,
+            machineId: this.machineId,
+            allowedPhases: Array.from({ length: 21 }, (_, i) => i), // Fases 0-20
+            maxFiles: Infinity,
+            message: `Aegis QA (Full) por ${AUTHOR_SIGNATURE}. Machine ID: ${this.machineId}`
+          };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error validando Edge Config:', error);
+      return null;
     }
   }
 

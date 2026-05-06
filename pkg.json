@@ -1,6 +1,7 @@
 {
   "name": "aegis-qa",
   "version": "1.0.0",
+  "type": "module",
   "main": "dist/portable-entry.js",
   "bin": "dist/portable-entry.js",
   "pkg": {
@@ -11,7 +12,8 @@
       "!dist/**/*.js.map"
     ],
     "assets": [
-      "package.json"
+      "package.json",
+      "dist/**/*.js"
     ],
     "targets": [
       "node18-win-x64"

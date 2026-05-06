@@ -328,6 +328,8 @@ class DBSeeder {
 export default DBSeeder;
 export {
   DBSeeder,
+};
+export type {
   SeedResult,
   CleanupResult,
   TestStudent,

@@ -754,4 +754,5 @@ class AutoFixer {
 }
 
 export default AutoFixer;
-export { AutoFixer, FixResult, Fix, AuditResults };
+export { AutoFixer };
+export type { FixResult, Fix, AuditResults };

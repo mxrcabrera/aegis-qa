@@ -503,4 +503,5 @@ class DomainInference {
 }
 
 export default DomainInference;
-export { DomainInference, DomainModel, Entity, Field, Relationship };
+export { DomainInference };
+export type { DomainModel, Entity, Field, Relationship };

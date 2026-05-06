@@ -5,9 +5,11 @@
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "aegis-qa": "./bin/aegis-qa.js"
+    "aegis-qa": "./bin/aegis-qa.js",
+    "aegis-qa-cjs": "./bin/aegis-qa-cjs.js"
   },
   "scripts": {
+    "dev": "next dev",
     "test": "vitest",
     "build": "tsc",
     "build:obfuscated": "tsc && node scripts/obfuscate-build.js",
@@ -16,7 +18,7 @@
     "type-check": "tsc --noEmit",
     "aegis:review": "node dist/cli.js review .",
     "build:portable": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-win-x64,node18-linux-x64,node18-macos-x64 --output binaries/",
-    "build:exe": "npm run build && pkg dist/portable-entry.js --targets node18-win-x64 --output binaries/aegis.exe",
+    "build:exe": "npm run build && node scripts/build-cjs-cli.cjs && pkg bin/aegis-qa-pkg.js --targets node18-win-x64 --output binaries/aegis.exe",
     "build:exe-protected": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-win-x64 --output binaries/aegis-protected.exe",
     "build:linux": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-linux-x64 --output binaries/aegis-linux",
     "build:mac": "npm run build:obfuscated && pkg dist-obfuscated/portable-entry.js --targets node18-macos-x64 --output binaries/aegis-mac"
@@ -44,7 +46,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@types/react": "19.2.14",
     "@vitest/ui": "^4.1.4",
+    "esbuild": "^0.28.0",
     "eslint": "^10.2.0",
     "javascript-obfuscator": "^5.4.2",
     "pkg": "^5.8.1",
